@@ -4,6 +4,7 @@
 # ============================================================
 
 source /etc/zv-manager/utils/colors.sh
+source /etc/zv-manager/utils/logger.sh
 source /etc/zv-manager/utils/helpers.sh
 
 SERVER_DIR="/etc/zv-manager/servers"
@@ -49,13 +50,11 @@ connect_server() {
 
     echo ""
     print_info "Menghubungkan ke ${NAME} (${USER}@${disp_domain}:${PORT})..."
-    echo -e "  ${BYELLOW}Ketik 'exit' atau 'logout' untuk kembali ke menu.${NC}"
+    echo -e "  ${BYELLOW}Ketik 'exit' untuk kembali ke menu.${NC}"
     echo ""
     sleep 1
 
-    # Pastikan sshpass tersedia
     if ! command -v sshpass &>/dev/null; then
-        print_info "Menginstall sshpass..."
         apt-get install -y sshpass &>/dev/null
     fi
 

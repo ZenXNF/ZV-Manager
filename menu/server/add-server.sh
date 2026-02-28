@@ -4,6 +4,7 @@
 # ============================================================
 
 source /etc/zv-manager/utils/colors.sh
+source /etc/zv-manager/utils/logger.sh
 source /etc/zv-manager/utils/helpers.sh
 
 SERVER_DIR="/etc/zv-manager/servers"
@@ -26,7 +27,6 @@ add_server() {
     echo ""
     echo ""
 
-    # Default values
     [[ -z "$port" ]] && port=22
     [[ -z "$user" ]] && user=root
     [[ -z "$domain" ]] && domain="$ip"
@@ -37,22 +37,21 @@ add_server() {
         return
     }
 
-    # Cek nama duplikat
     if [[ -f "${SERVER_DIR}/${name}.conf" ]]; then
         print_error "Server '${name}' sudah ada!"
         press_any_key
         return
     fi
 
-    # Simpan dengan permission ketat
+    # Kutip ADDED agar spasi di tanggal tidak dianggap command
     cat > "${SERVER_DIR}/${name}.conf" <<CONFEOF
-NAME=${name}
-IP=${ip}
-DOMAIN=${domain}
-PORT=${port}
-USER=${user}
-PASS=${pass}
-ADDED=$(date +"%Y-%m-%d %H:%M")
+NAME="${name}"
+IP="${ip}"
+DOMAIN="${domain}"
+PORT="${port}"
+USER="${user}"
+PASS="${pass}"
+ADDED="$(date +"%Y-%m-%d %H:%M")"
 CONFEOF
     chmod 600 "${SERVER_DIR}/${name}.conf"
 

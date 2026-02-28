@@ -4,6 +4,7 @@
 # ============================================================
 
 source /etc/zv-manager/utils/colors.sh
+source /etc/zv-manager/utils/logger.sh
 source /etc/zv-manager/utils/helpers.sh
 
 SERVER_DIR="/etc/zv-manager/servers"
@@ -24,7 +25,6 @@ list_servers() {
         unset NAME IP DOMAIN PORT USER
         source "$conf"
         count=$((count + 1))
-        # Kalau domain sama dengan IP (belum diisi), tampilkan "-"
         local disp_domain="${DOMAIN:-$IP}"
         printf "  ${BGREEN}%-4s${NC} %-10s %-22s %-20s %-5s\n" \
             "${count}." "$NAME" "$disp_domain" "$IP" "$PORT"
@@ -32,7 +32,6 @@ list_servers() {
 
     if [[ $count -eq 0 ]]; then
         echo -e "  ${BYELLOW}Belum ada server yang ditambahkan.${NC}"
-        echo -e "  ${BYELLOW}Pilih 'Tambah Server' untuk menambahkan.${NC}"
     fi
 
     echo ""

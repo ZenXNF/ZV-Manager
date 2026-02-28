@@ -4,6 +4,7 @@
 # ============================================================
 
 source /etc/zv-manager/utils/colors.sh
+source /etc/zv-manager/utils/logger.sh
 source /etc/zv-manager/utils/helpers.sh
 
 SERVER_DIR="/etc/zv-manager/servers"
@@ -15,10 +16,10 @@ del_server() {
     echo -e "${BCYAN} └─────────────────────────────────────────────┘${NC}"
     echo ""
 
-    # Tampilkan daftar dulu
     local count=0
     for conf in "${SERVER_DIR}"/*.conf; do
         [[ -f "$conf" ]] || continue
+        unset NAME IP DOMAIN PORT
         source "$conf"
         count=$((count + 1))
         echo -e "  ${BGREEN}[${count}]${NC} ${NAME} — ${IP}:${PORT}"
