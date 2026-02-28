@@ -37,7 +37,24 @@ install_ssh() {
     mv "${sshd_config}.tmp" "$sshd_config"
 
     # Tambahkan banner
-    echo "Banner /etc/issue.net" >> "$sshd_config"
+    # Cek apakah Banner sudah ada di config
+    grep -q "^Banner" "$sshd_config" || echo "Banner /etc/issue.net" >> "$sshd_config"
+
+    # Isi banner dengan warna ANSI
+    cat > /etc/issue.net <<'BANNEREOF'
+\e[1;36m╔══════════════════════════════════════════════════╗\e[0m
+\e[1;36m║\e[0m        \e[1;33m--- WELCOME TO ZV-MANAGER ---\e[0m           \e[1;36m║\e[0m
+\e[1;36m╚══════════════════════════════════════════════════╝\e[0m
+
+\e[1;31m        ! TERM OF SERVICE !\e[0m
+\e[1;37m        NO SPAM\e[0m
+\e[1;37m        NO DDOS\e[0m
+\e[1;37m        NO HACKING & CARDING\e[0m
+\e[1;31m        NO TORRENT !!\e[0m
+\e[1;31m        NO MULTI LOGIN !!\e[0m
+
+\e[1;36m══════════════════════════════════════════════════\e[0m
+BANNEREOF
 
     # Setup /etc/shells
     grep -qx '/bin/false' /etc/shells || echo '/bin/false' >> /etc/shells
