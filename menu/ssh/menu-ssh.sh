@@ -4,8 +4,42 @@
 # ============================================================
 
 source /etc/zv-manager/utils/colors.sh
+source /etc/zv-manager/utils/helpers.sh
+
+SERVER_DIR="/etc/zv-manager/servers"
+
+# Cek apakah sudah ada server yang ditambahkan
+check_server_exists() {
+    local count=0
+    for conf in "${SERVER_DIR}"/*.conf 2>/dev/null; do
+        [[ -f "$conf" ]] && count=$((count + 1))
+    done
+
+    if [[ $count -eq 0 ]]; then
+        clear
+        echo -e "${BRED} ┌──────────────────────────────────────────────┐${NC}"
+        echo -e "${BRED} │            BELUM ADA SERVER!                  │${NC}"
+        echo -e "${BRED} └──────────────────────────────────────────────┘${NC}"
+        echo ""
+        echo -e "  ${BYELLOW}Kamu belum menambahkan server apapun.${NC}"
+        echo -e "  ${BYELLOW}Akun SSH dibuat per server, jadi server${NC}"
+        echo -e "  ${BYELLOW}harus ditambahkan dulu.${NC}"
+        echo ""
+        echo -e "  ${BWHITE}Cara menambahkan server:${NC}"
+        echo -e "  Menu Utama → ${BGREEN}[2] Manajemen Server${NC} → ${BGREEN}[1] Tambah Server${NC}"
+        echo ""
+        echo -e "  ${BYELLOW}Tip: Neva (VPS ini sendiri) juga bisa ditambahkan!${NC}"
+        echo ""
+        press_any_key
+        return 1
+    fi
+    return 0
+}
 
 menu_ssh() {
+    # Cek server dulu sebelum masuk menu
+    check_server_exists || return
+
     while true; do
         clear
         echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
