@@ -2,33 +2,17 @@
 # ============================================================
 #   ZV-Manager v1.0.0
 #   SSH Tunneling Manager for Ubuntu 24.04 LTS
-#   https://github.com/yourusername/ZV-Manager
+#   https://github.com/ZenXNF/ZV-Manager
 # ============================================================
-
-set -e
 
 INSTALL_DIR="/etc/zv-manager"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# --- Banner ---
-clear
-echo -e "\033[1;36m"
-cat << 'EOF'
-  ███████╗██╗   ██╗      ███╗   ███╗ █████╗ ███╗   ██╗ █████╗  ██████╗ ███████╗██████╗
-  ╚══███╔╝██║   ██║      ████╗ ████║██╔══██╗████╗  ██║██╔══██╗██╔════╝ ██╔════╝██╔══██╗
-    ███╔╝ ██║   ██║█████╗██╔████╔██║███████║██╔██╗ ██║███████║██║  ███╗█████╗  ██████╔╝
-   ███╔╝  ╚██╗ ██╔╝╚════╝██║╚██╔╝██║██╔══██║██║╚██╗██║██╔══██║██║   ██║██╔══╝  ██╔══██╗
-  ███████╗ ╚████╔╝       ██║ ╚═╝ ██║██║  ██║██║ ╚████║██║  ██║╚██████╔╝███████╗██║  ██║
-  ╚══════╝  ╚═══╝        ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═╝
-EOF
-echo -e "\033[0m"
-echo -e "\033[1;33m  SSH Tunneling Manager — Ubuntu 24.04 LTS\033[0m"
-echo -e "\033[1;33m  Version 1.0.0\033[0m"
-echo ""
-echo -e "\033[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
-echo ""
+# --- Buat log dir PERTAMA sebelum apapun ---
+mkdir -p /var/log/zv-manager
+touch /var/log/zv-manager/install.log
 
-# --- Pre-checks sederhana sebelum load utils ---
+# --- Pre-checks sebelum load utils ---
 if [[ "$EUID" -ne 0 ]]; then
     echo "[ERROR] Jalankan script ini sebagai root!"
     exit 1
@@ -39,17 +23,42 @@ if [[ "$(uname -m)" != "x86_64" ]]; then
     exit 1
 fi
 
-echo "Press [Enter] untuk memulai instalasi, atau Ctrl+C untuk batal..."
-read -r
+# --- Banner mobile-friendly (lebar ~42 char) ---
+clear
+echo -e "\033[1;36m"
+echo "  ╔══════════════════════════════════════╗"
+echo "  ║       Z V - M A N A G E R           ║"
+echo "  ║  SSH Tunneling Manager v1.0.0        ║"
+echo "  ║  Ubuntu 24.04 LTS                    ║"
+echo "  ╚══════════════════════════════════════╝"
+echo -e "\033[0m"
+echo -e "\033[0;36m  ──────────────────────────────────────\033[0m"
+echo ""
+
+# --- Konfirmasi mulai (mobile-friendly, tanpa Ctrl+C) ---
+echo -e "\033[1;33m  Ketik y lalu Enter untuk mulai"
+echo -e "  Ketik n lalu Enter untuk batal\033[0m"
+echo ""
+read -rp "  Mulai instalasi? [y/n]: " start_ans
+if [[ ! "$start_ans" =~ ^[Yy]$ ]]; then
+    echo ""
+    echo "  Instalasi dibatalkan."
+    exit 0
+fi
+
+echo ""
+echo "[ INFO ] Menyalin file ke ${INSTALL_DIR}..."
 
 # --- Copy semua file ke /etc/zv-manager ---
-echo "[ INFO ] Menyalin file ke ${INSTALL_DIR}..."
 mkdir -p "$INSTALL_DIR"
 cp -r "$SCRIPT_DIR"/* "$INSTALL_DIR/"
-chmod +x "$INSTALL_DIR"/**/*.sh 2>/dev/null || true
-chmod +x "$INSTALL_DIR"/*.sh 2>/dev/null || true
-chmod +x "$INSTALL_DIR"/menu/**/*.sh 2>/dev/null || true
-chmod +x "$INSTALL_DIR"/cron/*.sh 2>/dev/null || true
+
+# chmod kompatibel tanpa globstar
+find "$INSTALL_DIR" -name "*.sh" -exec chmod +x {} \;
+find "$INSTALL_DIR" -name "*.py" -exec chmod +x {} \;
+
+echo "[ INFO ] File berhasil disalin"
+echo ""
 
 # --- Load utils ---
 source "$INSTALL_DIR/utils/colors.sh"
@@ -62,11 +71,10 @@ source "$INSTALL_DIR/config.conf"
 print_section "Memeriksa Sistem"
 run_all_checks
 
-# --- Setup log ---
-mkdir -p /var/log/zv-manager
+# --- Start timer ---
 timer_start
 
-# --- Jalankan setiap tahap instalasi ---
+# --- Instalasi tahap demi tahap ---
 source "$INSTALL_DIR/core/system.sh"
 run_system_setup
 
@@ -94,15 +102,15 @@ install_udp_custom
 # --- Setup Cron Jobs ---
 print_section "Setup Cron Jobs"
 
-cat > /etc/cron.d/zv-autokill <<EOF
+cat > /etc/cron.d/zv-autokill <<'CRONEOF'
 # ZV-Manager - Auto Kill Multi-Login
 */1 * * * * root /bin/bash /etc/zv-manager/cron/autokill.sh
-EOF
+CRONEOF
 
-cat > /etc/cron.d/zv-expired <<EOF
+cat > /etc/cron.d/zv-expired <<'CRONEOF'
 # ZV-Manager - Auto Delete Expired Users
 2 0 * * * root /bin/bash /etc/zv-manager/cron/expired.sh
-EOF
+CRONEOF
 
 service cron restart &>/dev/null
 print_success "Cron Jobs"
@@ -111,13 +119,14 @@ print_success "Cron Jobs"
 print_section "Setup Global Command"
 ln -sf /etc/zv-manager/menu/menu.sh /usr/local/bin/menu
 chmod +x /usr/local/bin/menu
+print_ok "Command 'menu' siap digunakan"
 
 # --- Simpan IP VPS ---
 mkdir -p /etc/zv-manager/accounts
 echo "$PUBLIC_IP" > /etc/zv-manager/accounts/ipvps
 
-# --- Setup auto-login menu saat SSH ---
-cat > /root/.profile <<'EOF'
+# --- Setup auto-launch menu saat login SSH ---
+cat > /root/.profile <<'PROFILEEOF'
 if [ "$BASH" ]; then
     if [ -f ~/.bashrc ]; then
         . ~/.bashrc
@@ -125,34 +134,40 @@ if [ "$BASH" ]; then
 fi
 mesg n 2>/dev/null || true
 menu
-EOF
+PROFILEEOF
 
 # --- Selesai ---
 clear
+
+# Tanpa 'local' karena ini scope global script
+ZV_DOMAIN=$(cat /etc/zv-manager/domain 2>/dev/null || echo "$PUBLIC_IP")
+ZV_IP="$PUBLIC_IP"
+
 echo -e "${BCYAN}"
-echo "  ╔══════════════════════════════════════════════════╗"
-echo "  ║        INSTALASI ZV-MANAGER SELESAI!             ║"
-echo "  ╚══════════════════════════════════════════════════╝"
+echo "  ╔══════════════════════════════════════╗"
+echo "  ║      INSTALASI SELESAI!              ║"
+echo "  ╚══════════════════════════════════════╝"
 echo -e "${NC}"
-
-local domain
-domain=$(cat /etc/zv-manager/domain)
-local ip="$PUBLIC_IP"
-
-echo -e "  ${BWHITE}IP VPS      :${NC} ${BGREEN}${ip}${NC}"
-echo -e "  ${BWHITE}Domain/Host :${NC} ${BGREEN}${domain}${NC}"
+echo -e "  ${BWHITE}IP VPS   :${NC} ${BGREEN}${ZV_IP}${NC}"
+echo -e "  ${BWHITE}Host     :${NC} ${BGREEN}${ZV_DOMAIN}${NC}"
 echo ""
-echo -e "  ${BWHITE}OpenSSH     :${NC} ${BPURPLE}22, 500, 40000${NC}"
-echo -e "  ${BWHITE}Dropbear    :${NC} ${BPURPLE}109, 143${NC}"
-echo -e "  ${BWHITE}WS HTTP     :${NC} ${BPURPLE}80${NC}"
-echo -e "  ${BWHITE}WS HTTPS    :${NC} ${BPURPLE}443${NC}"
-echo -e "  ${BWHITE}UDP Custom  :${NC} ${BPURPLE}1-65535${NC}"
-echo -e "  ${BWHITE}UDPGW       :${NC} ${BPURPLE}7100-7900${NC}"
+echo -e "  ${BWHITE}OpenSSH  :${NC} ${BPURPLE}22, 500, 40000${NC}"
+echo -e "  ${BWHITE}Dropbear :${NC} ${BPURPLE}109, 143${NC}"
+echo -e "  ${BWHITE}WS HTTP  :${NC} ${BPURPLE}80${NC}"
+echo -e "  ${BWHITE}WS HTTPS :${NC} ${BPURPLE}443${NC}"
+echo -e "  ${BWHITE}UDP      :${NC} ${BPURPLE}1-65535${NC}"
+echo -e "  ${BWHITE}UDPGW    :${NC} ${BPURPLE}7100-7900${NC}"
 echo ""
 echo -e "  ${BYELLOW}Ketik 'menu' untuk membuka ZV-Manager${NC}"
 echo ""
 
 timer_end
 echo ""
-read -rp "  Reboot sekarang? [y/N]: " reboot_ans
-[[ "$reboot_ans" =~ ^[Yy]$ ]] && reboot
+echo -e "  ${BYELLOW}Reboot diperlukan agar semua service aktif.${NC}"
+echo ""
+read -rp "  Reboot sekarang? [y/n]: " reboot_ans
+if [[ "$reboot_ans" =~ ^[Yy]$ ]]; then
+    echo "  Rebooting..."
+    sleep 2
+    reboot
+fi

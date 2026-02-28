@@ -11,7 +11,7 @@ fi
 echo ""
 echo "⚠️  PERINGATAN: Ini akan menghapus ZV-Manager dan semua konfigurasinya!"
 echo ""
-read -rp "Yakin ingin uninstall? [y/N]: " confirm
+read -rp "Yakin ingin uninstall? [y/n]: " confirm
 [[ ! "$confirm" =~ ^[Yy]$ ]] && echo "Dibatalkan." && exit 0
 
 echo "[ INFO ] Menghentikan semua service ZV-Manager..."
