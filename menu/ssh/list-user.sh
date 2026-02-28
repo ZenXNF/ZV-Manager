@@ -45,7 +45,7 @@ list_ssh_users() {
     echo -e "  ${BYELLOW}Total akun: ${count}${NC}"
     echo ""
 
-    read -n 1 -s -r -p "  Tekan tombol apapun untuk kembali..."
+    read -rp "  Tekan Enter untuk kembali ke menu... " _dummy
     echo ""
 }
 
