@@ -54,17 +54,17 @@ enable_service() {
     systemctl start "$service" &>/dev/null
 }
 
-# --- Press any key to continue ---
+# --- Press Enter to continue (mobile-friendly) ---
 press_any_key() {
     echo ""
-    read -n 1 -s -r -p "  Tekan tombol apapun untuk kembali ke menu..."
+    read -rp "  Tekan Enter untuk kembali ke menu... " _dummy
     echo ""
 }
 
-# --- Konfirmasi Y/N ---
+# --- Konfirmasi Y/N (mobile-friendly) ---
 confirm() {
     local msg=${1:-"Lanjutkan?"}
-    read -rp "  $msg [y/N]: " answer
+    read -rp "  $msg [y/n]: " answer
     [[ "$answer" =~ ^[Yy]$ ]]
 }
 
