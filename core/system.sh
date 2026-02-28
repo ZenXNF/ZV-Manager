@@ -11,35 +11,42 @@ install_dependencies() {
     print_section "Menginstall Dependencies Sistem"
 
     # Hapus package yang tidak perlu / konflik
+    print_info "Membersihkan package konflik..."
     apt-get remove --purge -y ufw firewalld exim4 apache2 bind9 sendmail &>/dev/null
+    print_ok "Package konflik dihapus"
 
     # Update sistem
-    print_info "Update package list..."
+    print_info "Update package list... (mohon tunggu)"
     apt-get update -y &>/dev/null
-    apt-get upgrade -y &>/dev/null
-    apt-get dist-upgrade -y &>/dev/null
+    print_ok "Package list diperbarui"
 
-    # Install dependencies utama
-    print_info "Menginstall packages utama..."
+    print_info "Upgrade sistem... (mohon tunggu)"
+    apt-get upgrade -y &>/dev/null
+    print_ok "Sistem diupgrade"
+
+    # [1] Tools dasar — curl/wget/git/sed dipakai di banyak script
+    print_info "[1/4] Menginstall tools dasar..."
     apt-get install -y \
-        curl wget git zip unzip xz-utils \
-        screen tmux htop iftop lsof \
-        net-tools dnsutils \
+        curl wget git \
         openssl ca-certificates \
-        gnupg gnupg2 gnupg1 \
-        build-essential gcc g++ cmake make \
-        python3 python3-pip \
-        jq bc socat \
-        cron bash-completion \
-        iptables iptables-persistent netfilter-persistent \
-        fail2ban \
-        vnstat \
-        ntpdate chrony \
-        sed dirmngr \
-        rsyslog \
-        apt-transport-https \
-        lsb-release \
-        sudo &>/dev/null
+        sed iptables iptables-persistent netfilter-persistent \
+        python3 cron &>/dev/null
+    print_ok "[1/4] Tools dasar selesai"
+
+    # [2] Build tools — hanya untuk compile badvpn (fallback UDP)
+    print_info "[2/4] Menginstall build tools... (untuk UDP/BadVPN)"
+    apt-get install -y build-essential gcc cmake make &>/dev/null
+    print_ok "[2/4] Build tools selesai"
+
+    # [3] Monitoring & keamanan
+    print_info "[3/4] Menginstall monitoring & keamanan..."
+    apt-get install -y fail2ban vnstat &>/dev/null
+    print_ok "[3/4] Monitoring & keamanan selesai"
+
+    # [4] Sinkronisasi waktu
+    print_info "[4/4] Menginstall sinkronisasi waktu..."
+    apt-get install -y chrony &>/dev/null
+    print_ok "[4/4] Sinkronisasi waktu selesai"
 
     print_success "Dependencies"
 }
