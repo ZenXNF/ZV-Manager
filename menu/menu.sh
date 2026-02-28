@@ -33,8 +33,9 @@ main_menu() {
         echo -e "  ${BWHITE}└─────────────────────────────────────────┘${NC}"
         echo ""
         echo -e "  ${BGREEN}[1]${NC} Manajemen SSH"
-        echo -e "  ${BGREEN}[2]${NC} Informasi Server"
-        echo -e "  ${BGREEN}[3]${NC} System & Services"
+        echo -e "  ${BGREEN}[2]${NC} Manajemen Server"
+        echo -e "  ${BGREEN}[3]${NC} Informasi Server"
+        echo -e "  ${BGREEN}[4]${NC} System & Services"
         echo ""
         echo -e "  ${BYELLOW}[r]${NC} Restart Semua Service"
         echo -e "  ${BRED}[0]${NC} Keluar"
@@ -43,8 +44,9 @@ main_menu() {
 
         case $choice in
             1) bash /etc/zv-manager/menu/ssh/menu-ssh.sh ;;
-            2) bash /etc/zv-manager/menu/info/server-info.sh ;;
-            3) bash /etc/zv-manager/menu/system/menu-system.sh ;;
+            2) bash /etc/zv-manager/menu/server/menu-server.sh ;;
+            3) bash /etc/zv-manager/menu/info/server-info.sh ;;
+            4) bash /etc/zv-manager/menu/system/menu-system.sh ;;
             r|R)
                 for svc in ssh dropbear nginx zv-ws zv-wss zv-udp; do
                     systemctl restart "$svc" &>/dev/null
