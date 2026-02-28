@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 # ============================================================
-#   ZV-Manager - WebSocket SSH Proxy
+#   ZV-Manager - WebSocket & HTTP CONNECT SSH Proxy
 #   Compatible: Python 3.x (Ubuntu 24.04)
-#   Rewritten from legacy Python2 scripts
+#   Support:
+#     - HTTP CONNECT (HTTP Custom, HTTP Injector, NapsternetV)
+#     - WebSocket Upgrade (WS mode)
 # ============================================================
 
 import socket
@@ -10,7 +12,6 @@ import threading
 import select
 import signal
 import sys
-import time
 
 # --- Konfigurasi ---
 LISTENING_ADDR = '0.0.0.0'
@@ -18,27 +19,30 @@ LISTENING_PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 80
 DEFAULT_HOST   = '127.0.0.1'
 DEFAULT_PORT   = 22
 BUFLEN         = 4096 * 4
-TIMEOUT        = 60
+TIMEOUT        = 60  # detik idle sebelum putus
 
-# Response WebSocket HTTP 101
+# Response untuk WebSocket Upgrade
 WS_RESPONSE = (
     "HTTP/1.1 101 Switching Protocols\r\n"
     "Content-Length: 0\r\n"
     "\r\n"
-    "HTTP/1.1 200 ZV-Manager WS\r\n"
+    "HTTP/1.1 200 ZV-Manager\r\n"
     "\r\n"
 )
+
+# Response untuk HTTP CONNECT
+CONNECT_RESPONSE = "HTTP/1.1 200 Connection Established\r\n\r\n"
 
 
 class ConnectionHandler(threading.Thread):
     def __init__(self, client_sock, addr):
         threading.Thread.__init__(self)
-        self.client      = client_sock
-        self.addr        = addr
-        self.target      = None
+        self.client        = client_sock
+        self.addr          = addr
+        self.target        = None
         self.client_closed = False
         self.target_closed = True
-        self.daemon      = True
+        self.daemon        = True
 
     def run(self):
         try:
@@ -49,31 +53,97 @@ class ConnectionHandler(threading.Thread):
             self._close()
 
     def handle(self):
-        # Terima HTTP request dari client
-        data = self.client.recv(BUFLEN).decode('utf-8', errors='ignore')
+        # Baca request dari client
+        raw = b''
+        while b'\r\n\r\n' not in raw:
+            chunk = self.client.recv(BUFLEN)
+            if not chunk:
+                return
+            raw += chunk
+            if len(raw) > BUFLEN:
+                break
 
-        # Cari X-Real-Host header (opsional, untuk custom target)
-        target_host, target_port = self._parse_target(data)
+        data = raw.decode('utf-8', errors='ignore')
+        first_line = data.split('\r\n')[0]
 
-        # Hanya boleh connect ke localhost (keamanan)
+        # --- Mode 1: HTTP CONNECT ---
+        # Contoh: CONNECT 127.0.0.1:22 HTTP/1.0
+        # Dipakai oleh: HTTP Custom, HTTP Injector, NapsternetV
+        if first_line.upper().startswith('CONNECT'):
+            self._handle_connect(first_line)
+
+        # --- Mode 2: WebSocket Upgrade ---
+        # Dipakai oleh: payload WS/WSS biasa
+        elif 'upgrade: websocket' in data.lower():
+            self._handle_websocket(data)
+
+        # --- Mode 3: Request lain (GET biasa, dll) → treat as WS ---
+        else:
+            self._handle_websocket(data)
+
+    def _handle_connect(self, first_line):
+        """Handle HTTP CONNECT tunneling"""
+        try:
+            # Parse target: CONNECT host:port HTTP/1.x
+            parts = first_line.split()
+            if len(parts) < 2:
+                self.client.sendall(b"HTTP/1.1 400 Bad Request\r\n\r\n")
+                return
+
+            target = parts[1]
+            if ':' in target:
+                host, port_str = target.rsplit(':', 1)
+                try:
+                    port = int(port_str)
+                except ValueError:
+                    port = DEFAULT_PORT
+            else:
+                host = target
+                port = DEFAULT_PORT
+
+            # Paksa ke localhost saja (keamanan)
+            if host not in ('127.0.0.1', 'localhost'):
+                host = DEFAULT_HOST
+                port = DEFAULT_PORT
+
+            # Connect ke target (SSH)
+            self.target = socket.create_connection((host, port), timeout=10)
+            self.target_closed = False
+
+            # Beritahu client bahwa tunnel siap
+            self.client.sendall(CONNECT_RESPONSE.encode())
+
+            # Relay data dua arah
+            self._relay()
+
+        except Exception:
+            try:
+                self.client.sendall(b"HTTP/1.1 502 Bad Gateway\r\n\r\n")
+            except Exception:
+                pass
+
+    def _handle_websocket(self, data):
+        """Handle WebSocket Upgrade"""
+        # Parse X-Real-Host kalau ada
+        target_host, target_port = self._parse_xrealhost(data)
+
+        # Paksa ke localhost
         if target_host not in ('127.0.0.1', 'localhost'):
             target_host = DEFAULT_HOST
             target_port = DEFAULT_PORT
 
-        # Connect ke SSH
-        self.target = socket.create_connection((target_host, target_port))
+        self.target = socket.create_connection((target_host, target_port), timeout=10)
         self.target_closed = False
 
-        # Kirim response HTTP 101
+        # Kirim response 101
         self.client.sendall(WS_RESPONSE.encode())
 
-        # Mulai relay data dua arah
+        # Relay
         self._relay()
 
-    def _parse_target(self, data):
+    def _parse_xrealhost(self, data):
         host = DEFAULT_HOST
         port = DEFAULT_PORT
-
         for line in data.split('\r\n'):
             if line.lower().startswith('x-real-host:'):
                 val = line.split(':', 1)[1].strip()
@@ -89,12 +159,16 @@ class ConnectionHandler(threading.Thread):
         return host, port
 
     def _relay(self):
-        socs = [self.client, self.target]
-        idle = 0
+        """Relay data dua arah antara client dan target"""
+        socs  = [self.client, self.target]
+        idle  = 0
 
         while True:
             idle += 1
-            readable, _, exceptional = select.select(socs, [], socs, 3)
+            try:
+                readable, _, exceptional = select.select(socs, [], socs, 3)
+            except Exception:
+                break
 
             if exceptional:
                 break
@@ -105,26 +179,24 @@ class ConnectionHandler(threading.Thread):
                         data = sock.recv(BUFLEN)
                         if not data:
                             return
-                        if sock is self.target:
-                            self.client.sendall(data)
-                        else:
-                            self.target.sendall(data)
+                        dest = self.target if sock is self.client else self.client
+                        dest.sendall(data)
                         idle = 0
                     except Exception:
                         return
-            
+
             if idle >= TIMEOUT:
                 break
 
     def _close(self):
-        for sock, flag_attr in [(self.client, 'client_closed'), (self.target, 'target_closed')]:
-            if sock and not getattr(self, flag_attr):
+        for sock, attr in [(self.client, 'client_closed'), (self.target, 'target_closed')]:
+            if sock and not getattr(self, attr):
                 try:
                     sock.shutdown(socket.SHUT_RDWR)
                     sock.close()
                 except Exception:
                     pass
-                setattr(self, flag_attr, True)
+                setattr(self, attr, True)
 
 
 class ProxyServer:
@@ -142,7 +214,8 @@ class ProxyServer:
         self.sock.listen(512)
         self.running = True
 
-        print(f"[ZV-Manager] WebSocket Proxy berjalan di {self.host}:{self.port}")
+        print(f"[ZV-Manager] Proxy berjalan di {self.host}:{self.port}")
+        print(f"[ZV-Manager] Support: HTTP CONNECT + WebSocket Upgrade")
         print(f"[ZV-Manager] Forward ke SSH {DEFAULT_HOST}:{DEFAULT_PORT}")
 
         while self.running:
@@ -170,6 +243,5 @@ def signal_handler(sig, frame):
 if __name__ == '__main__':
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
-
     server = ProxyServer(LISTENING_ADDR, LISTENING_PORT)
     server.start()
