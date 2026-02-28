@@ -12,39 +12,28 @@ install_udp_custom() {
 
     mkdir -p /etc/zv-manager/udp
 
-    # --- Config UDP Custom ---
-    cat > /etc/zv-manager/udp/config.json <<EOF
-{
-    "listen": ":${UDP_PORT_START}-${UDP_PORT_END}",
-    "password": "",
-    "timeout": 60,
-    "speed_limit": 0
-}
-EOF
+    local binary_path="/etc/zv-manager/udp/udp-custom"
 
-    # Download binary udp-custom (coba dari beberapa sumber)
     print_info "Mendownload UDP Custom binary..."
 
-    local binary_path="/etc/zv-manager/udp/udp-custom"
-    local downloaded=false
+    # Download binary
+    wget -q --timeout=30 -O "$binary_path" \
+        "https://github.com/epro-dev/udp-custom/releases/latest/download/udp-custom-linux-amd64" 2>/dev/null
 
-    # Sumber 1 - GitHub releases
-    if wget -q --timeout=30 -O "$binary_path" \
-        "https://github.com/epro-dev/udp-custom/releases/latest/download/udp-custom-linux-amd64" 2>/dev/null; then
-        downloaded=true
-    fi
+    # Cek apakah binary valid (lebih dari 10KB)
+    local filesize
+    filesize=$(stat -c%s "$binary_path" 2>/dev/null || echo 0)
 
-    # Fallback: compile badvpn dari sumber sebagai alternatif
-    if [[ "$downloaded" == false ]]; then
-        print_warning "UDP Custom binary gagal didownload, menggunakan BadVPN sebagai fallback..."
+    if [[ "$filesize" -lt 10240 ]]; then
+        rm -f "$binary_path"
+        print_warning "UDP Custom gagal atau tidak valid, compile BadVPN..."
         install_badvpn_fallback
         return
     fi
 
     chmod +x "$binary_path"
 
-    # --- Systemd Service ---
-    cat > /etc/systemd/system/zv-udp.service <<EOF
+    cat > /etc/systemd/system/zv-udp.service <<SVCEOF
 [Unit]
 Description=ZV-Manager UDP Custom Service
 After=network.target
@@ -59,7 +48,7 @@ RestartSec=3s
 
 [Install]
 WantedBy=multi-user.target
-EOF
+SVCEOF
 
     systemctl daemon-reload
     systemctl enable zv-udp &>/dev/null
@@ -71,11 +60,16 @@ EOF
 install_badvpn_fallback() {
     print_section "Install BadVPN (Fallback UDP)"
 
-    # Compile badvpn dari source
-    apt-get install -y cmake make gcc libssl-dev &>/dev/null
+    # Build tools hanya diinstall di sini kalau memang dibutuhkan
+    print_info "Menginstall build tools untuk BadVPN..."
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get install -y build-essential gcc cmake make libssl-dev git &>/dev/null
+    print_ok "Build tools siap"
 
+    print_info "Mengunduh & compile BadVPN... (ini butuh beberapa menit)"
     cd /tmp
-    git clone https://github.com/ambrop72/badvpn.git &>/dev/null
+    rm -rf badvpn
+    git clone -q https://github.com/ambrop72/badvpn.git
     cd badvpn
     mkdir build && cd build
     cmake .. -DBUILD_NOTHING_BY_DEFAULT=1 -DBUILD_UDPGW=1 &>/dev/null
@@ -83,9 +77,9 @@ install_badvpn_fallback() {
     cp udpgw/badvpn-udpgw /usr/local/bin/
     chmod +x /usr/local/bin/badvpn-udpgw
     cd /root && rm -rf /tmp/badvpn
+    print_ok "BadVPN berhasil di-compile"
 
-    # Systemd service untuk badvpn (port 7100-7900)
-    cat > /etc/systemd/system/zv-badvpn.service <<EOF
+    cat > /etc/systemd/system/zv-badvpn.service <<SVCEOF
 [Unit]
 Description=ZV-Manager BadVPN UDPGW
 After=network.target
@@ -109,7 +103,7 @@ RestartSec=3s
 
 [Install]
 WantedBy=multi-user.target
-EOF
+SVCEOF
 
     systemctl daemon-reload
     systemctl enable zv-badvpn &>/dev/null
