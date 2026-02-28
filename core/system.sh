@@ -1,7 +1,6 @@
 #!/bin/bash
 # ============================================================
 #   ZV-Manager - System Setup
-#   Update OS, install dependencies dasar, optimasi kernel
 # ============================================================
 
 source /etc/zv-manager/utils/colors.sh
@@ -10,43 +9,35 @@ source /etc/zv-manager/utils/logger.sh
 install_dependencies() {
     print_section "Menginstall Dependencies Sistem"
 
-    # Hapus package yang tidak perlu / konflik
+    # Noninteractive supaya tidak ada prompt interaktif
+    export DEBIAN_FRONTEND=noninteractive
+
+    # Hapus package konflik
     print_info "Membersihkan package konflik..."
     apt-get remove --purge -y ufw firewalld exim4 apache2 bind9 sendmail &>/dev/null
     print_ok "Package konflik dihapus"
 
-    # Update sistem
-    print_info "Update package list... (mohon tunggu)"
+    # Update list saja — TIDAK upgrade, user sudah lakukan sebelum install
+    print_info "Update package list..."
     apt-get update -y &>/dev/null
     print_ok "Package list diperbarui"
 
-    print_info "Upgrade sistem... (mohon tunggu)"
-    apt-get upgrade -y &>/dev/null
-    print_ok "Sistem diupgrade"
-
-    # [1] Tools dasar — curl/wget/git/sed dipakai di banyak script
-    print_info "[1/4] Menginstall tools dasar..."
+    # Install hanya yang benar-benar dipakai sekarang
+    print_info "Menginstall packages... (mohon tunggu)"
     apt-get install -y \
         curl wget git \
         openssl ca-certificates \
-        sed iptables iptables-persistent netfilter-persistent \
-        python3 cron &>/dev/null
-    print_ok "[1/4] Tools dasar selesai"
-
-    # [2] Build tools — hanya untuk compile badvpn (fallback UDP)
-    print_info "[2/4] Menginstall build tools... (untuk UDP/BadVPN)"
-    apt-get install -y build-essential gcc cmake make &>/dev/null
-    print_ok "[2/4] Build tools selesai"
-
-    # [3] Monitoring & keamanan
-    print_info "[3/4] Menginstall monitoring & keamanan..."
-    apt-get install -y fail2ban vnstat &>/dev/null
-    print_ok "[3/4] Monitoring & keamanan selesai"
-
-    # [4] Sinkronisasi waktu
-    print_info "[4/4] Menginstall sinkronisasi waktu..."
-    apt-get install -y chrony &>/dev/null
-    print_ok "[4/4] Sinkronisasi waktu selesai"
+        python3 \
+        cron \
+        iptables \
+        fail2ban \
+        vnstat \
+        chrony \
+        nginx \
+        dropbear \
+        openssh-server \
+        sshpass &>/dev/null
+    print_ok "Packages selesai diinstall"
 
     print_success "Dependencies"
 }
@@ -65,7 +56,6 @@ setup_swap() {
     mkswap /swapfile &>/dev/null
     swapon /swapfile &>/dev/null
 
-    # Tambahkan ke fstab supaya persistent
     if ! grep -q "/swapfile" /etc/fstab; then
         echo '/swapfile none swap sw 0 0' >> /etc/fstab
     fi
@@ -89,19 +79,17 @@ sync_time() {
 }
 
 setup_bbr() {
-    print_section "Aktifkan BBR (TCP Congestion Control)"
+    print_section "Aktifkan BBR"
 
-    # Cek apakah BBR sudah aktif
     if sysctl net.ipv4.tcp_congestion_control 2>/dev/null | grep -q "bbr"; then
         print_info "BBR sudah aktif, skip..."
         return
     fi
 
-    # Aktifkan BBR
     modprobe tcp_bbr 2>/dev/null
     echo "tcp_bbr" >> /etc/modules-load.d/modules.conf
 
-    cat >> /etc/sysctl.conf <<EOF
+    cat >> /etc/sysctl.conf <<SYSCTL
 
 # ZV-Manager - BBR & Network Optimization
 net.core.default_qdisc = fq
@@ -112,46 +100,14 @@ net.ipv4.tcp_tw_reuse = 1
 net.ipv4.ip_forward = 1
 net.ipv6.conf.all.disable_ipv6 = 1
 net.ipv6.conf.default.disable_ipv6 = 1
-EOF
+SYSCTL
 
     sysctl -p &>/dev/null
     print_success "BBR"
 }
 
-setup_rc_local() {
-    print_section "Setup rc.local"
-
-    cat > /etc/systemd/system/rc-local.service <<EOF
-[Unit]
-Description=/etc/rc.local
-ConditionPathExists=/etc/rc.local
-
-[Service]
-Type=forking
-ExecStart=/etc/rc.local start
-TimeoutSec=0
-StandardOutput=tty
-RemainAfterExit=yes
-SysVStartPriority=99
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-    cat > /etc/rc.local <<EOF
-#!/bin/sh -e
-# ZV-Manager rc.local
-exit 0
-EOF
-
-    chmod +x /etc/rc.local
-    systemctl enable rc-local &>/dev/null
-    systemctl start rc-local &>/dev/null
-    print_success "rc.local"
-}
-
 block_torrent() {
-    print_section "Blokir Torrent (iptables)"
+    print_section "Blokir Torrent"
 
     iptables -A FORWARD -m string --string "get_peers" --algo bm -j DROP
     iptables -A FORWARD -m string --string "announce_peer" --algo bm -j DROP
@@ -162,7 +118,9 @@ block_torrent() {
     iptables -A FORWARD -m string --algo bm --string ".torrent" -j DROP
     iptables -A FORWARD -m string --algo bm --string "info_hash" -j DROP
 
-    netfilter-persistent save &>/dev/null
+    # Simpan rules tanpa prompt
+    iptables-save > /etc/iptables/rules.v4 2>/dev/null || true
+
     print_success "Blokir Torrent"
 }
 
@@ -178,6 +136,5 @@ run_system_setup() {
     setup_timezone
     sync_time
     setup_bbr
-    setup_rc_local
     block_torrent
 }
