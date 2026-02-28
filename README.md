@@ -12,9 +12,9 @@
 | SSH WebSocket HTTP (port 80) | ✅ |
 | SSH WebSocket HTTPS (port 443) | ✅ |
 | HTTP CONNECT Tunnel (HTTP Custom, HTTP Injector) | ✅ |
-| UDP Custom (port 1-65535) | ✅ |
+| UDP Custom / BadVPN UDPGW | ✅ |
 | Dropbear (port 109, 143) | ✅ |
-| Nginx SSL Reverse Proxy | ✅ |
+| Nginx SSL Reverse Proxy + Stream | ✅ |
 | Manajemen User SSH (add/del/list/renew) | ✅ |
 | Auto-Kill Multi-Login | ✅ |
 | Auto-Delete Expired User | ✅ |
@@ -23,6 +23,7 @@
 | Blokir Torrent (iptables) | ✅ |
 | Auto Reboot Scheduler | ✅ |
 | Multi-Server Manager | ✅ |
+| SSH Banner / Server Message | ✅ |
 | Menu CLI Interaktif | ✅ |
 
 ---
@@ -50,13 +51,28 @@ apt update && apt upgrade -y
 
 **Langkah 2 — Pasang ZV-Manager:**
 ```bash
-wget -q https://raw.githubusercontent.com/ZenXNF/ZV-Manager/main/zv.sh && chmod +x zv.sh && bash zv.sh
+wget -q https://raw.githubusercontent.com/ZenXNF/ZV-Manager/main/zv.sh && bash zv.sh
 ```
 
 Setelah selesai, ketik `menu` untuk membuka panel:
 ```bash
 menu
 ```
+
+---
+
+## 🔄 Update
+
+Untuk update ZV-Manager ke versi terbaru tanpa reinstall:
+
+```bash
+wget -q https://raw.githubusercontent.com/ZenXNF/ZV-Manager/main/update.sh && bash update.sh
+```
+
+Script ini akan otomatis:
+- Ambil update terbaru dari GitHub
+- Salin file ke `/etc/zv-manager/`
+- Restart semua service yang aktif
 
 ---
 
@@ -68,8 +84,7 @@ menu
 | Dropbear | 109, 143 |
 | WS / HTTP CONNECT HTTP | 80 |
 | WS / HTTP CONNECT HTTPS | 443 |
-| UDP Custom | 1-65535 |
-| UDPGW (BadVPN) | 7100-7900 |
+| UDP Custom / UDPGW | 7100-7900 |
 
 ---
 
@@ -92,7 +107,10 @@ CONNECT [domain/ip]:22 HTTP/1.0[crlf][crlf]
 Neva bisa jadi pusat kendali untuk banyak VPS lain.  
 Masuk ke **Menu → Manajemen Server** untuk menambah, melihat, menghapus, dan connect ke server lain langsung dari Neva.
 
-Neva sendiri juga bisa ditambahkan sebagai server (otak sekaligus tunnel).
+Neva sendiri juga bisa ditambahkan sebagai server (otak sekaligus tunnel).  
+Setiap server bisa punya domain berbeda (contoh: `neva.zenxu.my.id`, `od.zenxu.my.id`).
+
+> **Catatan:** Menu SSH (buat/hapus akun) hanya bisa diakses setelah minimal 1 server ditambahkan.
 
 ---
 
@@ -100,7 +118,8 @@ Neva sendiri juga bisa ditambahkan sebagai server (otak sekaligus tunnel).
 
 ```
 ZV-Manager/
-├── zv.sh                   # Entry point one-liner (wget)
+├── zv.sh                   # Entry point instalasi (wget)
+├── update.sh               # Script updater
 ├── install.sh              # Installer utama
 ├── config.conf             # Konfigurasi global
 │
@@ -112,7 +131,7 @@ ZV-Manager/
 ├── services/
 │   ├── ssh/
 │   ├── websocket/          # Support WS + HTTP CONNECT
-│   ├── nginx/
+│   ├── nginx/              # Stream module untuk port 443
 │   ├── dropbear/
 │   └── udp/
 │
