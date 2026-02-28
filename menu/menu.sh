@@ -37,7 +37,7 @@ main_menu() {
         echo -e "  ${BGREEN}[3]${NC} System & Services"
         echo ""
         echo -e "  ${BYELLOW}[r]${NC} Restart Semua Service"
-        echo -e "  ${BRED}[x]${NC} Keluar"
+        echo -e "  ${BRED}[0]${NC} Keluar"
         echo ""
         read -rp "  Pilihan: " choice
 
@@ -52,7 +52,7 @@ main_menu() {
                 echo -e "  ${BGREEN}Semua service di-restart!${NC}"
                 sleep 2
                 ;;
-            x|X|0) clear; exit 0 ;;
+            0) clear; exit 0 ;;
             *) echo -e "  ${BRED}Pilihan tidak valid!${NC}"; sleep 1 ;;
         esac
     done
