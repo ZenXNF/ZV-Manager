@@ -16,15 +16,18 @@ list_servers() {
     echo ""
 
     local count=0
-    printf "  ${BWHITE}%-4s %-15s %-20s %-6s %-10s${NC}\n" "No." "Nama" "IP" "Port" "User"
+    printf "  ${BWHITE}%-4s %-10s %-22s %-20s %-5s${NC}\n" "No." "Nama" "Domain" "IP" "Port"
     echo -e "  ${BCYAN}──────────────────────────────────────────────────────${NC}"
 
     for conf in "${SERVER_DIR}"/*.conf; do
         [[ -f "$conf" ]] || continue
+        unset NAME IP DOMAIN PORT USER
         source "$conf"
         count=$((count + 1))
-        printf "  ${BGREEN}%-4s${NC} %-15s %-20s %-6s %-10s\n" \
-            "${count}." "$NAME" "$IP" "$PORT" "$USER"
+        # Kalau domain sama dengan IP (belum diisi), tampilkan "-"
+        local disp_domain="${DOMAIN:-$IP}"
+        printf "  ${BGREEN}%-4s${NC} %-10s %-22s %-20s %-5s\n" \
+            "${count}." "$NAME" "$disp_domain" "$IP" "$PORT"
     done
 
     if [[ $count -eq 0 ]]; then
