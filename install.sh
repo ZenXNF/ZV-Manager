@@ -79,10 +79,10 @@ source "$INSTALL_DIR/core/system.sh"
 run_system_setup
 
 source "$INSTALL_DIR/core/domain.sh"
-setup_domain
+setup_domain   # otomatis ambil IP, tidak tanya user
 
 source "$INSTALL_DIR/core/ssl.sh"
-setup_ssl
+setup_ssl      # otomatis self-signed, tidak tanya user
 
 source "$INSTALL_DIR/services/ssh/install.sh"
 install_ssh
