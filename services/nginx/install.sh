@@ -10,21 +10,20 @@ source /etc/zv-manager/config.conf
 install_nginx() {
     print_section "Install & Konfigurasi Nginx"
 
-    # Install nginx dengan stream module
-    apt-get install -y nginx libnginx-mod-stream &>/dev/null
+    apt-get install -y nginx &>/dev/null
     systemctl stop nginx &>/dev/null
 
     local domain
     domain=$(cat /etc/zv-manager/domain)
-
-    local ssl_cert="/etc/zv-manager/ssl/cert.pem"
-    local ssl_key="/etc/zv-manager/ssl/key.pem"
 
     # Hapus config default
     rm -f /etc/nginx/sites-enabled/default
     rm -f /etc/nginx/sites-available/default
     rm -f /etc/nginx/conf.d/*.conf
 
+    # Nginx hanya handle HTTP (port 80 WS + port 81 info)
+    # Port 443 SSL diserahkan sepenuhnya ke stunnel → ws-proxy
+    # Tidak perlu stream module lagi
     cat > /etc/nginx/nginx.conf <<NGINXMAIN
 user www-data;
 worker_processes auto;
@@ -36,7 +35,6 @@ events {
     multi_accept on;
 }
 
-# ── HTTP block: WS port 80 + web info port 81 ──
 http {
     sendfile on;
     tcp_nopush on;
@@ -62,7 +60,7 @@ http {
         ''      close;
     }
 
-    # WS HTTP port 80 — forward ke ws-proxy
+    # Port 80 — WS non-SSL, forward ke ws-proxy
     server {
         listen ${WS_PORT};
         server_name ${domain};
@@ -80,7 +78,7 @@ http {
         }
     }
 
-    # Web info page port 81
+    # Port 81 — halaman info web
     server {
         listen ${NGINX_PORT};
         server_name ${domain};
@@ -91,41 +89,11 @@ http {
         }
     }
 }
-
-# ── STREAM block: port 443 SSL ──
-# Stream bekerja di level TCP — bisa handle HTTP CONNECT langsung
-# HTTP Custom, HTTP Injector, NapsternetV semua pakai CONNECT method
-stream {
-    # tcp_nodelay WAJIB di sini:
-    # SSH banner sangat kecil (~50 bytes). Tanpa tcp_nodelay, nginx akan
-    # buffer data kecil ini (Nagle's algorithm) dan tidak langsung forward
-    # ke client → HTTP Custom timeout 15 detik menunggu banner yang tidak datang.
-    tcp_nodelay on;
-
-    server {
-        listen ${WSS_PORT} ssl;
-
-        ssl_certificate     ${ssl_cert};
-        ssl_certificate_key ${ssl_key};
-        ssl_protocols       TLSv1.2 TLSv1.3;
-        ssl_ciphers         HIGH:!aNULL:!MD5;
-        ssl_session_cache   shared:SSL:10m;
-        ssl_session_timeout 10m;
-        ssl_handshake_timeout 10s;
-
-        # Setelah SSL termination, forward raw TCP ke ws-proxy
-        proxy_pass 127.0.0.1:8880;
-        proxy_timeout 3600s;
-        proxy_connect_timeout 10s;
-    }
-}
 NGINXMAIN
 
-    # Buat direktori web
     mkdir -p /var/www/zv-manager
     chown -R www-data:www-data /var/www/zv-manager
 
-    # Test dan start nginx
     if nginx -t &>/dev/null; then
         systemctl enable nginx &>/dev/null
         systemctl start nginx &>/dev/null
