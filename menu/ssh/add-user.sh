@@ -7,9 +7,6 @@ source /etc/zv-manager/utils/colors.sh
 source /etc/zv-manager/utils/logger.sh
 source /etc/zv-manager/utils/helpers.sh
 
-# Cari domain yang terdaftar untuk VPS lokal ini
-# Logic: cari di servers/*.conf mana yang IP-nya cocok dengan IP lokal
-# Kalau ketemu → pakai domainnya, kalau tidak → fallback ke IP
 get_local_domain() {
     local local_ip
     local_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null)
@@ -38,40 +35,35 @@ add_ssh_user() {
     echo -e " │           ${BWHITE}TAMBAH AKUN SSH BARU${NC}              │"
     echo -e "${BCYAN} └─────────────────────────────────────────────┘${NC}"
     echo ""
-    read -rp "  Username     : " username
-    read -rp "  Password     : " password
-    read -rp "  Limit Login  : " limit
+    read -rp "  Username      : " username
+    read -rp "  Password      : " password
+    read -rp "  Limit Login   : " limit
     read -rp "  Expired (hari): " days
     echo ""
 
-    # Validasi input
     if [[ -z "$username" || -z "$password" || -z "$days" ]]; then
         print_error "Semua field harus diisi!"
         press_any_key
         return
     fi
 
-    # Cek duplicate: Linux user
     if user_exists "$username"; then
         print_error "Username '$username' sudah ada di sistem Linux!"
         press_any_key
         return
     fi
 
-    # Cek duplicate: file conf (bisa terjadi jika user dihapus manual dari sistem)
     if [[ -f "/etc/zv-manager/accounts/ssh/${username}.conf" ]]; then
         print_error "Username '$username' sudah ada di data akun!"
         press_any_key
         return
     fi
 
-    # Buat user Linux
     local exp_date
     exp_date=$(expired_date "$days")
     useradd -e "$exp_date" -s /bin/false -M "$username" &>/dev/null
     echo -e "$password\n$password" | passwd "$username" &>/dev/null
 
-    # Simpan data akun
     mkdir -p /etc/zv-manager/accounts/ssh
     cat > "/etc/zv-manager/accounts/ssh/${username}.conf" <<EOF
 USERNAME=$username
@@ -81,41 +73,52 @@ EXPIRED=$exp_date
 CREATED=$(date +"%Y-%m-%d")
 EOF
 
-    # Tampilkan info akun
+    local created_date
+    created_date=$(date +"%d %b %Y")
+
     clear
-    echo -e "${BCYAN} ┌─────────────────────────────────────────────┐${NC}"
-    echo -e " │            ${BWHITE}INFORMASI AKUN SSH${NC}               │"
-    echo -e "${BCYAN} └─────────────────────────────────────────────┘${NC}"
-    echo -e "${BCYAN} ┌─────────────────────────────────────────────┐${NC}"
-    echo -e "  ${BWHITE}Username    :${NC} ${BGREEN}${username}${NC}"
-    echo -e "  ${BWHITE}Password    :${NC} ${BGREEN}${password}${NC}"
-    echo -e "  ${BWHITE}Limit Login :${NC} ${BGREEN}${limit}${NC}"
-    echo -e "  ${BWHITE}Expired     :${NC} ${BYELLOW}${exp_date}${NC}"
-    echo -e "${BCYAN} └─────────────────────────────────────────────┘${NC}"
-    echo -e "${BCYAN} ┌─────────────────────────────────────────────┐${NC}"
-    echo -e "  ${BWHITE}Host        :${NC} ${BGREEN}${host}${NC}"
-    echo -e "  ${BWHITE}OpenSSH     :${NC} ${BPURPLE}22${NC}"
-    echo -e "  ${BWHITE}SSH-WS      :${NC} ${BPURPLE}80${NC}"
-    echo -e "  ${BWHITE}SSH-WSS     :${NC} ${BPURPLE}443${NC}"
-    echo -e "  ${BWHITE}Dropbear    :${NC} ${BPURPLE}109, 143${NC}"
-    echo -e "  ${BWHITE}UDP Custom  :${NC} ${BPURPLE}1-65535${NC}"
-    echo -e "${BCYAN} └─────────────────────────────────────────────┘${NC}"
-    echo -e "${BCYAN} ┌─────────────────────────────────────────────┐${NC}"
-    echo -e "  ${BWHITE}Payload WS/WSS:${NC}"
-    echo -e "  ${BPURPLE}GET / HTTP/1.1[crlf]Host: ${host}[crlf]"
-    echo -e "  Upgrade: websocket[crlf][crlf]${NC}"
-    echo -e "${BCYAN} └─────────────────────────────────────────────┘${NC}"
-    echo -e "${BCYAN} ┌─────────────────────────────────────────────┐${NC}"
-    echo -e " │            ${BWHITE}STATUS SERVICE${NC}                    │"
-    echo -e "${BCYAN} └─────────────────────────────────────────────┘${NC}"
-    for svc in ssh dropbear nginx zv-wss zv-udp; do
-        if systemctl is-active --quiet "$svc" 2>/dev/null; then
-            echo -e "  ${BGREEN}●${NC} ${svc}: ${BGREEN}Aktif${NC}"
-        else
-            echo -e "  ${BRED}●${NC} ${svc}: ${BRED}Mati${NC}"
-        fi
-    done
-    echo -e "${BCYAN} └─────────────────────────────────────────────┘${NC}"
+    echo ""
+    echo -e "  ${BYELLOW}✦ AKUN SSH BERHASIL DIBUAT ✦${NC}"
+    echo ""
+    echo -e "  ${BCYAN}┌─────────────────────────────────────────┐${NC}"
+    echo -e "  ${BCYAN}│${NC}  ${BWHITE}Informasi Akun${NC}"
+    echo -e "  ${BCYAN}├─────────────────────────────────────────┤${NC}"
+    echo -e "  ${BCYAN}│${NC}  Host       : ${BGREEN}${host}${NC}"
+    echo -e "  ${BCYAN}│${NC}  Username   : ${BGREEN}${username}${NC}"
+    echo -e "  ${BCYAN}│${NC}  Password   : ${BGREEN}${password}${NC}"
+    echo -e "  ${BCYAN}│${NC}  Limit      : ${BWHITE}${limit} perangkat${NC}"
+    echo -e "  ${BCYAN}│${NC}  Dibuat     : ${BWHITE}${created_date}${NC}"
+    echo -e "  ${BCYAN}│${NC}  Expired    : ${BYELLOW}${exp_date}${NC}"
+    echo -e "  ${BCYAN}└─────────────────────────────────────────┘${NC}"
+    echo ""
+    echo -e "  ${BCYAN}┌─────────────────────────────────────────┐${NC}"
+    echo -e "  ${BCYAN}│${NC}  ${BWHITE}Port${NC}"
+    echo -e "  ${BCYAN}├─────────────────────────────────────────┤${NC}"
+    echo -e "  ${BCYAN}│${NC}  OpenSSH    : ${BPURPLE}22, 500, 40000${NC}"
+    echo -e "  ${BCYAN}│${NC}  Dropbear   : ${BPURPLE}109, 143${NC}"
+    echo -e "  ${BCYAN}│${NC}  SSH WS     : ${BPURPLE}80${NC}"
+    echo -e "  ${BCYAN}│${NC}  SSH WSS    : ${BPURPLE}443${NC}"
+    echo -e "  ${BCYAN}│${NC}  UDP Custom : ${BPURPLE}1-65535${NC}"
+    echo -e "  ${BCYAN}└─────────────────────────────────────────┘${NC}"
+    echo ""
+    echo -e "  ${BCYAN}┌─────────────────────────────────────────┐${NC}"
+    echo -e "  ${BCYAN}│${NC}  ${BWHITE}Format HTTP Custom${NC}"
+    echo -e "  ${BCYAN}├─────────────────────────────────────────┤${NC}"
+    echo -e "  ${BCYAN}│${NC}  WS   : ${BGREEN}${host}:80@${username}:${password}${NC}"
+    echo -e "  ${BCYAN}│${NC}  WSS  : ${BGREEN}${host}:443@${username}:${password}${NC}"
+    echo -e "  ${BCYAN}│${NC}  UDP  : ${BGREEN}${host}:1-65535@${username}:${password}${NC}"
+    echo -e "  ${BCYAN}└─────────────────────────────────────────┘${NC}"
+    echo ""
+    echo -e "  ${BCYAN}┌─────────────────────────────────────────┐${NC}"
+    echo -e "  ${BCYAN}│${NC}  ${BWHITE}Payload${NC}"
+    echo -e "  ${BCYAN}├─────────────────────────────────────────┤${NC}"
+    echo -e "  ${BCYAN}│${NC}  ${BWHITE}WS Non-SSL:${NC}"
+    echo -e "  ${BCYAN}│${NC}    ${BPURPLE}GET / HTTP/1.1[crlf]Host: ${host}[crlf]${NC}"
+    echo -e "  ${BCYAN}│${NC}    ${BPURPLE}Upgrade: websocket[crlf][crlf]${NC}"
+    echo -e "  ${BCYAN}│${NC}"
+    echo -e "  ${BCYAN}│${NC}  ${BWHITE}WS SSL (HTTP CONNECT):${NC}"
+    echo -e "  ${BCYAN}│${NC}    ${BPURPLE}CONNECT ${host}:443 HTTP/1.0[crlf][crlf]${NC}"
+    echo -e "  ${BCYAN}└─────────────────────────────────────────┘${NC}"
     echo ""
 
     press_any_key
