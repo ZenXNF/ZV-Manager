@@ -14,28 +14,20 @@ install_websocket() {
     cp /etc/zv-manager/services/websocket/ws-proxy.py /usr/local/bin/zv-ws-proxy.py
     chmod +x /usr/local/bin/zv-ws-proxy.py
 
-    # --- Systemd service untuk WS HTTP (port 80) ---
-    cat > /etc/systemd/system/zv-ws.service <<EOF
-[Unit]
-Description=ZV-Manager WebSocket HTTP Proxy
-After=network.target
+    # --- Bersihkan service lama yang konflik ---
+    # zv-ws.service lama bind ke port 80 langsung, konflik dengan nginx
+    # Sekarang nginx yang handle port 80, lalu forward ke 8880 (ws-proxy internal)
+    systemctl stop zv-ws &>/dev/null
+    systemctl disable zv-ws &>/dev/null
+    rm -f /etc/systemd/system/zv-ws.service
 
-[Service]
-Type=simple
-User=root
-ExecStart=/usr/bin/python3 /usr/local/bin/zv-ws-proxy.py ${WS_PORT}
-Restart=always
-RestartSec=3s
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-    # --- Systemd service untuk WS HTTPS (443 via nginx) ---
-    # Port 443 ditangani nginx, nginx forward ke WS proxy internal (port 8880)
+    # --- Satu-satunya WS proxy: internal port 8880 ---
+    # Nginx port 80  → proxy_pass 127.0.0.1:8880  (HTTP WS)
+    # Nginx port 443 → stream proxy 127.0.0.1:8880 (HTTPS / HTTP CONNECT)
+    # Jadi hanya butuh SATU instance ws-proxy di port 8880
     cat > /etc/systemd/system/zv-wss.service <<EOF
 [Unit]
-Description=ZV-Manager WebSocket HTTPS Internal Proxy
+Description=ZV-Manager WebSocket & HTTP CONNECT Proxy (Internal)
 After=network.target
 
 [Service]
@@ -50,8 +42,8 @@ WantedBy=multi-user.target
 EOF
 
     systemctl daemon-reload
-    systemctl enable zv-ws zv-wss &>/dev/null
-    systemctl start zv-ws zv-wss &>/dev/null
+    systemctl enable zv-wss &>/dev/null
+    systemctl restart zv-wss &>/dev/null
 
-    print_success "WebSocket Proxy (HTTP:${WS_PORT}, HTTPS via Nginx:${WSS_PORT})"
+    print_success "WebSocket Proxy (Internal port 8880 — dilayani Nginx di port ${WS_PORT} & ${WSS_PORT})"
 }
