@@ -30,6 +30,11 @@ install_udp_custom() {
         return 1
     fi
 
+    # Stop service dulu sebelum copy binary
+    # Kalau tidak, binary yang sedang berjalan akan lock file → "Text file busy"
+    systemctl stop zv-udp &>/dev/null
+    sleep 1
+
     cp /tmp/udp-custom-src/bin/udp-custom-linux-amd64 "$binary_path"
     chmod +x "$binary_path"
     rm -rf /tmp/udp-custom-src
