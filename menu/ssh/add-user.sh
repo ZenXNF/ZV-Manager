@@ -7,12 +7,34 @@ source /etc/zv-manager/utils/colors.sh
 source /etc/zv-manager/utils/logger.sh
 source /etc/zv-manager/utils/helpers.sh
 
+# Cari domain yang terdaftar untuk VPS lokal ini
+# Logic: cari di servers/*.conf mana yang IP-nya cocok dengan IP lokal
+# Kalau ketemu → pakai domainnya, kalau tidak → fallback ke IP
+get_local_domain() {
+    local local_ip
+    local_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null)
+    [[ -z "$local_ip" ]] && local_ip=$(curl -s --max-time 5 ipv4.icanhazip.com 2>/dev/null)
+
+    local found_domain=""
+    for conf in /etc/zv-manager/servers/*.conf; do
+        [[ -f "$conf" ]] || continue
+        unset IP DOMAIN
+        source "$conf"
+        if [[ "$IP" == "$local_ip" && -n "$DOMAIN" && "$DOMAIN" != "$local_ip" ]]; then
+            found_domain="$DOMAIN"
+            break
+        fi
+    done
+
+    echo "${found_domain:-$local_ip}"
+}
+
 add_ssh_user() {
     clear
-    local domain
-    domain=$(cat /etc/zv-manager/domain 2>/dev/null)
+    local host
+    host=$(get_local_domain)
     local ip
-    ip=$(curl -s --max-time 5 ipv4.icanhazip.com 2>/dev/null)
+    ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null || curl -s --max-time 5 ipv4.icanhazip.com 2>/dev/null)
 
     echo -e "${BCYAN} ┌─────────────────────────────────────────────┐${NC}"
     echo -e " │           ${BWHITE}TAMBAH AKUN SSH BARU${NC}              │"
@@ -31,8 +53,16 @@ add_ssh_user() {
         return
     fi
 
+    # Cek duplicate: Linux user
     if user_exists "$username"; then
-        print_error "Username '$username' sudah ada!"
+        print_error "Username '$username' sudah ada di sistem Linux!"
+        press_any_key
+        return
+    fi
+
+    # Cek duplicate: file conf (bisa terjadi jika user dihapus manual dari sistem)
+    if [[ -f "/etc/zv-manager/accounts/ssh/${username}.conf" ]]; then
+        print_error "Username '$username' sudah ada di data akun!"
         press_any_key
         return
     fi
@@ -66,7 +96,7 @@ EOF
     echo -e "${BCYAN} └─────────────────────────────────────────────┘${NC}"
     echo -e "${BCYAN} ┌─────────────────────────────────────────────┐${NC}"
     echo -e "  ${BWHITE}IP VPS      :${NC} ${BGREEN}${ip}${NC}"
-    echo -e "  ${BWHITE}Host        :${NC} ${BGREEN}${domain}${NC}"
+    echo -e "  ${BWHITE}Host        :${NC} ${BGREEN}${host}${NC}"
     echo -e "  ${BWHITE}OpenSSH     :${NC} ${BPURPLE}22${NC}"
     echo -e "  ${BWHITE}SSH-WS      :${NC} ${BPURPLE}80${NC}"
     echo -e "  ${BWHITE}SSH-WSS     :${NC} ${BPURPLE}443${NC}"
@@ -75,8 +105,19 @@ EOF
     echo -e "${BCYAN} └─────────────────────────────────────────────┘${NC}"
     echo -e "${BCYAN} ┌─────────────────────────────────────────────┐${NC}"
     echo -e "  ${BWHITE}Payload WS/WSS:${NC}"
-    echo -e "  ${BPURPLE}GET / HTTP/1.1[crlf]Host: ${domain}[crlf]"
+    echo -e "  ${BPURPLE}GET / HTTP/1.1[crlf]Host: ${host}[crlf]"
     echo -e "  Upgrade: websocket[crlf][crlf]${NC}"
+    echo -e "${BCYAN} └─────────────────────────────────────────────┘${NC}"
+    echo -e "${BCYAN} ┌─────────────────────────────────────────────┐${NC}"
+    echo -e " │            ${BWHITE}STATUS SERVICE${NC}                    │"
+    echo -e "${BCYAN} └─────────────────────────────────────────────┘${NC}"
+    for svc in ssh dropbear nginx zv-wss zv-udp; do
+        if systemctl is-active --quiet "$svc" 2>/dev/null; then
+            echo -e "  ${BGREEN}●${NC} ${svc}: ${BGREEN}Aktif${NC}"
+        else
+            echo -e "  ${BRED}●${NC} ${svc}: ${BRED}Mati${NC}"
+        fi
+    done
     echo -e "${BCYAN} └─────────────────────────────────────────────┘${NC}"
     echo ""
 
