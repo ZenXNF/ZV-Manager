@@ -43,6 +43,49 @@ add_server() {
         return
     fi
 
+    # --- Verifikasi koneksi SSH sebelum simpan ---
+    print_info "Mencoba koneksi ke ${user}@${ip}:${port}..."
+
+    if ! command -v sshpass &>/dev/null; then
+        print_info "Menginstall sshpass..."
+        apt-get install -y sshpass &>/dev/null
+    fi
+
+    local ssh_result
+    ssh_result=$(sshpass -p "$pass" ssh \
+        -o StrictHostKeyChecking=no \
+        -o UserKnownHostsFile=/dev/null \
+        -o ConnectTimeout=10 \
+        -o BatchMode=no \
+        -p "$port" \
+        "${user}@${ip}" \
+        "echo ZV-TEST-OK" 2>&1)
+
+    if [[ "$ssh_result" != *"ZV-TEST-OK"* ]]; then
+        echo ""
+        print_error "Koneksi SSH gagal! Server tidak disimpan."
+        echo ""
+
+        # Tampilkan penyebab error yang relevan (tanpa baris kosong/noise)
+        local err_hint
+        err_hint=$(echo "$ssh_result" | grep -v "^$" | grep -v "Warning" | tail -2)
+        if [[ -n "$err_hint" ]]; then
+            echo -e "  ${BYELLOW}Detail: ${err_hint}${NC}"
+        fi
+
+        echo ""
+        echo -e "  ${BYELLOW}Kemungkinan penyebab:${NC}"
+        echo -e "  - IP atau port salah"
+        echo -e "  - Password salah"
+        echo -e "  - SSH server belum aktif di VPS tujuan"
+        press_any_key
+        return
+    fi
+
+    print_ok "Koneksi SSH berhasil!"
+    echo ""
+
+    # --- Simpan ke file conf ---
     # Kutip ADDED agar spasi di tanggal tidak dianggap command
     cat > "${SERVER_DIR}/${name}.conf" <<CONFEOF
 NAME="${name}"
