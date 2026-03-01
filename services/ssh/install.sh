@@ -40,19 +40,22 @@ install_ssh() {
     # Cek apakah Banner sudah ada di config
     grep -q "^Banner" "$sshd_config" || echo "Banner /etc/issue.net" >> "$sshd_config"
 
-    # Isi banner dengan warna ANSI (pakai printf agar \e dirender)
-    printf '\e[1;36m╔══════════════════════════════════════════════════╗\e[0m\n' > /etc/issue.net
-    printf '\e[1;36m║\e[0m        \e[1;33m--- WELCOME TO ZV-MANAGER ---\e[0m           \e[1;36m║\e[0m\n' >> /etc/issue.net
-    printf '\e[1;36m╚══════════════════════════════════════════════════╝\e[0m\n' >> /etc/issue.net
-    printf '\n' >> /etc/issue.net
-    printf '\e[1;31m        ! TERM OF SERVICE !\e[0m\n' >> /etc/issue.net
-    printf '\e[1;37m        NO SPAM\e[0m\n' >> /etc/issue.net
-    printf '\e[1;37m        NO DDOS\e[0m\n' >> /etc/issue.net
-    printf '\e[1;37m        NO HACKING & CARDING\e[0m\n' >> /etc/issue.net
-    printf '\e[1;31m        NO TORRENT !!\e[0m\n' >> /etc/issue.net
-    printf '\e[1;31m        NO MULTI LOGIN !!\e[0m\n' >> /etc/issue.net
-    printf '\n' >> /etc/issue.net
-    printf '\e[1;36m══════════════════════════════════════════════════\e[0m\n' >> /etc/issue.net
+    # Isi banner — plain text tanpa ANSI
+    # SSH protocol tidak render warna di banner, ditampilkan as-is
+    cat > /etc/issue.net <<'BANNEREOF'
+╔══════════════════════════════════════════════════╗
+║        --- WELCOME TO ZV-MANAGER ---             ║
+╚══════════════════════════════════════════════════╝
+
+        ! TERM OF SERVICE !
+        NO SPAM
+        NO DDOS
+        NO HACKING & CARDING
+        NO TORRENT !!
+        NO MULTI LOGIN !!
+
+══════════════════════════════════════════════════
+BANNEREOF
 
     # Setup /etc/shells
     grep -qx '/bin/false' /etc/shells || echo '/bin/false' >> /etc/shells
