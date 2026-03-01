@@ -35,7 +35,8 @@ install_udp_custom() {
     rm -rf /tmp/udp-custom-src
     print_ok "UDP Custom binary siap (ePro Dev)"
 
-    # Config — single port (binary ePro Dev tidak support range)
+    # Config — UDP_PORT adalah internal listener binary
+    # Binary otomatis intercept semua UDP port 1-65535 via iptables TPROXY
     cat > /etc/zv-manager/udp/config.json <<CFGEOF
 {
   "listen": ":${UDP_PORT}",
@@ -71,7 +72,7 @@ SVCEOF
 
     sleep 2
     if systemctl is-active --quiet zv-udp; then
-        print_success "UDP Custom (Port: ${UDP_PORT})"
+        print_success "UDP Custom (Port: 1-65535 via TPROXY, listener: ${UDP_PORT})"
     else
         print_error "UDP Custom gagal start! Cek: systemctl status zv-udp"
     fi
