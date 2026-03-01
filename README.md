@@ -11,19 +11,19 @@
 |---|---|
 | SSH WebSocket HTTP (port 80) | ✅ |
 | SSH WebSocket HTTPS (port 443) | ✅ |
-| HTTP CONNECT Tunnel (HTTP Custom, HTTP Injector) | ✅ |
-| UDP Custom / BadVPN UDPGW | ✅ |
+| HTTP CONNECT Tunnel (HTTP Custom, HTTP Injector, NapsternetV) | ✅ |
+| UDP Custom ePro Dev (port 1-65535) | ✅ |
 | Dropbear (port 109, 143) | ✅ |
-| Nginx SSL Reverse Proxy + Stream | ✅ |
-| Manajemen User SSH (add/del/list/renew) | ✅ |
+| Nginx SSL Stream + Reverse Proxy | ✅ |
+| Manajemen User SSH (add/del/list/renew/lock/unlock) | ✅ |
+| Verifikasi koneksi saat tambah server | ✅ |
 | Auto-Kill Multi-Login | ✅ |
 | Auto-Delete Expired User | ✅ |
-| Lock / Unlock User | ✅ |
 | BBR TCP Congestion Control | ✅ |
 | Blokir Torrent (iptables) | ✅ |
 | Auto Reboot Scheduler | ✅ |
 | Multi-Server Manager | ✅ |
-| SSH Banner / Server Message | ✅ |
+| SSH Banner plain text | ✅ |
 | Menu CLI Interaktif | ✅ |
 
 ---
@@ -69,10 +69,16 @@ Untuk update ZV-Manager ke versi terbaru tanpa reinstall:
 wget -q https://raw.githubusercontent.com/ZenXNF/ZV-Manager/main/update.sh && bash update.sh
 ```
 
-Script ini akan otomatis:
-- Ambil update terbaru dari GitHub
-- Salin file ke `/etc/zv-manager/`
-- Restart semua service yang aktif
+Yang diperbarui otomatis:
+- Script terbaru dari GitHub disalin ke `/etc/zv-manager/`
+- Config nginx, websocket, SSH, dropbear, UDP di-reapply
+- Semua service direstart
+
+Yang **tidak tersentuh** saat update:
+- Akun SSH yang sudah dibuat (`/etc/zv-manager/accounts/`)
+- Daftar server (`/etc/zv-manager/servers/`)
+- Sertifikat SSL (`/etc/zv-manager/ssl/`)
+- File domain/IP (`/etc/zv-manager/domain`)
 
 ---
 
@@ -82,35 +88,54 @@ Script ini akan otomatis:
 |---|---|
 | OpenSSH | 22, 500, 40000 |
 | Dropbear | 109, 143 |
-| WS / HTTP CONNECT HTTP | 80 |
-| WS / HTTP CONNECT HTTPS | 443 |
-| UDP Custom / UDPGW | 7100-7900 |
+| WS HTTP / HTTP CONNECT | 80 |
+| WSS HTTPS / HTTP CONNECT SSL | 443 |
+| UDP Custom (ePro Dev) | 1-65535 |
 
 ---
 
-## 📱 Payload
+## 🔧 Arsitektur Teknis
+
+### WebSocket & HTTP CONNECT (Port 443)
+
+Nginx menggunakan modul `stream{}` (bukan `http{}`) untuk port 443, sehingga bekerja di level TCP murni. Ini yang memungkinkan HTTP CONNECT request melewati nginx tanpa mendapat `400 Bad Request`.
+
+```
+Client
+  │
+  ├─ Port 80  → Nginx http{} → 127.0.0.1:8880 → ws-proxy.py
+  │
+  └─ Port 443 → Nginx stream{} (SSL termination) → 127.0.0.1:8880 → ws-proxy.py
+                                                           │
+                                                  HTTP CONNECT → SSH :22
+                                                  WebSocket    → SSH :22
+```
+
+### UDP Custom
+
+Binary UDP Custom dari **ePro Dev** ([http-custom/udp-custom](https://github.com/http-custom/udp-custom)) bekerja dengan memasang rule **iptables TPROXY** yang menginterceptasi semua UDP traffic port **1-65535**. Port `36712` di `config.json` adalah internal listener binary, bukan port yang diisi di aplikasi tunneling.
+
+Di aplikasi (HTTP Custom, dsb.) isi port UDP: **1-65535**
+
+### Multi-Server Manager
+
+Satu VPS (Neva) bisa jadi pusat kendali untuk banyak VPS lain. Data server disimpan di `/etc/zv-manager/servers/nama.conf`. Saat tambah server, koneksi SSH akan diverifikasi terlebih dahulu — jika gagal, server tidak akan disimpan.
+
+> **Catatan:** Menu SSH (buat/hapus akun) hanya bisa diakses setelah minimal 1 server ditambahkan.
+
+---
+
+## 📱 Payload Aplikasi
 
 **WebSocket (HTTP Injector / NapsternetV):**
 ```
 GET / HTTP/1.1[crlf]Host: [domain/ip][crlf]Upgrade: websocket[crlf]Connection: Upgrade[crlf][crlf]
 ```
 
-**HTTP CONNECT (HTTP Custom / Termius):**
+**HTTP CONNECT (HTTP Custom):**
 ```
-CONNECT [domain/ip]:22 HTTP/1.0[crlf][crlf]
+CONNECT [domain/ip]:443 HTTP/1.0[crlf][crlf]
 ```
-
----
-
-## 🖧 Multi-Server Manager
-
-Neva bisa jadi pusat kendali untuk banyak VPS lain.  
-Masuk ke **Menu → Manajemen Server** untuk menambah, melihat, menghapus, dan connect ke server lain langsung dari Neva.
-
-Neva sendiri juga bisa ditambahkan sebagai server (otak sekaligus tunnel).  
-Setiap server bisa punya domain berbeda (contoh: `neva.zenxu.my.id`, `od.zenxu.my.id`).
-
-> **Catatan:** Menu SSH (buat/hapus akun) hanya bisa diakses setelah minimal 1 server ditambahkan.
 
 ---
 
@@ -118,39 +143,40 @@ Setiap server bisa punya domain berbeda (contoh: `neva.zenxu.my.id`, `od.zenxu.m
 
 ```
 ZV-Manager/
-├── zv.sh                   # Entry point instalasi (wget)
-├── update.sh               # Script updater
+├── zv.sh                   # Entry point instalasi (wget one-liner)
 ├── install.sh              # Installer utama
-├── config.conf             # Konfigurasi global
+├── update.sh               # Script updater (aman, tidak hapus akun/server)
+├── uninstall.sh            # Uninstaller
+├── config.conf             # Konfigurasi global (port, versi, dll)
 │
 ├── core/
-│   ├── system.sh
-│   ├── domain.sh
-│   └── ssl.sh
+│   ├── system.sh           # Install dependencies, swap, BBR, iptables
+│   ├── domain.sh           # Ambil IP publik otomatis
+│   └── ssl.sh              # Generate sertifikat self-signed otomatis
 │
 ├── services/
-│   ├── ssh/
-│   ├── websocket/          # Support WS + HTTP CONNECT
-│   ├── nginx/              # Stream module untuk port 443
-│   ├── dropbear/
-│   └── udp/
+│   ├── ssh/                # OpenSSH — port 22, 500, 40000
+│   ├── websocket/          # ws-proxy.py (HTTP CONNECT + WebSocket)
+│   ├── nginx/              # stream{} port 443 + http{} port 80 & 81
+│   ├── dropbear/           # Dropbear — port 109, 143
+│   └── udp/                # UDP Custom ePro Dev — 1-65535 via TPROXY
 │
 ├── menu/
-│   ├── menu.sh
-│   ├── ssh/
-│   ├── server/             # Multi-server manager
-│   ├── system/
-│   └── info/
+│   ├── menu.sh             # Main menu (auto-launch saat SSH login)
+│   ├── ssh/                # Kelola akun SSH (add/del/list/renew/lock/unlock)
+│   ├── server/             # Multi-server manager (add/list/connect/del)
+│   ├── system/             # Restart, status service, clear cache, auto-reboot
+│   └── info/               # Info server (IP, OS, RAM, disk, uptime, port)
 │
 ├── utils/
-│   ├── colors.sh
-│   ├── logger.sh
-│   ├── checker.sh
-│   └── helpers.sh
+│   ├── colors.sh           # Definisi warna ANSI
+│   ├── logger.sh           # print_ok / print_error / print_info / timer
+│   ├── checker.sh          # Cek OS, arsitektur, virtualisasi, internet
+│   └── helpers.sh          # Helper functions (expired_date, user_exists, dll)
 │
 └── cron/
-    ├── autokill.sh
-    └── expired.sh
+    ├── autokill.sh         # Auto-kill sesi melebihi limit (tiap 1 menit)
+    └── expired.sh          # Auto-hapus user expired (tiap hari jam 00:02)
 ```
 
 ---
