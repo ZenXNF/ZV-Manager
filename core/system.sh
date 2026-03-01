@@ -114,11 +114,12 @@ block_torrent() {
     iptables -A FORWARD -m string --string "find_node" --algo bm -j DROP
     iptables -A FORWARD -m string --algo bm --string "BitTorrent" -j DROP
     iptables -A FORWARD -m string --algo bm --string "BitTorrent protocol" -j DROP
-    iptables -A FORWARD -m string --algo bm --string "peer_id=" -j DROP
+    iptables -A FORWARD -m string --algo bm --string "peer_id=" --algo bm -j DROP
     iptables -A FORWARD -m string --algo bm --string ".torrent" -j DROP
     iptables -A FORWARD -m string --algo bm --string "info_hash" -j DROP
 
-    # Simpan rules tanpa prompt
+    # Buat direktori dulu sebelum save — fix "No such file or directory"
+    mkdir -p /etc/iptables
     iptables-save > /etc/iptables/rules.v4 2>/dev/null || true
 
     print_success "Blokir Torrent"
