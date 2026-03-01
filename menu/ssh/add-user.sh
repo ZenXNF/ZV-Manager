@@ -72,7 +72,6 @@ EOF
     echo -e "  ${BWHITE}SSH-WSS     :${NC} ${BPURPLE}443${NC}"
     echo -e "  ${BWHITE}Dropbear    :${NC} ${BPURPLE}109, 143${NC}"
     echo -e "  ${BWHITE}UDP Custom  :${NC} ${BPURPLE}1-65535${NC}"
-    echo -e "  ${BWHITE}UDPGW       :${NC} ${BPURPLE}7100-7900${NC}"
     echo -e "${BCYAN} └─────────────────────────────────────────────┘${NC}"
     echo -e "${BCYAN} ┌─────────────────────────────────────────────┐${NC}"
     echo -e "  ${BWHITE}Payload WS/WSS:${NC}"
