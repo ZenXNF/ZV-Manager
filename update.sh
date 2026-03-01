@@ -93,6 +93,12 @@ source /etc/zv-manager/services/dropbear/install.sh
 install_dropbear
 print_ok "Dropbear config diterapkan"
 
+# --- UDP Custom ---
+print_info "Apply UDP Custom..."
+source /etc/zv-manager/services/udp/install.sh
+install_udp_custom
+print_ok "UDP Custom diterapkan"
+
 # --- Cron jobs ---
 print_info "Apply cron jobs..."
 cat > /etc/cron.d/zv-autokill <<'CRONEOF'
