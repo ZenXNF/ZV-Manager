@@ -4,8 +4,8 @@
 #   Self-signed, tanpa identitas spesifik
 # ============================================================
 
-source /etc/zv-manager/utils/colors.sh
-source /etc/zv-manager/utils/logger.sh
+source /etc/zv-manager/utils/colors.sh 2>/dev/null || true
+source /etc/zv-manager/utils/logger.sh 2>/dev/null || true
 
 SSL_DIR="/etc/zv-manager/ssl"
 
@@ -21,7 +21,7 @@ setup_ssl() {
     local_ip=$(cat /etc/zv-manager/domain 2>/dev/null)
 
     local cn="$local_ip"
-    for conf in /etc/zv-manager/servers/*.conf 2>/dev/null; do
+    for conf in /etc/zv-manager/servers/*.conf; do
         [[ -f "$conf" ]] || continue
         unset IP DOMAIN
         source "$conf"
