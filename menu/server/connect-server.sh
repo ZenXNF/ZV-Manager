@@ -48,29 +48,48 @@ connect_server() {
     source "$chosen_conf"
     local disp_domain="${DOMAIN:-$IP}"
 
-    echo ""
-    print_info "Menghubungkan ke ${NAME} (${USER}@${disp_domain}:${PORT})..."
-    echo -e "  ${BYELLOW}Ketik 'exit' untuk kembali ke menu.${NC}"
-    echo ""
-    sleep 1
+    # Deteksi apakah server yang dipilih adalah VPS ini sendiri
+    local local_ip
+    local_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null || curl -s --max-time 5 ipv4.icanhazip.com 2>/dev/null)
 
-    if ! command -v sshpass &>/dev/null; then
-        apt-get install -y sshpass &>/dev/null
+    local is_self=false
+    if [[ "$IP" == "$local_ip" ]]; then
+        is_self=true
     fi
 
-    sshpass -p "$PASS" ssh \
-        -o StrictHostKeyChecking=no \
-        -o UserKnownHostsFile=/dev/null \
-        -o ConnectTimeout=10 \
-        -o ServerAliveInterval=30 \
-        -o ServerAliveCountMax=3 \
-        -p "$PORT" \
-        "${USER}@${IP}"
+    echo ""
+    print_info "Menghubungkan ke ${NAME} (${USER}@${disp_domain}:${PORT})..."
+
+    if [[ "$is_self" == true ]]; then
+        echo -e "  ${BYELLOW}⚠ Ini adalah VPS lokal — membuka shell langsung (bukan SSH).${NC}"
+        echo -e "  ${BYELLOW}  Ketik 'exit' atau 'menu' untuk kembali.${NC}"
+        echo ""
+        sleep 1
+        # Buka bash shell langsung — hindari loop menu dari .profile
+        bash --login -i
+    else
+        echo -e "  ${BYELLOW}Ketik 'exit' untuk kembali ke menu.${NC}"
+        echo ""
+        sleep 1
+
+        if ! command -v sshpass &>/dev/null; then
+            apt-get install -y sshpass &>/dev/null
+        fi
+
+        sshpass -p "$PASS" ssh \
+            -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            -o ConnectTimeout=10 \
+            -o ServerAliveInterval=30 \
+            -o ServerAliveCountMax=3 \
+            -p "$PORT" \
+            "${USER}@${IP}"
+    fi
 
     local exit_code=$?
     echo ""
     if [[ $exit_code -eq 0 ]]; then
-        print_ok "Koneksi ke '${NAME}' ditutup."
+        print_ok "Sesi ke '${NAME}' ditutup."
     else
         print_error "Koneksi ke '${NAME}' gagal atau terputus. (kode: ${exit_code})"
     fi
