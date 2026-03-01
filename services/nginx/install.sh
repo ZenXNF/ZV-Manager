@@ -117,9 +117,6 @@ stream {
         proxy_pass 127.0.0.1:8880;
         proxy_timeout 3600s;
         proxy_connect_timeout 10s;
-
-        # Buffer besar agar relay SSH data tidak terpotong
-        proxy_buffer_size 32k;
     }
 }
 NGINXMAIN
