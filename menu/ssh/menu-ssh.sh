@@ -11,7 +11,8 @@ SERVER_DIR="/etc/zv-manager/servers"
 
 check_server_exists() {
     local count=0
-    for conf in "${SERVER_DIR}"/*.conf 2>/dev/null; do
+    local conf
+    for conf in "${SERVER_DIR}"/*.conf; do
         [[ -f "$conf" ]] && count=$((count + 1))
     done
 
