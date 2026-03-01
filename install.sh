@@ -153,12 +153,12 @@ menu
 PROFILEEOF
 
 # --- Selesai ---
-clear
+# clear dihapus — supaya output progress WebSocket & UDP tetap kelihatan
 
-# Tanpa 'local' karena ini scope global script
 ZV_DOMAIN=$(cat /etc/zv-manager/domain 2>/dev/null || echo "$PUBLIC_IP")
 ZV_IP="$PUBLIC_IP"
 
+echo ""
 echo -e "${BCYAN}"
 echo "  ╔══════════════════════════════════════╗"
 echo "  ║      INSTALASI SELESAI!              ║"
@@ -173,6 +173,18 @@ echo -e "  ${BWHITE}WS HTTP  :${NC} ${BPURPLE}80${NC}"
 echo -e "  ${BWHITE}WS HTTPS :${NC} ${BPURPLE}443${NC}"
 echo -e "  ${BWHITE}UDP      :${NC} ${BPURPLE}1-65535${NC}"
 echo ""
+
+# --- Status service ringkas ---
+echo -e "  ${BWHITE}Status Service:${NC}"
+for svc in ssh dropbear nginx zv-wss zv-udp; do
+    if systemctl is-active --quiet "$svc" 2>/dev/null; then
+        echo -e "  ${BGREEN}✔${NC} ${svc}"
+    else
+        echo -e "  ${BRED}✘${NC} ${svc} — tidak aktif, cek: systemctl status ${svc}"
+    fi
+done
+echo ""
+
 echo -e "  ${BYELLOW}Ketik 'menu' untuk membuka ZV-Manager${NC}"
 echo ""
 
