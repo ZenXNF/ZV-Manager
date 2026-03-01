@@ -19,7 +19,7 @@ LISTENING_PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 80
 DEFAULT_HOST   = '127.0.0.1'
 DEFAULT_PORT   = 22
 BUFLEN         = 4096 * 4
-TIMEOUT        = 60  # detik idle sebelum putus
+TIMEOUT        = 600   # iterasi idle × 3 detik select = 1800 detik (30 menit)
 
 # Response untuk WebSocket Upgrade
 WS_RESPONSE = (
@@ -53,38 +53,50 @@ class ConnectionHandler(threading.Thread):
             self._close()
 
     def handle(self):
-        # Baca request dari client
-        raw = b''
-        while b'\r\n\r\n' not in raw:
-            chunk = self.client.recv(BUFLEN)
-            if not chunk:
-                return
-            raw += chunk
-            if len(raw) > BUFLEN:
-                break
+        # Timeout 30 detik untuk baca initial request
+        # Mencegah thread tergantung jika client tidak kirim data lengkap
+        self.client.settimeout(30)
 
-        data = raw.decode('utf-8', errors='ignore')
+        raw = b''
+        try:
+            while b'\r\n\r\n' not in raw:
+                chunk = self.client.recv(BUFLEN)
+                if not chunk:
+                    return
+                raw += chunk
+                if len(raw) > BUFLEN:
+                    break
+        except Exception:
+            return
+
+        # Kembalikan ke blocking (no timeout) untuk relay phase
+        self.client.settimeout(None)
+
+        # Pisah header dan data yang mungkin sudah ikut terbaca
+        # BUG FIX: raw bisa berisi data setelah \r\n\r\n (dari TCP segment yang sama)
+        # Data ini HARUS diteruskan ke SSH setelah tunnel terbentuk
+        header_end = raw.find(b'\r\n\r\n') + 4
+        headers_raw = raw[:header_end]
+        leftover    = raw[header_end:]   # data setelah HTTP headers, jika ada
+
+        data       = headers_raw.decode('utf-8', errors='ignore')
         first_line = data.split('\r\n')[0]
 
         # --- Mode 1: HTTP CONNECT ---
-        # Contoh: CONNECT 127.0.0.1:22 HTTP/1.0
-        # Dipakai oleh: HTTP Custom, HTTP Injector, NapsternetV
         if first_line.upper().startswith('CONNECT'):
-            self._handle_connect(first_line)
+            self._handle_connect(first_line, leftover)
 
         # --- Mode 2: WebSocket Upgrade ---
-        # Dipakai oleh: payload WS/WSS biasa
         elif 'upgrade: websocket' in data.lower():
-            self._handle_websocket(data)
+            self._handle_websocket(data, leftover)
 
-        # --- Mode 3: Request lain (GET biasa, dll) → treat as WS ---
+        # --- Mode 3: Request lain → treat as WebSocket ---
         else:
-            self._handle_websocket(data)
+            self._handle_websocket(data, leftover)
 
-    def _handle_connect(self, first_line):
+    def _handle_connect(self, first_line, leftover=b''):
         """Handle HTTP CONNECT tunneling"""
         try:
-            # Parse target: CONNECT host:port HTTP/1.x
             parts = first_line.split()
             if len(parts) < 2:
                 self.client.sendall(b"HTTP/1.1 400 Bad Request\r\n\r\n")
@@ -106,15 +118,21 @@ class ConnectionHandler(threading.Thread):
                 host = DEFAULT_HOST
                 port = DEFAULT_PORT
 
-            # Connect ke target (SSH)
+            # Connect ke SSH target
             self.target = socket.create_connection((host, port), timeout=10)
+
+            # BUG FIX: Lepas timeout setelah connect
+            # Tanpa ini, socket.timeout bisa terpicu saat relay jika ada
+            # jeda > 10 detik di phase key exchange → koneksi drop diam-diam
+            self.target.settimeout(None)
+            self.target.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             self.target_closed = False
 
-            # Beritahu client bahwa tunnel siap
+            # Beritahu client tunnel siap
             self.client.sendall(CONNECT_RESPONSE.encode())
 
-            # Relay data dua arah
-            self._relay()
+            # Relay — termasuk forward leftover data jika ada
+            self._relay(leftover)
 
         except Exception:
             try:
@@ -122,24 +140,24 @@ class ConnectionHandler(threading.Thread):
             except Exception:
                 pass
 
-    def _handle_websocket(self, data):
+    def _handle_websocket(self, data, leftover=b''):
         """Handle WebSocket Upgrade"""
-        # Parse X-Real-Host kalau ada
         target_host, target_port = self._parse_xrealhost(data)
 
-        # Paksa ke localhost
         if target_host not in ('127.0.0.1', 'localhost'):
             target_host = DEFAULT_HOST
             target_port = DEFAULT_PORT
 
         self.target = socket.create_connection((target_host, target_port), timeout=10)
+
+        # BUG FIX: sama — lepas timeout setelah connect
+        self.target.settimeout(None)
+        self.target.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         self.target_closed = False
 
-        # Kirim response 101
         self.client.sendall(WS_RESPONSE.encode())
 
-        # Relay
-        self._relay()
+        self._relay(leftover)
 
     def _parse_xrealhost(self, data):
         host = DEFAULT_HOST
@@ -158,10 +176,19 @@ class ConnectionHandler(threading.Thread):
                     host = val
         return host, port
 
-    def _relay(self):
-        """Relay data dua arah antara client dan target"""
-        socs  = [self.client, self.target]
-        idle  = 0
+    def _relay(self, leftover=b''):
+        """Relay data dua arah antara client dan SSH target"""
+
+        # BUG FIX: Kalau ada sisa data yang terbaca bersama HTTP headers,
+        # kirim dulu ke SSH sebelum masuk loop relay
+        if leftover:
+            try:
+                self.target.sendall(leftover)
+            except Exception:
+                return
+
+        socs = [self.client, self.target]
+        idle = 0
 
         while True:
             idle += 1
@@ -222,6 +249,7 @@ class ProxyServer:
             try:
                 client, addr = self.sock.accept()
                 client.setblocking(True)
+                client.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
                 handler = ConnectionHandler(client, addr)
                 handler.start()
             except socket.timeout:
