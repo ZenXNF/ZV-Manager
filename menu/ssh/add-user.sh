@@ -33,8 +33,6 @@ add_ssh_user() {
     clear
     local host
     host=$(get_local_domain)
-    local ip
-    ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null || curl -s --max-time 5 ipv4.icanhazip.com 2>/dev/null)
 
     echo -e "${BCYAN} ┌─────────────────────────────────────────────┐${NC}"
     echo -e " │           ${BWHITE}TAMBAH AKUN SSH BARU${NC}              │"
@@ -95,7 +93,6 @@ EOF
     echo -e "  ${BWHITE}Expired     :${NC} ${BYELLOW}${exp_date}${NC}"
     echo -e "${BCYAN} └─────────────────────────────────────────────┘${NC}"
     echo -e "${BCYAN} ┌─────────────────────────────────────────────┐${NC}"
-    echo -e "  ${BWHITE}IP VPS      :${NC} ${BGREEN}${ip}${NC}"
     echo -e "  ${BWHITE}Host        :${NC} ${BGREEN}${host}${NC}"
     echo -e "  ${BWHITE}OpenSSH     :${NC} ${BPURPLE}22${NC}"
     echo -e "  ${BWHITE}SSH-WS      :${NC} ${BPURPLE}80${NC}"
