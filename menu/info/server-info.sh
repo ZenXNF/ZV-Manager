@@ -42,7 +42,6 @@ show_server_info() {
     echo -e "  ${BWHITE}WS HTTP     :${NC} ${BPURPLE}80${NC}"
     echo -e "  ${BWHITE}WS HTTPS    :${NC} ${BPURPLE}443${NC}"
     echo -e "  ${BWHITE}UDP Custom  :${NC} ${BPURPLE}1-65535${NC}"
-    echo -e "  ${BWHITE}UDPGW       :${NC} ${BPURPLE}7100-7900${NC}"
     echo ""
 
     press_any_key
