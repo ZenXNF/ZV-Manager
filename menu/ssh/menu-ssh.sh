@@ -52,6 +52,7 @@ menu_ssh() {
         echo -e "  ${BGREEN}[4]${NC} Perpanjang Akun SSH"
         echo -e "  ${BGREEN}[5]${NC} Lock Akun SSH"
         echo -e "  ${BGREEN}[6]${NC} Unlock Akun SSH"
+        echo -e "  ${BGREEN}[7]${NC} Monitor Online"
         echo ""
         echo -e "  ${BRED}[0]${NC} Kembali ke Menu Utama"
         echo ""
@@ -64,6 +65,7 @@ menu_ssh() {
             4) bash /etc/zv-manager/menu/ssh/renew-user.sh ;;
             5) bash /etc/zv-manager/menu/ssh/lock-user.sh ;;
             6) bash /etc/zv-manager/menu/ssh/unlock-user.sh ;;
+            7) bash /etc/zv-manager/menu/ssh/monitor-online.sh ;;
             0) break ;;
             *) echo -e "  ${BRED}Pilihan tidak valid!${NC}"; sleep 1 ;;
         esac
