@@ -30,6 +30,7 @@ show_header() {
     s_nginx=$(svc_status nginx)
     s_wss=$(svc_status zv-wss)
     s_udp=$(svc_status zv-udp)
+    s_stunnel=$(svc_status zv-stunnel)
 
     clear
     echo -e "${BCYAN}  ╔══════════════════════════════════════════════════╗${NC}"
@@ -39,7 +40,7 @@ show_header() {
     echo -e "${BCYAN}  ║${NC}  ${BWHITE}Domain :${NC} ${BGREEN}${domain}${NC}"
     echo -e "${BCYAN}  ║${NC}  ${BWHITE}Waktu  :${NC} ${BYELLOW}${today}${NC}"
     echo -e "${BCYAN}  ╠══════════════════════════════════════════════════╣${NC}"
-    echo -e "${BCYAN}  ║${NC}  ${s_ssh} SSH  ${s_db} Dropbear  ${s_nginx} Nginx  ${s_wss} WS  ${s_udp} UDP"
+    echo -e "${BCYAN}  ║${NC}  ${s_ssh} SSH  ${s_db} Dropbear  ${s_nginx} Nginx  ${s_stunnel} SSL  ${s_wss} WS  ${s_udp} UDP"
     echo -e "${BCYAN}  ╚══════════════════════════════════════════════════╝${NC}"
     echo ""
 }
