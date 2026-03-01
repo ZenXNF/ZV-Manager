@@ -25,9 +25,6 @@ install_nginx() {
     rm -f /etc/nginx/sites-available/default
     rm -f /etc/nginx/conf.d/*.conf
 
-    # --- nginx.conf utama dengan stream block ---
-    # stream{} dipakai untuk port 443 agar HTTP CONNECT bisa lewat (level TCP)
-    # http{}  dipakai untuk port 80 WS biasa dan port info web
     cat > /etc/nginx/nginx.conf <<NGINXMAIN
 user www-data;
 worker_processes auto;
@@ -99,7 +96,12 @@ http {
 # Stream bekerja di level TCP — bisa handle HTTP CONNECT langsung
 # HTTP Custom, HTTP Injector, NapsternetV semua pakai CONNECT method
 stream {
-    # SSL termination di level stream
+    # tcp_nodelay WAJIB di sini:
+    # SSH banner sangat kecil (~50 bytes). Tanpa tcp_nodelay, nginx akan
+    # buffer data kecil ini (Nagle's algorithm) dan tidak langsung forward
+    # ke client → HTTP Custom timeout 15 detik menunggu banner yang tidak datang.
+    tcp_nodelay on;
+
     server {
         listen ${WSS_PORT} ssl;
 
@@ -111,11 +113,13 @@ stream {
         ssl_session_timeout 10m;
         ssl_handshake_timeout 10s;
 
-        # Setelah SSL terputus, forward raw TCP ke ws-proxy
-        # ws-proxy yang akan handle baik WebSocket maupun HTTP CONNECT
+        # Setelah SSL termination, forward raw TCP ke ws-proxy
         proxy_pass 127.0.0.1:8880;
         proxy_timeout 3600s;
         proxy_connect_timeout 10s;
+
+        # Buffer besar agar relay SSH data tidak terpotong
+        proxy_buffer_size 32k;
     }
 }
 NGINXMAIN
