@@ -67,7 +67,7 @@ main_menu() {
             3) bash /etc/zv-manager/menu/info/server-info.sh ;;
             4) bash /etc/zv-manager/menu/system/menu-system.sh ;;
             r|R)
-                for svc in ssh dropbear nginx zv-wss zv-udp; do
+                for svc in ssh dropbear nginx zv-stunnel zv-wss zv-udp; do
                     systemctl restart "$svc" &>/dev/null
                 done
                 echo -e "  ${BGREEN}Semua service di-restart!${NC}"
