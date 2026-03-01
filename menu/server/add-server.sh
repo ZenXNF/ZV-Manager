@@ -43,6 +43,45 @@ add_server() {
         return
     fi
 
+    # --- Verifikasi domain → IP (hanya jika domain bukan IP itu sendiri) ---
+    if [[ "$domain" != "$ip" ]]; then
+        print_info "Memverifikasi domain ${domain}..."
+
+        local resolved_ip=""
+
+        # Coba dig dulu, fallback ke host
+        if command -v dig &>/dev/null; then
+            resolved_ip=$(dig +short "$domain" A 2>/dev/null | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+        fi
+        if [[ -z "$resolved_ip" ]] && command -v host &>/dev/null; then
+            resolved_ip=$(host -t A "$domain" 2>/dev/null | awk '/has address/ {print $4}' | head -1)
+        fi
+        if [[ -z "$resolved_ip" ]] && command -v nslookup &>/dev/null; then
+            resolved_ip=$(nslookup "$domain" 2>/dev/null | awk '/^Address: / {print $2}' | tail -1)
+        fi
+
+        if [[ -z "$resolved_ip" ]]; then
+            echo ""
+            print_warning "Domain tidak bisa di-resolve. Mungkin DNS belum aktif."
+            echo -e "  ${BYELLOW}Lanjut tanpa verifikasi domain? [y/n]${NC}"
+            read -rp "  " skip_ans
+            if [[ ! "$skip_ans" =~ ^[Yy]$ ]]; then
+                print_info "Dibatalkan."
+                press_any_key
+                return
+            fi
+        elif [[ "$resolved_ip" != "$ip" ]]; then
+            echo ""
+            print_error "Domain ${domain} mengarah ke ${resolved_ip}, bukan ${ip}!"
+            echo -e "  ${BYELLOW}Pastikan DNS record A untuk ${domain} sudah diset ke ${ip}${NC}"
+            press_any_key
+            return
+        else
+            print_ok "Domain ${domain} → ${resolved_ip} ✓"
+        fi
+        echo ""
+    fi
+
     # --- Verifikasi koneksi SSH sebelum simpan ---
     print_info "Mencoba koneksi ke ${user}@${ip}:${port}..."
 
@@ -66,7 +105,6 @@ add_server() {
         print_error "Koneksi SSH gagal! Server tidak disimpan."
         echo ""
 
-        # Tampilkan penyebab error yang relevan (tanpa baris kosong/noise)
         local err_hint
         err_hint=$(echo "$ssh_result" | grep -v "^$" | grep -v "Warning" | tail -2)
         if [[ -n "$err_hint" ]]; then
