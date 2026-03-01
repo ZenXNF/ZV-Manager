@@ -48,7 +48,9 @@ main_menu() {
             3) bash /etc/zv-manager/menu/info/server-info.sh ;;
             4) bash /etc/zv-manager/menu/system/menu-system.sh ;;
             r|R)
-                for svc in ssh dropbear nginx zv-ws zv-wss zv-udp; do
+                # zv-ws dihapus (konflik port 80 dengan nginx)
+                # WS sekarang ditangani nginx → zv-wss (port 8880)
+                for svc in ssh dropbear nginx zv-wss zv-udp; do
                     systemctl restart "$svc" &>/dev/null
                 done
                 echo -e "  ${BGREEN}Semua service di-restart!${NC}"
