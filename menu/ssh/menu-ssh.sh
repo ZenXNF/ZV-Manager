@@ -4,11 +4,11 @@
 # ============================================================
 
 source /etc/zv-manager/utils/colors.sh
+source /etc/zv-manager/utils/logger.sh
 source /etc/zv-manager/utils/helpers.sh
 
 SERVER_DIR="/etc/zv-manager/servers"
 
-# Cek apakah sudah ada server yang ditambahkan
 check_server_exists() {
     local count=0
     for conf in "${SERVER_DIR}"/*.conf 2>/dev/null; do
@@ -22,8 +22,8 @@ check_server_exists() {
         echo -e "${BRED} └──────────────────────────────────────────────┘${NC}"
         echo ""
         echo -e "  ${BYELLOW}Kamu belum menambahkan server apapun.${NC}"
-        echo -e "  ${BYELLOW}Akun SSH dibuat per server, jadi server${NC}"
-        echo -e "  ${BYELLOW}harus ditambahkan dulu.${NC}"
+        echo -e "  ${BYELLOW}Akun SSH dibuat per server, jadi tambahkan${NC}"
+        echo -e "  ${BYELLOW}server dulu sebelum bisa buat akun.${NC}"
         echo ""
         echo -e "  ${BWHITE}Cara menambahkan server:${NC}"
         echo -e "  Menu Utama → ${BGREEN}[2] Manajemen Server${NC} → ${BGREEN}[1] Tambah Server${NC}"
@@ -37,7 +37,6 @@ check_server_exists() {
 }
 
 menu_ssh() {
-    # Cek server dulu sebelum masuk menu
     check_server_exists || return
 
     while true; do
