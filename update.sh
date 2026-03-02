@@ -41,19 +41,23 @@ fi
 
 cd /root/ZV-Manager
 
-# Chmod semua script
+# Chmod semua script dan binary
 find . -name "*.sh" -exec chmod +x {} \;
 find . -name "*.py" -exec chmod +x {} \;
+chmod +x checker/zv-checker 2>/dev/null
 
 # --- Cek izin sebelum apply update ---
 source /etc/zv-manager/core/license.sh
 check_license
+
 echo "[ INFO ] Menyalin script ke /etc/zv-manager..."
 cp -r core /etc/zv-manager/
 cp -r services /etc/zv-manager/
 cp -r menu /etc/zv-manager/
 cp -r utils /etc/zv-manager/
 cp -r cron /etc/zv-manager/
+cp -r checker /etc/zv-manager/          # FIX: binary zv-checker ikut terupdate
+chmod +x /etc/zv-manager/checker/zv-checker
 cp config.conf /etc/zv-manager/
 cp install.sh /etc/zv-manager/
 cp update.sh /etc/zv-manager/
@@ -99,11 +103,20 @@ print_ok "UDP Custom diterapkan"
 # --- Cron jobs ---
 print_info "Apply cron jobs..."
 cat > /etc/cron.d/zv-autokill <<'CRONEOF'
+# ZV-Manager - Auto Kill Multi-Login
 */1 * * * * root /bin/bash /etc/zv-manager/cron/autokill.sh
 CRONEOF
+
 cat > /etc/cron.d/zv-expired <<'CRONEOF'
+# ZV-Manager - Auto Delete Expired Users
 2 0 * * * root /bin/bash /etc/zv-manager/cron/expired.sh
 CRONEOF
+
+cat > /etc/cron.d/zv-license <<'CRONEOF'
+# ZV-Manager - Cek Izin Harian
+0 1 * * * root /bin/bash /etc/zv-manager/cron/license-check.sh
+CRONEOF
+
 service cron restart &>/dev/null
 print_ok "Cron jobs diterapkan"
 
@@ -120,6 +133,7 @@ echo -e "  ${BWHITE}Yang diperbarui:${NC}"
 echo -e "  ${BGREEN}✔${NC} Script (menu, services, utils, core)"
 echo -e "  ${BGREEN}✔${NC} Config Nginx, Stunnel SSL, WebSocket"
 echo -e "  ${BGREEN}✔${NC} Config SSH, Dropbear, UDP Custom"
+echo -e "  ${BGREEN}✔${NC} Binary zv-checker (sistem izin)"
 echo ""
 echo -e "  ${BWHITE}Yang tidak tersentuh:${NC}"
 echo -e "  ${BYELLOW}✔${NC} Akun SSH yang sudah dibuat"

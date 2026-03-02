@@ -34,8 +34,9 @@ if [[ ! -f /root/ZV-Manager/install.sh ]]; then
 fi
 
 cd /root/ZV-Manager
-chmod +x install.sh
 find . -name "*.sh" -exec chmod +x {} \;
+find . -name "*.py" -exec chmod +x {} \;
+chmod +x checker/zv-checker 2>/dev/null  # FIX: binary tidak punya ekstensi .sh
 
 echo "[ INFO ] Memulai instalasi..."
 echo ""
