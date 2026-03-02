@@ -8,9 +8,11 @@ source /etc/zv-manager/utils/logger.sh
 source /etc/zv-manager/utils/helpers.sh
 
 ACCOUNT_DIR="/etc/zv-manager/accounts/ssh"
+SELECTED_USER=""  # global, diisi oleh pick_user()
 
-# Pilih user dari list
+# Pilih user dari list — hasil disimpan ke SELECTED_USER
 pick_user() {
+    SELECTED_USER=""
     local files=("${ACCOUNT_DIR}"/*.conf)
     if [[ ! -f "${files[0]}" ]]; then
         print_error "Belum ada akun SSH yang dibuat."
@@ -52,7 +54,7 @@ pick_user() {
         return 1
     fi
 
-    echo "$selected"
+    SELECTED_USER="$selected"
     return 0
 }
 
@@ -61,7 +63,9 @@ show_current_info() {
     local username="$1"
     local conf="${ACCOUNT_DIR}/${username}.conf"
 
+    unset USERNAME PASSWORD LIMIT EXPIRED CREATED
     source "$conf"
+
     local today
     today=$(date +"%Y-%m-%d")
     local status_exp
@@ -86,92 +90,87 @@ show_current_info() {
 edit_password() {
     local username="$1"
     local conf="${ACCOUNT_DIR}/${username}.conf"
+    unset USERNAME PASSWORD LIMIT EXPIRED CREATED
     source "$conf"
 
     echo -e "  ${BWHITE}Password sekarang :${NC} ${PASSWORD}"
     read -rp "  Password baru     : " new_pass
     [[ -z "$new_pass" ]] && print_error "Password tidak boleh kosong." && sleep 1 && return 1
 
-    # Update sistem
     echo "${username}:${new_pass}" | chpasswd &>/dev/null
-
-    # Update conf
     sed -i "s/^PASSWORD=.*/PASSWORD=${new_pass}/" "$conf"
-
     print_ok "Password berhasil diubah!"
-    return 0
 }
 
 # Edit limit
 edit_limit() {
     local username="$1"
     local conf="${ACCOUNT_DIR}/${username}.conf"
+    unset USERNAME PASSWORD LIMIT EXPIRED CREATED
     source "$conf"
 
     echo -e "  ${BWHITE}Limit sekarang :${NC} ${LIMIT} perangkat"
     read -rp "  Limit baru     : " new_limit
-    [[ -z "$new_limit" || ! "$new_limit" =~ ^[0-9]+$ || "$new_limit" -lt 1 ]] && \
-        print_error "Limit tidak valid. Masukkan angka >= 1." && sleep 1 && return 1
+    if [[ -z "$new_limit" || ! "$new_limit" =~ ^[0-9]+$ || "$new_limit" -lt 1 ]]; then
+        print_error "Limit tidak valid. Masukkan angka >= 1."
+        sleep 1
+        return 1
+    fi
 
     sed -i "s/^LIMIT=.*/LIMIT=${new_limit}/" "$conf"
-
     print_ok "Limit berhasil diubah ke ${new_limit} perangkat!"
-    return 0
 }
 
 # Edit expired
 edit_expired() {
     local username="$1"
     local conf="${ACCOUNT_DIR}/${username}.conf"
+    unset USERNAME PASSWORD LIMIT EXPIRED CREATED
     source "$conf"
 
     echo -e "  ${BWHITE}Expired sekarang :${NC} ${EXPIRED}"
-    read -rp "  Expired baru (YYYY-MM-DD atau +Nhari): " new_exp
+    echo -e "  ${BYELLOW}Format: YYYY-MM-DD | +N (hari dari sekarang) | +N:exp (dari expired)${NC}"
+    read -rp "  Expired baru     : " new_exp
 
-    # Support format +7 (tambah 7 hari dari sekarang) atau +7:expired (tambah dari expired)
     if [[ "$new_exp" =~ ^\+([0-9]+)$ ]]; then
         new_exp=$(date -d "+${BASH_REMATCH[1]} days" +"%Y-%m-%d")
     elif [[ "$new_exp" =~ ^\+([0-9]+):exp$ ]]; then
         new_exp=$(date -d "${EXPIRED} +${BASH_REMATCH[1]} days" +"%Y-%m-%d")
     fi
 
-    # Validasi format YYYY-MM-DD
-    if ! date -d "$new_exp" +"%Y-%m-%d" &>/dev/null; then
-        print_error "Format tanggal tidak valid. Gunakan YYYY-MM-DD atau +N (hari dari sekarang)."
+    if ! date -d "$new_exp" +"%Y-%m-%d" &>/dev/null 2>&1; then
+        print_error "Format tanggal tidak valid."
         sleep 2
         return 1
     fi
 
     new_exp=$(date -d "$new_exp" +"%Y-%m-%d")
     sed -i "s/^EXPIRED=.*/EXPIRED=${new_exp}/" "$conf"
-
     print_ok "Expired berhasil diubah ke ${new_exp}!"
-    return 0
 }
 
 # Edit semua sekaligus
 edit_all() {
     local username="$1"
     local conf="${ACCOUNT_DIR}/${username}.conf"
+    unset USERNAME PASSWORD LIMIT EXPIRED CREATED
     source "$conf"
 
     echo -e "  ${BYELLOW}Kosongkan field untuk tidak mengubahnya.${NC}"
     echo ""
-
     read -rp "  Password baru   [${PASSWORD}]: " new_pass
     read -rp "  Limit baru      [${LIMIT}]  : " new_limit
+    echo -e "  ${BYELLOW}Format expired: YYYY-MM-DD | +N (hari dari sekarang) | +N:exp (dari expired)${NC}"
     read -rp "  Expired baru    [${EXPIRED}]: " new_exp
 
     local changed=false
 
-    # Password
     if [[ -n "$new_pass" ]]; then
         echo "${username}:${new_pass}" | chpasswd &>/dev/null
         sed -i "s/^PASSWORD=.*/PASSWORD=${new_pass}/" "$conf"
         changed=true
     fi
 
-    # Limit
     if [[ -n "$new_limit" ]]; then
         if [[ ! "$new_limit" =~ ^[0-9]+$ || "$new_limit" -lt 1 ]]; then
             print_error "Limit tidak valid, dilewati."
@@ -181,7 +180,6 @@ edit_all() {
         fi
     fi
 
-    # Expired
     if [[ -n "$new_exp" ]]; then
         if [[ "$new_exp" =~ ^\+([0-9]+)$ ]]; then
             new_exp=$(date -d "+${BASH_REMATCH[1]} days" +"%Y-%m-%d")
@@ -189,7 +187,7 @@ edit_all() {
             new_exp=$(date -d "${EXPIRED} +${BASH_REMATCH[1]} days" +"%Y-%m-%d")
         fi
 
-        if ! date -d "$new_exp" +"%Y-%m-%d" &>/dev/null; then
+        if ! date -d "$new_exp" +"%Y-%m-%d" &>/dev/null 2>&1; then
             print_error "Format expired tidak valid, dilewati."
         else
             new_exp=$(date -d "$new_exp" +"%Y-%m-%d")
@@ -203,12 +201,11 @@ edit_all() {
     else
         print_info "Tidak ada yang diubah."
     fi
-    return 0
 }
 
 edit_user_menu() {
-    local username
-    username=$(pick_user) || return
+    pick_user || return
+    local username="$SELECTED_USER"
 
     while true; do
         clear
@@ -228,10 +225,10 @@ edit_user_menu() {
         read -rp "  Pilihan: " choice
 
         case "$choice" in
-            1) edit_password "$username" && sleep 1 ;;
-            2) edit_limit "$username" && sleep 1 ;;
-            3) edit_expired "$username" && sleep 1 ;;
-            4) edit_all "$username" && sleep 1 ;;
+            1) edit_password "$username" ; sleep 1 ;;
+            2) edit_limit "$username"    ; sleep 1 ;;
+            3) edit_expired "$username"  ; sleep 1 ;;
+            4) edit_all "$username"      ; sleep 1 ;;
             0) break ;;
             *) print_error "Pilihan tidak valid." ; sleep 1 ;;
         esac
