@@ -35,6 +35,11 @@ echo -e "\033[0m"
 echo -e "\033[0;36m  ──────────────────────────────────────\033[0m"
 echo ""
 
+# --- Cek izin SEBELUM tanya konfirmasi ---
+# Kalau tidak punya izin, langsung stop tanpa perlu interaksi apapun
+source "$SCRIPT_DIR/core/license.sh"
+check_license
+
 # --- Konfirmasi mulai (mobile-friendly, tanpa Ctrl+C) ---
 echo -e "\033[1;33m  Ketik y lalu Enter untuk mulai"
 echo -e "  Ketik n lalu Enter untuk batal\033[0m"
@@ -47,9 +52,6 @@ if [[ ! "$start_ans" =~ ^[Yy]$ ]]; then
 fi
 
 echo ""
-# --- Cek izin sebelum mulai instalasi ---
-source "$SCRIPT_DIR/core/license.sh"
-check_license
 echo "[ INFO ] Menyalin file ke ${INSTALL_DIR}..."
 
 # --- Copy semua file ke /etc/zv-manager ---
@@ -59,6 +61,7 @@ cp -r "$SCRIPT_DIR"/* "$INSTALL_DIR/"
 # chmod kompatibel tanpa globstar
 find "$INSTALL_DIR" -name "*.sh" -exec chmod +x {} \;
 find "$INSTALL_DIR" -name "*.py" -exec chmod +x {} \;
+chmod +x "$INSTALL_DIR/checker/zv-checker" 2>/dev/null
 
 echo "[ INFO ] File berhasil disalin"
 echo ""
@@ -161,8 +164,6 @@ menu
 PROFILEEOF
 
 # --- Selesai ---
-# clear dihapus — supaya output progress WebSocket & UDP tetap kelihatan
-
 ZV_DOMAIN=$(cat /etc/zv-manager/domain 2>/dev/null || echo "$PUBLIC_IP")
 ZV_IP="$PUBLIC_IP"
 
