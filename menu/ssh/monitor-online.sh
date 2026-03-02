@@ -8,10 +8,8 @@ source /etc/zv-manager/utils/colors.sh
 source /etc/zv-manager/utils/logger.sh
 source /etc/zv-manager/utils/helpers.sh
 
-# Ambil IP asal koneksi SSH dari ss (lebih reliable dari who)
 get_client_ips() {
     local username="$1"
-    # Ambil PID semua proses milik user, lalu cari koneksi SSH-nya
     ss -tnp 2>/dev/null \
         | grep ESTAB \
         | grep ":22\b\|:500\b\|:40000\b\|:109\b\|:143\b" \
@@ -37,7 +35,6 @@ show_monitor() {
     local total_akun_online=0
     local ada_data=false
 
-    # Header tabel
     printf "  ${BWHITE}%-16s %-8s %-10s %-16s${NC}\n" \
         "Username" "Sesi" "Status" "IP Client"
     echo -e "  ${BCYAN}──────────────────────────────────────────────────${NC}"
@@ -49,11 +46,12 @@ show_monitor() {
         unset USERNAME PASSWORD LIMIT EXPIRED
         source "$conf_file"
 
-        # Hitung sesi aktif via who
+        # wc -l selalu return angka bersih, tidak ada masalah exit code
         local sesi
-        sesi=$(who 2>/dev/null | grep -c "^${USERNAME} " || echo 0)
+        sesi=$(who 2>/dev/null | grep "^${USERNAME} " | wc -l)
+        sesi=$(echo "$sesi" | tr -d '[:space:]')
+        [[ -z "$sesi" ]] && sesi=0
 
-        # Status expired
         local status_exp
         if [[ "$EXPIRED" < "$today" ]]; then
             status_exp="${BRED}Expired${NC}"
@@ -61,9 +59,7 @@ show_monitor() {
             status_exp="${BGREEN}Aktif${NC}"
         fi
 
-        # Tampilkan baris per user
         if [[ "$sesi" -gt 0 ]]; then
-            # User sedang online — tampilkan IP client
             local ips
             ips=$(get_client_ips "$USERNAME")
             local ip_display
@@ -75,7 +71,6 @@ show_monitor() {
             printf "%-18b" "$status_exp"
             echo -e "${BCYAN}${ip_display}${NC}"
 
-            # Kalau lebih dari 1 IP, tampilkan baris lanjutan
             local extra_ips
             extra_ips=$(echo "$ips" | tail -n +2)
             if [[ -n "$extra_ips" ]]; then
@@ -87,7 +82,6 @@ show_monitor() {
             total_sesi=$(( total_sesi + sesi ))
             total_akun_online=$(( total_akun_online + 1 ))
         else
-            # User offline
             printf "  ${WHITE}%-16s${NC} " "$USERNAME"
             printf "${WHITE}%-8s${NC} " "offline"
             printf "%-18b\n" "$status_exp"
@@ -116,7 +110,8 @@ kill_user_session() {
     fi
 
     local sesi
-    sesi=$(who 2>/dev/null | grep -c "^${target} " || echo 0)
+    sesi=$(who 2>/dev/null | grep "^${target} " | wc -l)
+    sesi=$(echo "$sesi" | tr -d '[:space:]')
 
     if [[ "$sesi" -eq 0 ]]; then
         print_info "User '$target' tidak sedang online."
