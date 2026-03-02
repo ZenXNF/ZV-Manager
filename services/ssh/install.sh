@@ -32,25 +32,26 @@ install_ssh() {
     mv "${sshd_config}.tmp" "$sshd_config"
 
     # --- issue.net ---
-    # HTTP Custom render sebagai HTML di WebView Android
-    # <center> tidak dirender → pakai <p style="text-align:center"> per baris
-    # <br> untuk line break tanpa margin
+    # HTTP Custom load HTML ke WebView → <style> tag di awal berlaku global
+    # <br> untuk line break tanpa margin berlebih
     grep -q "^Banner" "$sshd_config" || echo "Banner /etc/issue.net" >> "$sshd_config"
     cat > /etc/issue.net <<'BANNEREOF'
-<p style="text-align:center;margin:0"><font color="#00ffff">▬▬▬ஜ۩۞۩ஜ▬▬▬</font></p>
-<p style="text-align:center;margin:0"><font color="#ffff00">⚡ ZV-Manager SSH Tunnel ⚡</font></p>
-<p style="text-align:center;margin:0"><font color="#00ffff">▬▬▬ஜ۩۞۩ஜ▬▬▬</font></p>
-<p style="text-align:center;margin:0"><font color="#ffffff">! TERMS OF SERVICE !</font></p>
-<p style="text-align:center;margin:0"><font color="#ff4444">✗ NO SPAM</font></p>
-<p style="text-align:center;margin:0"><font color="#ff4444">✗ NO DDoS</font></p>
-<p style="text-align:center;margin:0"><font color="#ff4444">✗ NO HACKING / CARDING</font></p>
-<p style="text-align:center;margin:0"><font color="#ff4444">✗ NO TORRENT</font></p>
-<p style="text-align:center;margin:0"><font color="#ff4444">✗ NO MULTI LOGIN</font></p>
-<p style="text-align:center;margin:0"><font color="#00ff00">✔ Violation = Permanent Ban</font></p>
-<p style="text-align:center;margin:0"><font color="#00ffff">▬▬▬ஜ۩۞۩ஜ▬▬▬</font></p>
+<style>body{text-align:center;}</style>
+<font color="#00ffff">▬▬▬ஜ۩۞۩ஜ▬▬▬</font><br>
+<font color="#ffff00">⚡ ZV-Manager SSH Tunnel ⚡</font><br>
+<font color="#00ffff">▬▬▬ஜ۩۞۩ஜ▬▬▬</font><br>
+<font color="#ffffff">! SYARAT PENGGUNAAN !</font><br>
+<font color="#ff4444">✗ DILARANG SPAM</font><br>
+<font color="#ff4444">✗ DILARANG DDoS</font><br>
+<font color="#ff4444">✗ DILARANG HACK / CARDING</font><br>
+<font color="#ff4444">✗ DILARANG TORRENT</font><br>
+<font color="#ff4444">✗ DILARANG BERBAGI AKUN</font><br>
+<font color="#00ff00">✔ Melanggar = Ban Permanen</font><br>
+<font color="#00ffff">▬▬▬ஜ۩۞۩ஜ▬▬▬</font>
 BANNEREOF
 
     # --- MOTD berwarna — tampil di Termius setelah login ---
+    # Ubuntu 24.04: PrintMotd no → PAM yang handle via pam_motd.so
     sed -i 's/^#\?PrintMotd.*/PrintMotd no/' "$sshd_config"
     grep -q "^PrintMotd" "$sshd_config" || echo "PrintMotd no" >> "$sshd_config"
 
@@ -84,9 +85,9 @@ echo -e "  ${Y}User   :${NC} ${W}${PAM_USER}${NC}"
 echo -e "  ${Y}Server :${NC} ${G}${DOMAIN}${NC}"
 echo -e "  ${Y}Waktu  :${NC} ${NOW}"
 [[ -n "$EXPIRED" ]] && echo -e "  ${Y}Expired:${NC} ${R}${EXPIRED}${NC}"
-[[ -n "$LIMIT"   ]] && echo -e "  ${Y}Limit  :${NC} ${LIMIT} device"
+[[ -n "$LIMIT"   ]] && echo -e "  ${Y}Limit  :${NC} ${LIMIT} perangkat"
 echo -e "${C}  =================================${NC}"
-echo -e "  ${R}✗ SPAM  ✗ DDoS  ✗ Torrent${NC}"
+echo -e "  ${R}✗ Spam  ✗ DDoS  ✗ Torrent${NC}"
 echo -e "${C}  =================================${NC}"
 echo ""
 MOTDEOF
