@@ -45,6 +45,9 @@ cd /root/ZV-Manager
 find . -name "*.sh" -exec chmod +x {} \;
 find . -name "*.py" -exec chmod +x {} \;
 
+# --- Cek izin sebelum apply update ---
+source /etc/zv-manager/core/license.sh
+check_license
 echo "[ INFO ] Menyalin script ke /etc/zv-manager..."
 cp -r core /etc/zv-manager/
 cp -r services /etc/zv-manager/

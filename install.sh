@@ -47,6 +47,9 @@ if [[ ! "$start_ans" =~ ^[Yy]$ ]]; then
 fi
 
 echo ""
+# --- Cek izin sebelum mulai instalasi ---
+source "$SCRIPT_DIR/core/license.sh"
+check_license
 echo "[ INFO ] Menyalin file ke ${INSTALL_DIR}..."
 
 # --- Copy semua file ke /etc/zv-manager ---
@@ -110,6 +113,11 @@ CRONEOF
 cat > /etc/cron.d/zv-expired <<'CRONEOF'
 # ZV-Manager - Auto Delete Expired Users
 2 0 * * * root /bin/bash /etc/zv-manager/cron/expired.sh
+CRONEOF
+
+cat > /etc/cron.d/zv-license <<'CRONEOF'
+# ZV-Manager - Cek Izin Harian
+0 1 * * * root /bin/bash /etc/zv-manager/cron/license-check.sh
 CRONEOF
 
 service cron restart &>/dev/null
