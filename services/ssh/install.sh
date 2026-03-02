@@ -31,39 +31,35 @@ install_ssh() {
     } > "${sshd_config}.tmp"
     mv "${sshd_config}.tmp" "$sshd_config"
 
-    # issue.net — plain text, muncul sebelum login
+    # --- issue.net — banner sebelum login (plain text, tampil di HTTP Custom "Server Message") ---
+    # Sengaja sederhana tanpa box-drawing agar render benar di semua client
     grep -q "^Banner" "$sshd_config" || echo "Banner /etc/issue.net" >> "$sshd_config"
     cat > /etc/issue.net <<'BANNEREOF'
-╔══════════════════════════════════════════════════╗
-║           --- WELCOME TO ZV-MANAGER ---          ║
-╚══════════════════════════════════════════════════╝
+
+  === ZV-Manager SSH Tunnel ===
+  Unauthorized access is prohibited.
+
 BANNEREOF
 
-    # --- MOTD berwarna — muncul SETELAH login berhasil ---
-    # Ubuntu 24.04: PrintMotd no → biarkan PAM yang handle via pam_motd.so
-    # PrintMotd yes konflik dengan PAM di Ubuntu 24.04 dan bisa sebabkan connection reset
+    # --- MOTD berwarna — muncul SETELAH login berhasil di Termius ---
+    # Ubuntu 24.04: PrintMotd no → biarkan PAM yang handle via pam_motd.so (sudah default)
+    # PrintMotd yes konflik dengan PAM Ubuntu 24.04 → bisa sebabkan connection reset
     sed -i 's/^#\?PrintMotd.*/PrintMotd no/' "$sshd_config"
     grep -q "^PrintMotd" "$sshd_config" || echo "PrintMotd no" >> "$sshd_config"
 
-    # Nonaktifkan MOTD default Ubuntu yang berisik
+    # Nonaktifkan MOTD default Ubuntu
     chmod -x /etc/update-motd.d/* 2>/dev/null
 
-    # Buat script MOTD custom
+    # MOTD custom berwarna
     cat > /etc/update-motd.d/00-zv-manager <<'MOTDEOF'
 #!/bin/bash
-# ZV-Manager MOTD — ditampilkan setelah SSH login berhasil
+R='\033[0;31m'
+G='\033[0;32m'
+Y='\033[0;33m'
+C='\033[0;36m'
+W='\033[1;37m'
+NC='\033[0m'
 
-# Warna
-R='\033[0;31m'   # Merah
-G='\033[0;32m'   # Hijau
-Y='\033[0;33m'   # Kuning
-B='\033[0;34m'   # Biru
-C='\033[0;36m'   # Cyan
-W='\033[1;37m'   # Putih terang
-M='\033[0;35m'   # Magenta
-NC='\033[0m'     # Reset
-
-# Ambil info akun yang sedang login
 USER_CONF="/etc/zv-manager/accounts/ssh/${PAM_USER}.conf"
 EXPIRED=""
 LIMIT=""
@@ -73,33 +69,20 @@ if [[ -f "$USER_CONF" ]]; then
 fi
 
 DOMAIN=$(cat /etc/zv-manager/domain 2>/dev/null)
-NOW=$(date +"%d %B %Y — %H:%M")
+NOW=$(date +"%d %b %Y %H:%M")
 
 echo ""
-printf "${C}  ╔══════════════════════════════════════════════════╗${NC}\n"
-printf "${C}  ║${NC}  ${W}⚡ ZV-MANAGER SSH TUNNEL ⚡${NC}                      ${C}║${NC}\n"
-printf "${C}  ╠══════════════════════════════════════════════════╣${NC}\n"
-printf "${C}  ║${NC}  ${Y}Selamat datang, ${W}${PAM_USER}${NC}!\n"
-printf "${C}  ║${NC}  ${B}Server  ${NC}: ${G}${DOMAIN}${NC}\n"
-printf "${C}  ║${NC}  ${B}Waktu   ${NC}: ${Y}${NOW}${NC}\n"
-if [[ -n "$EXPIRED" ]]; then
-printf "${C}  ║${NC}  ${B}Expired ${NC}: ${R}${EXPIRED}${NC}\n"
-fi
-if [[ -n "$LIMIT" ]]; then
-printf "${C}  ║${NC}  ${B}Limit   ${NC}: ${W}${LIMIT} perangkat${NC}\n"
-fi
-printf "${C}  ╠══════════════════════════════════════════════════╣${NC}\n"
-printf "${C}  ║${NC}  ${W}⚠  SYARAT DAN KETENTUAN PENGGUNAAN${NC}\n"
-printf "${C}  ║${NC}\n"
-printf "${C}  ║${NC}  ${R}✗${NC}  Dilarang melakukan SPAM\n"
-printf "${C}  ║${NC}  ${R}✗${NC}  Dilarang melakukan serangan DDoS\n"
-printf "${C}  ║${NC}  ${R}✗${NC}  Dilarang hacking, carding, atau penipuan\n"
-printf "${C}  ║${NC}  ${R}✗${NC}  Dilarang mengunduh atau menyebarkan Torrent\n"
-printf "${C}  ║${NC}  ${R}✗${NC}  Dilarang berbagi akun (1 akun = 1 pengguna)\n"
-printf "${C}  ║${NC}  ${R}✗${NC}  Dilarang menggunakan untuk aktivitas ilegal\n"
-printf "${C}  ║${NC}\n"
-printf "${C}  ║${NC}  ${G}✔${NC}  Pelanggaran = akun diblokir permanen\n"
-printf "${C}  ╚══════════════════════════════════════════════════╝${NC}\n"
+echo -e "${C}  =================================${NC}"
+echo -e "${C}  ${W}ZV-Manager SSH Tunnel${NC}"
+echo -e "${C}  =================================${NC}"
+echo -e "  ${Y}User   :${NC} ${W}${PAM_USER}${NC}"
+echo -e "  ${Y}Server :${NC} ${G}${DOMAIN}${NC}"
+echo -e "  ${Y}Waktu  :${NC} ${NOW}"
+[[ -n "$EXPIRED" ]] && echo -e "  ${Y}Expired:${NC} ${R}${EXPIRED}${NC}"
+[[ -n "$LIMIT"   ]] && echo -e "  ${Y}Limit  :${NC} ${LIMIT} device"
+echo -e "${C}  =================================${NC}"
+echo -e "  ${R}Dilarang: SPAM, DDoS, Torrent${NC}"
+echo -e "${C}  =================================${NC}"
 echo ""
 MOTDEOF
 
