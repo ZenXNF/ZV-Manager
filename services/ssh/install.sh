@@ -31,33 +31,33 @@ install_ssh() {
     } > "${sshd_config}.tmp"
     mv "${sshd_config}.tmp" "$sshd_config"
 
-    # --- issue.net — banner sebelum login ---
-    # HTTP Custom render HTML <font color=""> tags untuk warna
-    # ANSI codes tidak didukung HTTP Custom, gunakan HTML saja
+    # --- issue.net ---
+    # HTTP Custom render sebagai HTML — pakai <div> per baris agar rapi
+    # <font color=""> untuk warna, <div> untuk baris baru
     grep -q "^Banner" "$sshd_config" || echo "Banner /etc/issue.net" >> "$sshd_config"
     cat > /etc/issue.net <<'BANNEREOF'
-<font color="#00ffff">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</font>
-<font color="#ffff00">  ⚡  ZV-Manager SSH Tunnel  ⚡</font>
-<font color="#00ffff">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</font>
-<font color="#ffffff">  ! TERMS OF SERVICE !</font>
-<font color="#ff4444">  ✗  NO SPAM</font>
-<font color="#ff4444">  ✗  NO DDoS</font>
-<font color="#ff4444">  ✗  NO HACKING / CARDING</font>
-<font color="#ff4444">  ✗  NO TORRENT</font>
-<font color="#ff4444">  ✗  NO MULTI LOGIN</font>
-<font color="#00ff00">  ✔  Violation = Permanent Ban</font>
-<font color="#00ffff">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</font>
+<div><font color="#00ffff">━━━━━━━━━━━━━━━━━━━━━━━━━━━━</font></div>
+<div><font color="#ffff00">⚡ ZV-Manager SSH Tunnel ⚡</font></div>
+<div><font color="#00ffff">━━━━━━━━━━━━━━━━━━━━━━━━━━━━</font></div>
+<div><font color="#ffffff"> </font></div>
+<div><font color="#ffffff">! TERMS OF SERVICE !</font></div>
+<div><font color="#ff4444">✗  NO SPAM</font></div>
+<div><font color="#ff4444">✗  NO DDoS</font></div>
+<div><font color="#ff4444">✗  NO HACKING / CARDING</font></div>
+<div><font color="#ff4444">✗  NO TORRENT</font></div>
+<div><font color="#ff4444">✗  NO MULTI LOGIN</font></div>
+<div><font color="#ffffff"> </font></div>
+<div><font color="#00ff00">✔  Violation = Permanent Ban</font></div>
+<div><font color="#00ffff">━━━━━━━━━━━━━━━━━━━━━━━━━━━━</font></div>
 BANNEREOF
 
-    # --- MOTD berwarna — muncul SETELAH login berhasil di Termius ---
-    # Ubuntu 24.04: PrintMotd no → biarkan PAM yang handle via pam_motd.so
+    # --- MOTD berwarna — tampil di Termius setelah login ---
+    # Ubuntu 24.04: PrintMotd no → PAM yang handle via pam_motd.so
     sed -i 's/^#\?PrintMotd.*/PrintMotd no/' "$sshd_config"
     grep -q "^PrintMotd" "$sshd_config" || echo "PrintMotd no" >> "$sshd_config"
 
-    # Nonaktifkan MOTD default Ubuntu
     chmod -x /etc/update-motd.d/* 2>/dev/null
 
-    # MOTD custom — tampil di Termius (terminal biasa, support ANSI)
     cat > /etc/update-motd.d/00-zv-manager <<'MOTDEOF'
 #!/bin/bash
 R='\033[0;31m'
