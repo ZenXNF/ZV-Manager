@@ -32,22 +32,12 @@ install_ssh() {
     mv "${sshd_config}.tmp" "$sshd_config"
 
     # --- issue.net ---
-    # HTTP Custom load HTML ke WebView → <style> tag di awal berlaku global
-    # <br> untuk line break tanpa margin berlebih
+    # HTTP Custom hanya support tag HTML terbatas: <font color>, <br>, <div>
+    # CSS style= tidak diparse → pakai atribut HTML4: <div align="center">
+    # Semua dalam satu baris per div, tidak ada newline antar tag
     grep -q "^Banner" "$sshd_config" || echo "Banner /etc/issue.net" >> "$sshd_config"
     cat > /etc/issue.net <<'BANNEREOF'
-<style>body{text-align:center;}</style>
-<font color="#00ffff">▬▬▬ஜ۩۞۩ஜ▬▬▬</font><br>
-<font color="#ffff00">⚡ ZV-Manager SSH Tunnel ⚡</font><br>
-<font color="#00ffff">▬▬▬ஜ۩۞۩ஜ▬▬▬</font><br>
-<font color="#ffffff">! SYARAT PENGGUNAAN !</font><br>
-<font color="#ff4444">✗ DILARANG SPAM</font><br>
-<font color="#ff4444">✗ DILARANG DDoS</font><br>
-<font color="#ff4444">✗ DILARANG HACK / CARDING</font><br>
-<font color="#ff4444">✗ DILARANG TORRENT</font><br>
-<font color="#ff4444">✗ DILARANG BERBAGI AKUN</font><br>
-<font color="#00ff00">✔ Melanggar = Ban Permanen</font><br>
-<font color="#00ffff">▬▬▬ஜ۩۞۩ஜ▬▬▬</font>
+<div align="center"><font color="#00ffff">▬▬▬ஜ۩۞۩ஜ▬▬▬</font></div><div align="center"><font color="#ffff00">⚡ ZV-Manager SSH Tunnel ⚡</font></div><div align="center"><font color="#00ffff">▬▬▬ஜ۩۞۩ஜ▬▬▬</font></div><div align="center"><font color="#ffffff">! SYARAT PENGGUNAAN !</font></div><div align="center"><font color="#ff4444">✗ DILARANG SPAM</font></div><div align="center"><font color="#ff4444">✗ DILARANG DDoS</font></div><div align="center"><font color="#ff4444">✗ DILARANG HACK / CARDING</font></div><div align="center"><font color="#ff4444">✗ DILARANG TORRENT</font></div><div align="center"><font color="#ff4444">✗ DILARANG BERBAGI AKUN</font></div><div align="center"><font color="#00ff00">✔ Melanggar = Ban Permanen</font></div><div align="center"><font color="#00ffff">▬▬▬ஜ۩۞۩ஜ▬▬▬</font></div>
 BANNEREOF
 
     # --- MOTD berwarna — tampil di Termius setelah login ---
