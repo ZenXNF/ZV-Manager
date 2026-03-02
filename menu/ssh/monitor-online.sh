@@ -1,22 +1,69 @@
 #!/bin/bash
 # ============================================================
 #   ZV-Manager - Monitor Online
-#   Lihat sesi SSH aktif per akun secara real-time
+#   Deteksi sesi SSH aktif per akun (direct + tunneled)
 # ============================================================
 
 source /etc/zv-manager/utils/colors.sh
 source /etc/zv-manager/utils/logger.sh
 source /etc/zv-manager/utils/helpers.sh
 
+# Hitung sesi aktif per user
+# who → hanya PTY/direct SSH
+# ps aux "sshd: USER" → deteksi tunneled (HTTP Custom, WS, dll)
+# Gabungkan keduanya dan deduplikasi
+count_sessions() {
+    local username="$1"
+
+    # Sesi direct SSH (via who)
+    local direct
+    direct=$(who 2>/dev/null | grep "^${username} " | wc -l)
+    direct=$(echo "$direct" | tr -d '[:space:]')
+
+    # Sesi tunneled — deteksi dari sshd process yang berjalan untuk user ini
+    # Setiap koneksi SSH (termasuk tunneled) menghasilkan "sshd: username" di ps
+    # Exclude: [priv] (monitor process, bukan user session) dan grep itu sendiri
+    local tunneled
+    tunneled=$(ps aux 2>/dev/null \
+        | grep "sshd: ${username}" \
+        | grep -v "\[priv\]\|grep" \
+        | wc -l)
+    tunneled=$(echo "$tunneled" | tr -d '[:space:]')
+
+    # Ambil nilai terbesar antara direct dan tunneled
+    # (tunneled sudah mencakup direct, tapi kadang ps lebih akurat)
+    if [[ "$tunneled" -gt "$direct" ]]; then
+        echo "$tunneled"
+    else
+        echo "$direct"
+    fi
+}
+
+# Ambil IP client dari sesi aktif user
 get_client_ips() {
     local username="$1"
-    ss -tnp 2>/dev/null \
-        | grep ESTAB \
-        | grep ":22\b\|:500\b\|:40000\b\|:109\b\|:143\b" \
+    # IP dari direct SSH (via who)
+    local direct_ips
+    direct_ips=$(who 2>/dev/null \
+        | grep "^${username} " \
         | awk '{print $5}' \
-        | grep -v "127.0.0.1" \
-        | sed 's/:[0-9]*$//' \
-        | sort -u
+        | sed 's/[()]//g' \
+        | grep -v "^$")
+
+    # IP dari ws-proxy connection (tunneled lewat localhost)
+    # Kalau ada tunneled session → tampilkan "(via tunnel)"
+    local tunneled
+    tunneled=$(ps aux 2>/dev/null \
+        | grep "sshd: ${username}" \
+        | grep -v "\[priv\]\|grep\|$(who 2>/dev/null | grep "^${username} " | awk '{print $2}' | head -1)" \
+        | wc -l)
+    tunneled=$(echo "$tunneled" | tr -d '[:space:]')
+
+    if [[ -n "$direct_ips" ]]; then
+        echo "$direct_ips"
+    elif [[ "$tunneled" -gt 0 ]]; then
+        echo "via-tunnel"
+    fi
 }
 
 show_monitor() {
@@ -36,7 +83,7 @@ show_monitor() {
     local ada_data=false
 
     printf "  ${BWHITE}%-16s %-8s %-10s %-16s${NC}\n" \
-        "Username" "Sesi" "Status" "IP Client"
+        "Username" "Sesi" "Status" "IP/Mode"
     echo -e "  ${BCYAN}──────────────────────────────────────────────────${NC}"
 
     for conf_file in /etc/zv-manager/accounts/ssh/*.conf; do
@@ -46,10 +93,8 @@ show_monitor() {
         unset USERNAME PASSWORD LIMIT EXPIRED
         source "$conf_file"
 
-        # wc -l selalu return angka bersih, tidak ada masalah exit code
         local sesi
-        sesi=$(who 2>/dev/null | grep "^${USERNAME} " | wc -l)
-        sesi=$(echo "$sesi" | tr -d '[:space:]')
+        sesi=$(count_sessions "$USERNAME")
         [[ -z "$sesi" ]] && sesi=0
 
         local status_exp
@@ -60,24 +105,14 @@ show_monitor() {
         fi
 
         if [[ "$sesi" -gt 0 ]]; then
-            local ips
-            ips=$(get_client_ips "$USERNAME")
             local ip_display
-            ip_display=$(echo "$ips" | head -1)
-            [[ -z "$ip_display" ]] && ip_display="-"
+            ip_display=$(get_client_ips "$USERNAME" | head -1)
+            [[ -z "$ip_display" ]] && ip_display="tunnel"
 
             printf "  ${BGREEN}%-16s${NC} " "$USERNAME"
             printf "${BYELLOW}%-8s${NC} " "${sesi}x"
             printf "%-18b" "$status_exp"
             echo -e "${BCYAN}${ip_display}${NC}"
-
-            local extra_ips
-            extra_ips=$(echo "$ips" | tail -n +2)
-            if [[ -n "$extra_ips" ]]; then
-                while IFS= read -r ip; do
-                    printf "  %-16s %-8s %-18s ${BCYAN}%s${NC}\n" "" "" "" "$ip"
-                done <<< "$extra_ips"
-            fi
 
             total_sesi=$(( total_sesi + sesi ))
             total_akun_online=$(( total_akun_online + 1 ))
@@ -110,8 +145,7 @@ kill_user_session() {
     fi
 
     local sesi
-    sesi=$(who 2>/dev/null | grep "^${target} " | wc -l)
-    sesi=$(echo "$sesi" | tr -d '[:space:]')
+    sesi=$(count_sessions "$target")
 
     if [[ "$sesi" -eq 0 ]]; then
         print_info "User '$target' tidak sedang online."
@@ -119,7 +153,9 @@ kill_user_session() {
         return
     fi
 
+    # Kill semua proses: session PTY + tunneled sshd process
     pkill -u "$target" &>/dev/null
+    pkill -f "sshd: ${target}" &>/dev/null
     print_ok "Semua sesi '$target' (${sesi}x) berhasil di-kill!"
     sleep 1
 }
