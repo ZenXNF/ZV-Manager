@@ -31,19 +31,27 @@ install_ssh() {
     } > "${sshd_config}.tmp"
     mv "${sshd_config}.tmp" "$sshd_config"
 
-    # --- issue.net — banner sebelum login (plain text, tampil di HTTP Custom "Server Message") ---
-    # Sengaja sederhana tanpa box-drawing agar render benar di semua client
+    # --- issue.net — banner sebelum login ---
+    # Tampil di HTTP Custom sebagai "Server Message"
+    # ANSI color didukung oleh HTTP Custom
     grep -q "^Banner" "$sshd_config" || echo "Banner /etc/issue.net" >> "$sshd_config"
-    cat > /etc/issue.net <<'BANNEREOF'
-
-  === ZV-Manager SSH Tunnel ===
-  Unauthorized access is prohibited.
-
-BANNEREOF
+    printf '\033[1;36m\r\n'                                      > /etc/issue.net
+    printf '\033[1;35m  ============================\033[0m\r\n' >> /etc/issue.net
+    printf '\033[1;33m   ⚡  ZV-Manager SSH Tunnel  \033[0m\r\n' >> /etc/issue.net
+    printf '\033[1;35m  ============================\033[0m\r\n' >> /etc/issue.net
+    printf '\033[1;31m\r\n'                                      >> /etc/issue.net
+    printf '\033[1;37m   ! TERMS OF SERVICE !\033[0m\r\n'       >> /etc/issue.net
+    printf '\033[1;31m   ✗  NO SPAM\033[0m\r\n'                 >> /etc/issue.net
+    printf '\033[1;31m   ✗  NO DDoS\033[0m\r\n'                 >> /etc/issue.net
+    printf '\033[1;31m   ✗  NO HACKING / CARDING\033[0m\r\n'    >> /etc/issue.net
+    printf '\033[1;31m   ✗  NO TORRENT\033[0m\r\n'              >> /etc/issue.net
+    printf '\033[1;31m   ✗  NO MULTI LOGIN\033[0m\r\n'          >> /etc/issue.net
+    printf '\033[1;32m   ✔  Violation = Permanent Ban\033[0m\r\n' >> /etc/issue.net
+    printf '\033[1;35m  ============================\033[0m\r\n' >> /etc/issue.net
+    printf '\033[0m\r\n'                                         >> /etc/issue.net
 
     # --- MOTD berwarna — muncul SETELAH login berhasil di Termius ---
-    # Ubuntu 24.04: PrintMotd no → biarkan PAM yang handle via pam_motd.so (sudah default)
-    # PrintMotd yes konflik dengan PAM Ubuntu 24.04 → bisa sebabkan connection reset
+    # Ubuntu 24.04: PrintMotd no → biarkan PAM yang handle via pam_motd.so
     sed -i 's/^#\?PrintMotd.*/PrintMotd no/' "$sshd_config"
     grep -q "^PrintMotd" "$sshd_config" || echo "PrintMotd no" >> "$sshd_config"
 
