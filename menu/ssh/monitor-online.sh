@@ -1,76 +1,133 @@
 #!/bin/bash
 # ============================================================
 #   ZV-Manager - Monitor Online
-#   Deteksi sesi SSH aktif per akun (direct + tunneled)
+#   Deteksi semua tipe koneksi: Direct SSH, WebSocket, UDP Custom, Dropbear
 # ============================================================
 
 source /etc/zv-manager/utils/colors.sh
 source /etc/zv-manager/utils/logger.sh
 source /etc/zv-manager/utils/helpers.sh
 
-# Hitung sesi aktif per user
-# who → hanya PTY/direct SSH
-# ps aux "sshd: USER" → deteksi tunneled (HTTP Custom, WS, dll)
-# Gabungkan keduanya dan deduplikasi
+# ============================================================
+# Hitung semua sesi aktif untuk satu user
+# - sshd: username@notty  → WS/UDP/Direct (no PTY, via proxy)
+# - sshd: username@pts/x  → Direct SSH interactive
+# - dropbear: username    → Dropbear connection
+# who tidak dipakai → tidak detect koneksi tanpa PTY (UDP/WS)
+# ============================================================
 count_sessions() {
     local username="$1"
-
-    # Sesi direct SSH (via who)
-    local direct
-    direct=$(who 2>/dev/null | grep "^${username} " | wc -l)
-    direct=$(echo "$direct" | tr -d '[:space:]')
-
-    # Sesi tunneled — deteksi dari sshd process yang berjalan untuk user ini
-    # Setiap koneksi SSH (termasuk tunneled) menghasilkan "sshd: username" di ps
-    # Exclude: [priv] (monitor process, bukan user session) dan grep itu sendiri
-    local tunneled
-    tunneled=$(ps aux 2>/dev/null \
-        | grep "sshd: ${username}" \
-        | grep -v "\[priv\]\|grep" \
-        | wc -l)
-    tunneled=$(echo "$tunneled" | tr -d '[:space:]')
-
-    # Ambil nilai terbesar antara direct dan tunneled
-    # (tunneled sudah mencakup direct, tapi kadang ps lebih akurat)
-    if [[ "$tunneled" -gt "$direct" ]]; then
-        echo "$tunneled"
-    else
-        echo "$direct"
-    fi
+    local n_ssh n_drop
+    n_ssh=$(ps aux | grep -E "sshd: ${username}(@|$)" | grep -v grep | grep -v '\[priv\]' | wc -l)
+    n_drop=$(ps aux | grep -E "dropbear: ${username}(@|$)" | grep -v grep | wc -l)
+    echo $(( n_ssh + n_drop ))
 }
 
-# Ambil IP client dari sesi aktif user
-get_client_ips() {
+# ============================================================
+# Deteksi tipe koneksi + IP untuk user tertentu
+# ============================================================
+get_connection_info() {
     local username="$1"
-    # IP dari direct SSH (via who)
-    local direct_ips
-    direct_ips=$(who 2>/dev/null \
-        | grep "^${username} " \
-        | awk '{print $5}' \
-        | sed 's/[()]//g' \
-        | grep -v "^$")
 
-    # IP dari ws-proxy connection (tunneled lewat localhost)
-    # Kalau ada tunneled session → tampilkan "(via tunnel)"
-    local tunneled
-    tunneled=$(ps aux 2>/dev/null \
-        | grep "sshd: ${username}" \
-        | grep -v "\[priv\]\|grep\|$(who 2>/dev/null | grep "^${username} " | awk '{print $2}' | head -1)" \
-        | wc -l)
-    tunneled=$(echo "$tunneled" | tr -d '[:space:]')
+    # PID sshd worker untuk user ini (bukan [priv])
+    local ssh_pids
+    mapfile -t ssh_pids < <(
+        ps aux | grep -E "sshd: ${username}(@|$)" \
+               | grep -v grep | grep -v '\[priv\]' \
+               | awk '{print $2}'
+    )
 
-    if [[ -n "$direct_ips" ]]; then
-        echo "$direct_ips"
-    elif [[ "$tunneled" -gt 0 ]]; then
-        echo "via-tunnel"
+    # PID dropbear untuk user ini
+    local drop_pids
+    mapfile -t drop_pids < <(
+        ps aux | grep -E "dropbear: ${username}(@|$)" \
+               | grep -v grep \
+               | awk '{print $2}'
+    )
+
+    local direct_ips=()
+    local has_tunneled=false
+
+    # --- Cek koneksi tiap sshd worker ---
+    for pid in "${ssh_pids[@]}"; do
+        [[ -z "$pid" ]] && continue
+
+        # PPID = sshd monitor [priv] yang pegang socket
+        local ppid
+        ppid=$(awk '{print $4}' /proc/"$pid"/stat 2>/dev/null)
+
+        local remote_ip=""
+        for check_pid in "$pid" "$ppid"; do
+            [[ -z "$check_pid" ]] && continue
+            remote_ip=$(ss -tnp 2>/dev/null \
+                | grep "pid=${check_pid}," \
+                | awk '{print $5}' \
+                | sed 's/:[0-9]*$//' \
+                | grep -v "^$" \
+                | head -1)
+            [[ -n "$remote_ip" ]] && break
+        done
+
+        if [[ -z "$remote_ip" ]] || [[ "$remote_ip" =~ ^127\. ]] || [[ "$remote_ip" == "::1" ]]; then
+            has_tunneled=true
+        else
+            direct_ips+=("$remote_ip")
+        fi
+    done
+
+    # --- Cek koneksi tiap dropbear ---
+    for pid in "${drop_pids[@]}"; do
+        [[ -z "$pid" ]] && continue
+        local remote_ip
+        remote_ip=$(ss -tnp 2>/dev/null \
+            | grep "pid=${pid}," \
+            | awk '{print $5}' \
+            | sed 's/:[0-9]*$//' \
+            | grep -v "^$" \
+            | head -1)
+
+        if [[ -n "$remote_ip" ]] && ! [[ "$remote_ip" =~ ^127\. ]]; then
+            direct_ips+=("${remote_ip} (Dropbear)")
+        else
+            has_tunneled=true
+        fi
+    done
+
+    # --- Output IP direct (deduplikasi) ---
+    local shown=()
+    for ip in "${direct_ips[@]}"; do
+        local dup=false
+        for s in "${shown[@]}"; do [[ "$s" == "$ip" ]] && dup=true; done
+        if [[ "$dup" == false ]]; then
+            shown+=("$ip")
+            echo "$ip"
+        fi
+    done
+
+    # --- Output label tunnel ---
+    if [[ "$has_tunneled" == true ]]; then
+        # Deteksi tipe dari port yang aktif
+        local udp_conns
+        udp_conns=$(ss -tnp 2>/dev/null | grep ":36712" | grep -c "ESTAB" 2>/dev/null || echo 0)
+        local ws_conns
+        ws_conns=$(ss -tnp 2>/dev/null | grep ":8880" | grep -c "ESTAB" 2>/dev/null || echo 0)
+
+        if [[ "$udp_conns" -gt 0 ]] && [[ "$ws_conns" -gt 0 ]]; then
+            echo "[UDP + WebSocket]"
+        elif [[ "$udp_conns" -gt 0 ]]; then
+            echo "[UDP Custom]"
+        elif [[ "$ws_conns" -gt 0 ]]; then
+            echo "[WebSocket]"
+        else
+            echo "[Tunnel]"
+        fi
     fi
 }
 
 show_monitor() {
     clear
-    local today
+    local today now
     today=$(date +"%Y-%m-%d")
-    local now
     now=$(date +"%H:%M:%S")
 
     echo -e "${BCYAN}  ╔══════════════════════════════════════════════════╗${NC}"
@@ -82,9 +139,9 @@ show_monitor() {
     local total_akun_online=0
     local ada_data=false
 
-    printf "  ${BWHITE}%-16s %-8s %-10s %-16s${NC}\n" \
-        "Username" "Sesi" "Status" "IP/Mode"
-    echo -e "  ${BCYAN}──────────────────────────────────────────────────${NC}"
+    printf "  ${BWHITE}%-16s %-7s %-9s %-22s${NC}\n" \
+        "Username" "Sesi" "Status" "Koneksi"
+    echo -e "  ${BCYAN}──────────────────────────────────────────────────────${NC}"
 
     for conf_file in /etc/zv-manager/accounts/ssh/*.conf; do
         [[ -f "$conf_file" ]] || continue
@@ -95,6 +152,7 @@ show_monitor() {
 
         local sesi
         sesi=$(count_sessions "$USERNAME")
+        sesi="${sesi// /}"
         [[ -z "$sesi" ]] && sesi=0
 
         local status_exp
@@ -105,21 +163,26 @@ show_monitor() {
         fi
 
         if [[ "$sesi" -gt 0 ]]; then
-            local ip_display
-            ip_display=$(get_client_ips "$USERNAME" | head -1)
-            [[ -z "$ip_display" ]] && ip_display="tunnel"
+            local conn_lines
+            mapfile -t conn_lines < <(get_connection_info "$USERNAME")
+            local first_conn="${conn_lines[0]:-?}"
 
             printf "  ${BGREEN}%-16s${NC} " "$USERNAME"
-            printf "${BYELLOW}%-8s${NC} " "${sesi}x"
-            printf "%-18b" "$status_exp"
-            echo -e "${BCYAN}${ip_display}${NC}"
+            printf "${BYELLOW}%-7s${NC} " "${sesi}x"
+            printf "%-17b" "$status_exp"
+            echo -e "${BCYAN}${first_conn}${NC}"
+
+            for ((i=1; i<${#conn_lines[@]}; i++)); do
+                printf "  %-16s %-7s %-17s ${BCYAN}%s${NC}\n" \
+                    "" "" "" "${conn_lines[$i]}"
+            done
 
             total_sesi=$(( total_sesi + sesi ))
             total_akun_online=$(( total_akun_online + 1 ))
         else
             printf "  ${WHITE}%-16s${NC} " "$USERNAME"
-            printf "${WHITE}%-8s${NC} " "offline"
-            printf "%-18b\n" "$status_exp"
+            printf "${WHITE}%-7s${NC} " "offline"
+            printf "%-17b\n" "$status_exp"
         fi
     done
 
@@ -128,9 +191,11 @@ show_monitor() {
     fi
 
     echo ""
-    echo -e "  ${BCYAN}──────────────────────────────────────────────────${NC}"
+    echo -e "  ${BCYAN}──────────────────────────────────────────────────────${NC}"
     echo -e "  ${BWHITE}Total sesi aktif :${NC} ${BYELLOW}${total_sesi}${NC}"
     echo -e "  ${BWHITE}Akun online      :${NC} ${BYELLOW}${total_akun_online}${NC}"
+    echo ""
+    echo -e "  ${WHITE}Koneksi: IP=Direct  [WebSocket]=WS/WSS  [UDP Custom]=UDP  [Tunnel]=Umum${NC}"
     echo ""
 }
 
@@ -153,9 +218,12 @@ kill_user_session() {
         return
     fi
 
-    # Kill semua proses: session PTY + tunneled sshd process
+    # Kill semua proses user (termasuk sshd tunneled sessions)
     pkill -u "$target" &>/dev/null
-    pkill -f "sshd: ${target}" &>/dev/null
+    for pid in $(ps aux | grep "sshd: ${target}" | grep -v grep | grep -v '\[priv\]' | awk '{print $2}'); do
+        kill -9 "$pid" &>/dev/null
+    done
+
     print_ok "Semua sesi '$target' (${sesi}x) berhasil di-kill!"
     sleep 1
 }
