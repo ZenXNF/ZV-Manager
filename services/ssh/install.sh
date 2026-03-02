@@ -31,7 +31,7 @@ install_ssh() {
     } > "${sshd_config}.tmp"
     mv "${sshd_config}.tmp" "$sshd_config"
 
-    # issue.net — plain text, muncul sebelum login (kebanyakan client strip warna)
+    # issue.net — plain text, muncul sebelum login
     grep -q "^Banner" "$sshd_config" || echo "Banner /etc/issue.net" >> "$sshd_config"
     cat > /etc/issue.net <<'BANNEREOF'
 ╔══════════════════════════════════════════════════╗
@@ -40,6 +40,11 @@ install_ssh() {
 BANNEREOF
 
     # --- MOTD berwarna — muncul SETELAH login berhasil ---
+    # Ubuntu 24.04: PrintMotd no → biarkan PAM yang handle via pam_motd.so
+    # PrintMotd yes konflik dengan PAM di Ubuntu 24.04 dan bisa sebabkan connection reset
+    sed -i 's/^#\?PrintMotd.*/PrintMotd no/' "$sshd_config"
+    grep -q "^PrintMotd" "$sshd_config" || echo "PrintMotd no" >> "$sshd_config"
+
     # Nonaktifkan MOTD default Ubuntu yang berisik
     chmod -x /etc/update-motd.d/* 2>/dev/null
 
@@ -99,16 +104,6 @@ echo ""
 MOTDEOF
 
     chmod +x /etc/update-motd.d/00-zv-manager
-
-    # Aktifkan PrintMotd di sshd_config
-    sed -i 's/^#\?PrintMotd.*/PrintMotd yes/' "$sshd_config"
-    grep -q "^PrintMotd" "$sshd_config" || echo "PrintMotd yes" >> "$sshd_config"
-
-    # PAM harus aktifkan pam_motd
-    # Pastikan session include di pam sshd
-    if ! grep -q "pam_motd" /etc/pam.d/sshd; then
-        sed -i '/^session.*pam_loginuid/a session    optional   pam_motd.so motd=/run/motd.dynamic' /etc/pam.d/sshd
-    fi
 
     grep -qx '/bin/false' /etc/shells || echo '/bin/false' >> /etc/shells
     grep -qx '/usr/sbin/nologin' /etc/shells || echo '/usr/sbin/nologin' >> /etc/shells
