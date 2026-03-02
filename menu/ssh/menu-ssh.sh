@@ -11,7 +11,6 @@ SERVER_DIR="/etc/zv-manager/servers"
 
 check_server_exists() {
     local count=0
-    local conf
     for conf in "${SERVER_DIR}"/*.conf; do
         [[ -f "$conf" ]] && count=$((count + 1))
     done
@@ -22,14 +21,8 @@ check_server_exists() {
         echo -e "${BRED} │            BELUM ADA SERVER!                  │${NC}"
         echo -e "${BRED} └──────────────────────────────────────────────┘${NC}"
         echo ""
-        echo -e "  ${BYELLOW}Kamu belum menambahkan server apapun.${NC}"
-        echo -e "  ${BYELLOW}Akun SSH dibuat per server, jadi tambahkan${NC}"
-        echo -e "  ${BYELLOW}server dulu sebelum bisa buat akun.${NC}"
-        echo ""
-        echo -e "  ${BWHITE}Cara menambahkan server:${NC}"
+        echo -e "  ${BYELLOW}Tambahkan server dulu sebelum bisa buat akun.${NC}"
         echo -e "  Menu Utama → ${BGREEN}[2] Manajemen Server${NC} → ${BGREEN}[1] Tambah Server${NC}"
-        echo ""
-        echo -e "  ${BYELLOW}Tip: Neva (VPS ini sendiri) juga bisa ditambahkan!${NC}"
         echo ""
         press_any_key
         return 1
@@ -53,6 +46,7 @@ menu_ssh() {
         echo -e "  ${BGREEN}[5]${NC} Lock Akun SSH"
         echo -e "  ${BGREEN}[6]${NC} Unlock Akun SSH"
         echo -e "  ${BGREEN}[7]${NC} Monitor Online"
+        echo -e "  ${BGREEN}[8]${NC} Edit Akun SSH"
         echo ""
         echo -e "  ${BRED}[0]${NC} Kembali ke Menu Utama"
         echo ""
@@ -66,6 +60,7 @@ menu_ssh() {
             5) bash /etc/zv-manager/menu/ssh/lock-user.sh ;;
             6) bash /etc/zv-manager/menu/ssh/unlock-user.sh ;;
             7) bash /etc/zv-manager/menu/ssh/monitor-online.sh ;;
+            8) bash /etc/zv-manager/menu/ssh/edit-user.sh ;;
             0) break ;;
             *) echo -e "  ${BRED}Pilihan tidak valid!${NC}"; sleep 1 ;;
         esac
