@@ -32,21 +32,26 @@ install_ssh() {
     mv "${sshd_config}.tmp" "$sshd_config"
 
     # --- issue.net ---
-    # HTTP Custom render sebagai HTML
-    # Tanpa <div> kosong agar tidak ada spasi berlebih antar baris
+    # HTTP Custom render sebagai HTML di WebView Android
+    # Pakai <center> untuk posisi tengah
+    # Pakai <font color=""> + <br> per baris — BUKAN <div>
+    # <div> punya margin default di WebView → bikin spasi lebar
+    # <br> hanya line break tanpa margin → lebih rapat
     grep -q "^Banner" "$sshd_config" || echo "Banner /etc/issue.net" >> "$sshd_config"
     cat > /etc/issue.net <<'BANNEREOF'
-<div><font color="#00ffff">▬▬▬▬▬ஜ۩۞۩ஜ▬▬▬▬▬</font></div>
-<div><font color="#ffff00">⚡ ZV-Manager SSH Tunnel ⚡</font></div>
-<div><font color="#00ffff">▬▬▬▬▬ஜ۩۞۩ஜ▬▬▬▬▬</font></div>
-<div><font color="#ffffff">! TERMS OF SERVICE !</font></div>
-<div><font color="#ff4444">✗ NO SPAM</font></div>
-<div><font color="#ff4444">✗ NO DDoS</font></div>
-<div><font color="#ff4444">✗ NO HACKING / CARDING</font></div>
-<div><font color="#ff4444">✗ NO TORRENT</font></div>
-<div><font color="#ff4444">✗ NO MULTI LOGIN</font></div>
-<div><font color="#00ff00">✔ Violation = Permanent Ban</font></div>
-<div><font color="#00ffff">▬▬▬▬▬ஜ۩۞۩ஜ▬▬▬▬▬</font></div>
+<center>
+<font color="#00ffff">▬▬▬ஜ۩۞۩ஜ▬▬▬</font><br>
+<font color="#ffff00">⚡ ZV-Manager SSH Tunnel ⚡</font><br>
+<font color="#00ffff">▬▬▬ஜ۩۞۩ஜ▬▬▬</font><br>
+<font color="#ffffff">! TERMS OF SERVICE !</font><br>
+<font color="#ff4444">✗ NO SPAM</font><br>
+<font color="#ff4444">✗ NO DDoS</font><br>
+<font color="#ff4444">✗ NO HACKING / CARDING</font><br>
+<font color="#ff4444">✗ NO TORRENT</font><br>
+<font color="#ff4444">✗ NO MULTI LOGIN</font><br>
+<font color="#00ff00">✔ Violation = Permanent Ban</font><br>
+<font color="#00ffff">▬▬▬ஜ۩۞۩ஜ▬▬▬</font>
+</center>
 BANNEREOF
 
     # --- MOTD berwarna — tampil di Termius setelah login ---
