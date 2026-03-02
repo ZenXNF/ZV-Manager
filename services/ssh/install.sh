@@ -33,20 +33,23 @@ install_ssh() {
 
     # --- issue.net ---
     # HTTP Custom hanya parse <font color> dan <br>
-    # CSS dan align attribute tidak didukung
-    # Center dilakukan dengan spasi manual dikalibrasi untuk layar HP
+    # Center dilakukan dengan spasi ideographic (U+3000) 　
+    # Spasi per bagian (dikalibrasi dari screenshot):
+    #   Garis & judul  : 3 spasi 　　　 → sudah pas
+    #   SYARAT          : 2 spasi 　　  → sudah pas
+    #   Rules ✗ & ✔    : 3 spasi 　　　 → fix dari 2 → 3
     grep -q "^Banner" "$sshd_config" || echo "Banner /etc/issue.net" >> "$sshd_config"
     cat > /etc/issue.net <<'BANNEREOF'
 <font color="#00e5ff">　　　▬▬▬ஜ۩۞۩ஜ▬▬▬</font><br>
 <font color="#ffd600">　⚡  ZV-Manager SSH Tunnel  ⚡</font><br>
 <font color="#00e5ff">　　　▬▬▬ஜ۩۞۩ஜ▬▬▬</font><br>
 <font color="#ffffff">　　 ☆ SYARAT PENGGUNAAN ☆</font><br>
-<font color="#ff1744">　　✗  Dilarang SPAM</font><br>
-<font color="#ff1744">　　✗  Dilarang DDoS / Serangan</font><br>
-<font color="#ff1744">　　✗  Dilarang Hacking / Carding</font><br>
-<font color="#ff1744">　　✗  Dilarang Torrent</font><br>
-<font color="#ff1744">　　✗  Dilarang Berbagi Akun</font><br>
-<font color="#69ff47">　　✔  Melanggar = Ban Permanen</font><br>
+<font color="#ff1744">　　　✗  Dilarang SPAM</font><br>
+<font color="#ff1744">　　　✗  Dilarang DDoS / Serangan</font><br>
+<font color="#ff1744">　　　✗  Dilarang Hacking / Carding</font><br>
+<font color="#ff1744">　　　✗  Dilarang Torrent</font><br>
+<font color="#ff1744">　　　✗  Dilarang Berbagi Akun</font><br>
+<font color="#69ff47">　　　✔  Melanggar = Ban Permanen</font><br>
 <font color="#00e5ff">　　　▬▬▬ஜ۩۞۩ஜ▬▬▬</font>
 BANNEREOF
 
