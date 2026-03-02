@@ -32,12 +32,22 @@ install_ssh() {
     mv "${sshd_config}.tmp" "$sshd_config"
 
     # --- issue.net ---
-    # HTTP Custom hanya support tag HTML terbatas: <font color>, <br>, <div>
-    # CSS style= tidak diparse → pakai atribut HTML4: <div align="center">
-    # Semua dalam satu baris per div, tidak ada newline antar tag
+    # HTTP Custom hanya parse <font color> dan <br>
+    # CSS dan align attribute tidak didukung
+    # Center dilakukan dengan spasi manual dikalibrasi untuk layar HP
     grep -q "^Banner" "$sshd_config" || echo "Banner /etc/issue.net" >> "$sshd_config"
     cat > /etc/issue.net <<'BANNEREOF'
-<div align="center"><font color="#00ffff">▬▬▬ஜ۩۞۩ஜ▬▬▬</font></div><div align="center"><font color="#ffff00">⚡ ZV-Manager SSH Tunnel ⚡</font></div><div align="center"><font color="#00ffff">▬▬▬ஜ۩۞۩ஜ▬▬▬</font></div><div align="center"><font color="#ffffff">! SYARAT PENGGUNAAN !</font></div><div align="center"><font color="#ff4444">✗ DILARANG SPAM</font></div><div align="center"><font color="#ff4444">✗ DILARANG DDoS</font></div><div align="center"><font color="#ff4444">✗ DILARANG HACK / CARDING</font></div><div align="center"><font color="#ff4444">✗ DILARANG TORRENT</font></div><div align="center"><font color="#ff4444">✗ DILARANG BERBAGI AKUN</font></div><div align="center"><font color="#00ff00">✔ Melanggar = Ban Permanen</font></div><div align="center"><font color="#00ffff">▬▬▬ஜ۩۞۩ஜ▬▬▬</font></div>
+<font color="#00e5ff">　　　▬▬▬ஜ۩۞۩ஜ▬▬▬</font><br>
+<font color="#ffd600">　⚡  ZV-Manager SSH Tunnel  ⚡</font><br>
+<font color="#00e5ff">　　　▬▬▬ஜ۩۞۩ஜ▬▬▬</font><br>
+<font color="#ffffff">　　 ☆ SYARAT PENGGUNAAN ☆</font><br>
+<font color="#ff1744">　　✗  Dilarang SPAM</font><br>
+<font color="#ff1744">　　✗  Dilarang DDoS / Serangan</font><br>
+<font color="#ff1744">　　✗  Dilarang Hacking / Carding</font><br>
+<font color="#ff1744">　　✗  Dilarang Torrent</font><br>
+<font color="#ff1744">　　✗  Dilarang Berbagi Akun</font><br>
+<font color="#69ff47">　　✔  Melanggar = Ban Permanen</font><br>
+<font color="#00e5ff">　　　▬▬▬ஜ۩۞۩ஜ▬▬▬</font>
 BANNEREOF
 
     # --- MOTD berwarna — tampil di Termius setelah login ---
@@ -71,11 +81,11 @@ echo ""
 echo -e "${C}  =================================${NC}"
 echo -e "  ${W}ZV-Manager SSH Tunnel${NC}"
 echo -e "${C}  =================================${NC}"
-echo -e "  ${Y}User   :${NC} ${W}${PAM_USER}${NC}"
-echo -e "  ${Y}Server :${NC} ${G}${DOMAIN}${NC}"
-echo -e "  ${Y}Waktu  :${NC} ${NOW}"
-[[ -n "$EXPIRED" ]] && echo -e "  ${Y}Expired:${NC} ${R}${EXPIRED}${NC}"
-[[ -n "$LIMIT"   ]] && echo -e "  ${Y}Limit  :${NC} ${LIMIT} perangkat"
+echo -e "  ${Y}User    :${NC} ${W}${PAM_USER}${NC}"
+echo -e "  ${Y}Server  :${NC} ${G}${DOMAIN}${NC}"
+echo -e "  ${Y}Waktu   :${NC} ${NOW}"
+[[ -n "$EXPIRED" ]] && echo -e "  ${Y}Expired :${NC} ${R}${EXPIRED}${NC}"
+[[ -n "$LIMIT"   ]] && echo -e "  ${Y}Limit   :${NC} ${LIMIT} perangkat"
 echo -e "${C}  =================================${NC}"
 echo -e "  ${R}✗ Spam  ✗ DDoS  ✗ Torrent${NC}"
 echo -e "${C}  =================================${NC}"
