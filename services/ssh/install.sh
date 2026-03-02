@@ -32,23 +32,21 @@ install_ssh() {
     mv "${sshd_config}.tmp" "$sshd_config"
 
     # --- issue.net ---
-    # HTTP Custom render sebagai HTML — pakai <div> per baris agar rapi
-    # <font color=""> untuk warna, <div> untuk baris baru
+    # HTTP Custom render sebagai HTML
+    # Tanpa <div> kosong agar tidak ada spasi berlebih antar baris
     grep -q "^Banner" "$sshd_config" || echo "Banner /etc/issue.net" >> "$sshd_config"
     cat > /etc/issue.net <<'BANNEREOF'
-<div><font color="#00ffff">━━━━━━━━━━━━━━━━━━━━━━━━━━━━</font></div>
+<div><font color="#00ffff">▬▬▬▬▬ஜ۩۞۩ஜ▬▬▬▬▬</font></div>
 <div><font color="#ffff00">⚡ ZV-Manager SSH Tunnel ⚡</font></div>
-<div><font color="#00ffff">━━━━━━━━━━━━━━━━━━━━━━━━━━━━</font></div>
-<div><font color="#ffffff"> </font></div>
+<div><font color="#00ffff">▬▬▬▬▬ஜ۩۞۩ஜ▬▬▬▬▬</font></div>
 <div><font color="#ffffff">! TERMS OF SERVICE !</font></div>
-<div><font color="#ff4444">✗  NO SPAM</font></div>
-<div><font color="#ff4444">✗  NO DDoS</font></div>
-<div><font color="#ff4444">✗  NO HACKING / CARDING</font></div>
-<div><font color="#ff4444">✗  NO TORRENT</font></div>
-<div><font color="#ff4444">✗  NO MULTI LOGIN</font></div>
-<div><font color="#ffffff"> </font></div>
-<div><font color="#00ff00">✔  Violation = Permanent Ban</font></div>
-<div><font color="#00ffff">━━━━━━━━━━━━━━━━━━━━━━━━━━━━</font></div>
+<div><font color="#ff4444">✗ NO SPAM</font></div>
+<div><font color="#ff4444">✗ NO DDoS</font></div>
+<div><font color="#ff4444">✗ NO HACKING / CARDING</font></div>
+<div><font color="#ff4444">✗ NO TORRENT</font></div>
+<div><font color="#ff4444">✗ NO MULTI LOGIN</font></div>
+<div><font color="#00ff00">✔ Violation = Permanent Ban</font></div>
+<div><font color="#00ffff">▬▬▬▬▬ஜ۩۞۩ஜ▬▬▬▬▬</font></div>
 BANNEREOF
 
     # --- MOTD berwarna — tampil di Termius setelah login ---
