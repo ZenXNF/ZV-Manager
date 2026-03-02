@@ -32,23 +32,22 @@ install_ssh() {
     mv "${sshd_config}.tmp" "$sshd_config"
 
     # --- issue.net — banner sebelum login ---
-    # Tampil di HTTP Custom sebagai "Server Message"
-    # ANSI color didukung oleh HTTP Custom
+    # HTTP Custom render HTML <font color=""> tags untuk warna
+    # ANSI codes tidak didukung HTTP Custom, gunakan HTML saja
     grep -q "^Banner" "$sshd_config" || echo "Banner /etc/issue.net" >> "$sshd_config"
-    printf '\033[1;36m\r\n'                                      > /etc/issue.net
-    printf '\033[1;35m  ============================\033[0m\r\n' >> /etc/issue.net
-    printf '\033[1;33m   ⚡  ZV-Manager SSH Tunnel  \033[0m\r\n' >> /etc/issue.net
-    printf '\033[1;35m  ============================\033[0m\r\n' >> /etc/issue.net
-    printf '\033[1;31m\r\n'                                      >> /etc/issue.net
-    printf '\033[1;37m   ! TERMS OF SERVICE !\033[0m\r\n'       >> /etc/issue.net
-    printf '\033[1;31m   ✗  NO SPAM\033[0m\r\n'                 >> /etc/issue.net
-    printf '\033[1;31m   ✗  NO DDoS\033[0m\r\n'                 >> /etc/issue.net
-    printf '\033[1;31m   ✗  NO HACKING / CARDING\033[0m\r\n'    >> /etc/issue.net
-    printf '\033[1;31m   ✗  NO TORRENT\033[0m\r\n'              >> /etc/issue.net
-    printf '\033[1;31m   ✗  NO MULTI LOGIN\033[0m\r\n'          >> /etc/issue.net
-    printf '\033[1;32m   ✔  Violation = Permanent Ban\033[0m\r\n' >> /etc/issue.net
-    printf '\033[1;35m  ============================\033[0m\r\n' >> /etc/issue.net
-    printf '\033[0m\r\n'                                         >> /etc/issue.net
+    cat > /etc/issue.net <<'BANNEREOF'
+<font color="#00ffff">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</font>
+<font color="#ffff00">  ⚡  ZV-Manager SSH Tunnel  ⚡</font>
+<font color="#00ffff">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</font>
+<font color="#ffffff">  ! TERMS OF SERVICE !</font>
+<font color="#ff4444">  ✗  NO SPAM</font>
+<font color="#ff4444">  ✗  NO DDoS</font>
+<font color="#ff4444">  ✗  NO HACKING / CARDING</font>
+<font color="#ff4444">  ✗  NO TORRENT</font>
+<font color="#ff4444">  ✗  NO MULTI LOGIN</font>
+<font color="#00ff00">  ✔  Violation = Permanent Ban</font>
+<font color="#00ffff">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</font>
+BANNEREOF
 
     # --- MOTD berwarna — muncul SETELAH login berhasil di Termius ---
     # Ubuntu 24.04: PrintMotd no → biarkan PAM yang handle via pam_motd.so
@@ -58,7 +57,7 @@ install_ssh() {
     # Nonaktifkan MOTD default Ubuntu
     chmod -x /etc/update-motd.d/* 2>/dev/null
 
-    # MOTD custom berwarna
+    # MOTD custom — tampil di Termius (terminal biasa, support ANSI)
     cat > /etc/update-motd.d/00-zv-manager <<'MOTDEOF'
 #!/bin/bash
 R='\033[0;31m'
@@ -81,7 +80,7 @@ NOW=$(date +"%d %b %Y %H:%M")
 
 echo ""
 echo -e "${C}  =================================${NC}"
-echo -e "${C}  ${W}ZV-Manager SSH Tunnel${NC}"
+echo -e "  ${W}ZV-Manager SSH Tunnel${NC}"
 echo -e "${C}  =================================${NC}"
 echo -e "  ${Y}User   :${NC} ${W}${PAM_USER}${NC}"
 echo -e "  ${Y}Server :${NC} ${G}${DOMAIN}${NC}"
@@ -89,7 +88,7 @@ echo -e "  ${Y}Waktu  :${NC} ${NOW}"
 [[ -n "$EXPIRED" ]] && echo -e "  ${Y}Expired:${NC} ${R}${EXPIRED}${NC}"
 [[ -n "$LIMIT"   ]] && echo -e "  ${Y}Limit  :${NC} ${LIMIT} device"
 echo -e "${C}  =================================${NC}"
-echo -e "  ${R}Dilarang: SPAM, DDoS, Torrent${NC}"
+echo -e "  ${R}✗ SPAM  ✗ DDoS  ✗ Torrent${NC}"
 echo -e "${C}  =================================${NC}"
 echo ""
 MOTDEOF
