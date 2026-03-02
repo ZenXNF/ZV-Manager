@@ -4,15 +4,14 @@
 # ============================================================
 
 source /etc/zv-manager/utils/colors.sh
+source /etc/zv-manager/utils/logger.sh
 source /etc/zv-manager/utils/helpers.sh
 
 restart_all_services() {
     clear
     print_section "Restart Semua Service"
 
-    # zv-ws dihapus — WS proxy internal sekarang hanya zv-wss (port 8880)
-    # nginx yang forward port 80 & 443 ke zv-wss
-    for svc in ssh dropbear nginx zv-wss zv-udp fail2ban; do
+    for svc in ssh dropbear nginx zv-stunnel zv-wss zv-udp fail2ban; do
         if systemctl list-units --type=service --all | grep -q "${svc}.service"; then
             restart_service "$svc"
         fi
@@ -28,8 +27,7 @@ show_running_services() {
     echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
     echo ""
 
-    # zv-ws dihapus — port 80 ditangani nginx → zv-wss
-    local services=("ssh" "dropbear" "nginx" "zv-wss" "zv-udp" "fail2ban")
+    local services=("ssh" "dropbear" "nginx" "zv-stunnel" "zv-wss" "zv-udp" "fail2ban")
     for svc in "${services[@]}"; do
         if systemctl list-units --type=service --all | grep -q "${svc}.service"; then
             if systemctl is-active --quiet "$svc"; then
