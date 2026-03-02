@@ -33,29 +33,24 @@ install_ssh() {
 
     # --- issue.net ---
     # HTTP Custom render sebagai HTML di WebView Android
-    # Pakai <center> untuk posisi tengah
-    # Pakai <font color=""> + <br> per baris — BUKAN <div>
-    # <div> punya margin default di WebView → bikin spasi lebar
-    # <br> hanya line break tanpa margin → lebih rapat
+    # <center> tidak dirender → pakai <p style="text-align:center"> per baris
+    # <br> untuk line break tanpa margin
     grep -q "^Banner" "$sshd_config" || echo "Banner /etc/issue.net" >> "$sshd_config"
     cat > /etc/issue.net <<'BANNEREOF'
-<center>
-<font color="#00ffff">▬▬▬ஜ۩۞۩ஜ▬▬▬</font><br>
-<font color="#ffff00">⚡ ZV-Manager SSH Tunnel ⚡</font><br>
-<font color="#00ffff">▬▬▬ஜ۩۞۩ஜ▬▬▬</font><br>
-<font color="#ffffff">! TERMS OF SERVICE !</font><br>
-<font color="#ff4444">✗ NO SPAM</font><br>
-<font color="#ff4444">✗ NO DDoS</font><br>
-<font color="#ff4444">✗ NO HACKING / CARDING</font><br>
-<font color="#ff4444">✗ NO TORRENT</font><br>
-<font color="#ff4444">✗ NO MULTI LOGIN</font><br>
-<font color="#00ff00">✔ Violation = Permanent Ban</font><br>
-<font color="#00ffff">▬▬▬ஜ۩۞۩ஜ▬▬▬</font>
-</center>
+<p style="text-align:center;margin:0"><font color="#00ffff">▬▬▬ஜ۩۞۩ஜ▬▬▬</font></p>
+<p style="text-align:center;margin:0"><font color="#ffff00">⚡ ZV-Manager SSH Tunnel ⚡</font></p>
+<p style="text-align:center;margin:0"><font color="#00ffff">▬▬▬ஜ۩۞۩ஜ▬▬▬</font></p>
+<p style="text-align:center;margin:0"><font color="#ffffff">! TERMS OF SERVICE !</font></p>
+<p style="text-align:center;margin:0"><font color="#ff4444">✗ NO SPAM</font></p>
+<p style="text-align:center;margin:0"><font color="#ff4444">✗ NO DDoS</font></p>
+<p style="text-align:center;margin:0"><font color="#ff4444">✗ NO HACKING / CARDING</font></p>
+<p style="text-align:center;margin:0"><font color="#ff4444">✗ NO TORRENT</font></p>
+<p style="text-align:center;margin:0"><font color="#ff4444">✗ NO MULTI LOGIN</font></p>
+<p style="text-align:center;margin:0"><font color="#00ff00">✔ Violation = Permanent Ban</font></p>
+<p style="text-align:center;margin:0"><font color="#00ffff">▬▬▬ஜ۩۞۩ஜ▬▬▬</font></p>
 BANNEREOF
 
     # --- MOTD berwarna — tampil di Termius setelah login ---
-    # Ubuntu 24.04: PrintMotd no → PAM yang handle via pam_motd.so
     sed -i 's/^#\?PrintMotd.*/PrintMotd no/' "$sshd_config"
     grep -q "^PrintMotd" "$sshd_config" || echo "PrintMotd no" >> "$sshd_config"
 
