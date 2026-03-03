@@ -133,48 +133,22 @@ show_header() {
     echo ""
 }
 
-show_menu_options() {
-    echo -e "  ${BWHITE}┌─────────────────────────────────────────┐${NC}"
-    echo -e "  │          ${BWHITE}MENU UTAMA${NC}                      │"
-    echo -e "  ${BWHITE}└─────────────────────────────────────────┘${NC}"
-    echo ""
-    echo -e "  ${BGREEN}[1]${NC} Manajemen SSH"
-    echo -e "  ${BGREEN}[2]${NC} Manajemen Server"
-    echo -e "  ${BGREEN}[3]${NC} Informasi Server"
-    echo -e "  ${BGREEN}[4]${NC} System & Services"
-    echo ""
-    echo -e "  ${BYELLOW}[r]${NC} Restart Semua Service"
-    echo -e "  ${BRED}[0]${NC} Keluar"
-    echo ""
-}
-
 main_menu() {
     while true; do
         show_header
-        show_menu_options
-
-        # Loop realtime — refresh setiap 1 detik sambil tunggu input
-        choice=""
-        while true; do
-            # Tunggu input 1 detik, kalau timeout refresh header + menu
-            if read -t 1 -rp "  Pilihan: " choice; then
-                break
-            else
-                # Hapus baris "Pilihan: " yang sudah tercetak
-                echo -ne "\033[1A\033[2K"
-                # Update waktu di baris ke-4 header (baris Waktu)
-                local new_time
-                new_time=$(_waktu_indo)
-                # Hitung posisi: clear + header = beberapa baris
-                # Lebih mudah: redraw seluruh header saja
-                local total_lines
-                total_lines=$(( 10 + 8 ))  # header + menu options
-                # Naik ke atas sebanyak baris yang sudah dicetak
-                echo -ne "\033[${total_lines}A"
-                show_header
-                show_menu_options
-            fi
-        done
+        echo -e "  ${BWHITE}┌─────────────────────────────────────────┐${NC}"
+        echo -e "  │          ${BWHITE}MENU UTAMA${NC}                      │"
+        echo -e "  ${BWHITE}└─────────────────────────────────────────┘${NC}"
+        echo ""
+        echo -e "  ${BGREEN}[1]${NC} Manajemen SSH"
+        echo -e "  ${BGREEN}[2]${NC} Manajemen Server"
+        echo -e "  ${BGREEN}[3]${NC} Informasi Server"
+        echo -e "  ${BGREEN}[4]${NC} System & Services"
+        echo ""
+        echo -e "  ${BYELLOW}[r]${NC} Restart Semua Service"
+        echo -e "  ${BRED}[0]${NC} Keluar"
+        echo ""
+        read -rp "  Pilihan: " choice
 
         case $choice in
             1) bash /etc/zv-manager/menu/ssh/menu-ssh.sh ;;
