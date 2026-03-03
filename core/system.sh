@@ -9,20 +9,16 @@ source /etc/zv-manager/utils/logger.sh
 install_dependencies() {
     print_section "Menginstall Dependencies Sistem"
 
-    # Noninteractive supaya tidak ada prompt interaktif
     export DEBIAN_FRONTEND=noninteractive
 
-    # Hapus package konflik
     print_info "Membersihkan package konflik..."
     apt-get remove --purge -y ufw firewalld exim4 apache2 bind9 sendmail &>/dev/null
     print_ok "Package konflik dihapus"
 
-    # Update list saja — TIDAK upgrade, user sudah lakukan sebelum install
     print_info "Update package list..."
     apt-get update -y &>/dev/null
     print_ok "Package list diperbarui"
 
-    # Install hanya yang benar-benar dipakai sekarang
     print_info "Menginstall packages... (mohon tunggu)"
     apt-get install -y \
         curl wget git \
@@ -109,16 +105,23 @@ SYSCTL
 block_torrent() {
     print_section "Blokir Torrent"
 
-    iptables -A FORWARD -m string --string "get_peers" --algo bm -j DROP
-    iptables -A FORWARD -m string --string "announce_peer" --algo bm -j DROP
-    iptables -A FORWARD -m string --string "find_node" --algo bm -j DROP
-    iptables -A FORWARD -m string --algo bm --string "BitTorrent" -j DROP
-    iptables -A FORWARD -m string --algo bm --string "BitTorrent protocol" -j DROP
-    iptables -A FORWARD -m string --algo bm --string "peer_id=" --algo bm -j DROP
-    iptables -A FORWARD -m string --algo bm --string ".torrent" -j DROP
-    iptables -A FORWARD -m string --algo bm --string "info_hash" -j DROP
+    # Cek apakah rule sudah ada untuk menghindari duplikat saat update
+    if iptables -C FORWARD -m string --string "BitTorrent" --algo bm -j DROP 2>/dev/null; then
+        print_info "Rule torrent sudah ada, skip..."
+        print_success "Blokir Torrent"
+        return
+    fi
 
-    # Buat direktori dulu sebelum save — fix "No such file or directory"
+    # FIX: hapus --algo bm duplikat yang menyebabkan error di Ubuntu 24.04
+    iptables -A FORWARD -m string --string "get_peers"          --algo bm -j DROP
+    iptables -A FORWARD -m string --string "announce_peer"      --algo bm -j DROP
+    iptables -A FORWARD -m string --string "find_node"          --algo bm -j DROP
+    iptables -A FORWARD -m string --string "BitTorrent"         --algo bm -j DROP
+    iptables -A FORWARD -m string --string "BitTorrent protocol" --algo bm -j DROP
+    iptables -A FORWARD -m string --string "peer_id="           --algo bm -j DROP
+    iptables -A FORWARD -m string --string ".torrent"           --algo bm -j DROP
+    iptables -A FORWARD -m string --string "info_hash"          --algo bm -j DROP
+
     mkdir -p /etc/iptables
     iptables-save > /etc/iptables/rules.v4 2>/dev/null || true
 
