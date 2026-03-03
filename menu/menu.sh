@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-#   ZV-Manager - Main Menu
+#   ZV-Manager - Menu Utama
 #   Versi: 1.0.0
 # ============================================================
 
@@ -17,14 +17,54 @@ svc_status() {
     fi
 }
 
+# Baca info izin dari cache license.info
+# Tidak fetch ke GitHub — cukup baca file lokal yang diperbarui cron harian
+get_license_display() {
+    local info_file="/etc/zv-manager/license.info"
+
+    if [[ ! -f "$info_file" ]]; then
+        echo -e "  ${BCYAN}║${NC}  ${BWHITE}Expired  :${NC} ${BYELLOW}Belum dicek${NC}"
+        return
+    fi
+
+    local LICENSE_NAME LICENSE_EXPIRED LICENSE_DAYS_LEFT LICENSE_CODE
+    source "$info_file" 2>/dev/null
+
+    local nama_display="${LICENSE_NAME:-Tidak diketahui}"
+    local expired_text expired_color
+
+    if [[ "$LICENSE_DAYS_LEFT" -eq 99999 ]] 2>/dev/null; then
+        expired_text="Seumur hidup"
+        expired_color="$BGREEN"
+    elif [[ "$LICENSE_DAYS_LEFT" -gt 2 ]] 2>/dev/null; then
+        expired_text="${LICENSE_DAYS_LEFT} hari lagi"
+        expired_color="$BGREEN"
+    elif [[ "$LICENSE_DAYS_LEFT" -ge 0 ]] 2>/dev/null; then
+        expired_text="${LICENSE_DAYS_LEFT} hari lagi — segera perpanjang!"
+        expired_color="$BYELLOW"
+    else
+        local days_over=$(( -LICENSE_DAYS_LEFT ))
+        local grace_sisa=$(( 2 - days_over ))
+        if [[ "$grace_sisa" -gt 0 ]]; then
+            expired_text="Habis! ${grace_sisa} hari lagi dinonaktifkan — segera perpanjang!"
+            expired_color="$BRED"
+        else
+            expired_text="Habis! VPS akan segera dinonaktifkan"
+            expired_color="$BRED"
+        fi
+    fi
+
+    echo -e "  ${BCYAN}║${NC}  ${BWHITE}Nama VPS :${NC} ${BPURPLE}${nama_display}${NC}"
+    echo -e "  ${BCYAN}║${NC}  ${BWHITE}Expired  :${NC} ${expired_color}${expired_text}${NC}"
+}
+
 show_header() {
     local ip domain today
     ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null || curl -s --max-time 5 ipv4.icanhazip.com)
     domain=$(cat /etc/zv-manager/domain 2>/dev/null)
     today=$(date +"%A, %d %B %Y — %H:%M")
 
-    # Kumpulkan status semua service (cepat, paralel)
-    local s_ssh s_db s_nginx s_wss s_udp
+    local s_ssh s_db s_nginx s_wss s_udp s_stunnel
     s_ssh=$(svc_status ssh)
     s_db=$(svc_status dropbear)
     s_nginx=$(svc_status nginx)
@@ -39,6 +79,9 @@ show_header() {
     echo -e "${BCYAN}  ║${NC}  ${BWHITE}IP     :${NC} ${BGREEN}${ip}${NC}"
     echo -e "${BCYAN}  ║${NC}  ${BWHITE}Domain :${NC} ${BGREEN}${domain}${NC}"
     echo -e "${BCYAN}  ║${NC}  ${BWHITE}Waktu  :${NC} ${BYELLOW}${today}${NC}"
+    echo -e "${BCYAN}  ╠══════════════════════════════════════════════════╣${NC}"
+    # Tampilkan info izin dari cache
+    get_license_display
     echo -e "${BCYAN}  ╠══════════════════════════════════════════════════╣${NC}"
     echo -e "${BCYAN}  ║${NC}  ${s_ssh} SSH  ${s_db} Dropbear  ${s_nginx} Nginx  ${s_stunnel} SSL  ${s_wss} WS  ${s_udp} UDP"
     echo -e "${BCYAN}  ╚══════════════════════════════════════════════════╝${NC}"
