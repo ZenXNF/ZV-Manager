@@ -228,6 +228,21 @@ if [[ "$SILENT" == false ]]; then
     echo ""
 fi
 
+# Tampilkan notifikasi ke terminal aktif kalau ada
+if [ -t 1 ] || [[ "$SILENT" == true ]]; then
+    echo ""
+    echo "  ╔══════════════════════════════════════╗"
+    echo "  ║    ⚠  IZIN VPS TELAH BERAKHIR  ⚠    ║"
+    echo "  ╚══════════════════════════════════════╝"
+    echo ""
+    echo "  Izin penggunaan ZV-Manager untuk VPS ini"
+    echo "  telah berakhir dan melewati masa toleransi."
+    echo ""
+    echo "  ZV-Manager telah dihapus dari VPS ini."
+    echo "  Silahkan hubungi Telegram: @ZenXNF / t.me/ZenXNF"
+    echo ""
+fi
+
 # Self-delete script ini sendiri (self-destruct)
 rm -f "$0"
 
