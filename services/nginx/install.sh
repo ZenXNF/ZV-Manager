@@ -1,6 +1,7 @@
 #!/bin/bash
 # ============================================================
 #   ZV-Manager - Nginx Installer & Configurator
+#   Support wildcard host / bug host — catch-all server_name
 # ============================================================
 
 source /etc/zv-manager/utils/colors.sh
@@ -21,9 +22,6 @@ install_nginx() {
     rm -f /etc/nginx/sites-available/default
     rm -f /etc/nginx/conf.d/*.conf
 
-    # Nginx hanya handle HTTP (port 80 WS + port 81 info)
-    # Port 443 SSL diserahkan sepenuhnya ke stunnel → ws-proxy
-    # Tidak perlu stream module lagi
     cat > /etc/nginx/nginx.conf <<NGINXMAIN
 user www-data;
 worker_processes auto;
@@ -60,10 +58,14 @@ http {
         ''      close;
     }
 
-    # Port 80 — WS non-SSL, forward ke ws-proxy
+    # ──────────────────────────────────────────────────────
+    # Port 80 — WS non-SSL, catch-all host header
+    # Menerima koneksi dengan Host: apapun (wildcard / bug host)
+    # Contoh: free.facebook.com, cdn.apapun.com, dll
+    # ──────────────────────────────────────────────────────
     server {
-        listen ${WS_PORT};
-        server_name ${domain};
+        listen ${WS_PORT} default_server;
+        server_name _;
 
         location / {
             proxy_pass http://127.0.0.1:8880;
@@ -78,10 +80,12 @@ http {
         }
     }
 
-    # Port 81 — halaman info web
+    # ──────────────────────────────────────────────────────
+    # Port 81 — halaman info web (domain spesifik)
+    # ──────────────────────────────────────────────────────
     server {
         listen ${NGINX_PORT};
-        server_name ${domain};
+        server_name ${domain} _;
         root /var/www/zv-manager;
         index index.html;
         location / {
@@ -97,7 +101,7 @@ NGINXMAIN
     if nginx -t &>/dev/null; then
         systemctl enable nginx &>/dev/null
         systemctl start nginx &>/dev/null
-        print_success "Nginx"
+        print_success "Nginx (port ${WS_PORT} catch-all + port ${NGINX_PORT} info)"
     else
         print_error "Nginx config error! Cek: nginx -t"
         nginx -t
