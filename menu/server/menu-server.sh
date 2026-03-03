@@ -17,6 +17,7 @@ menu_server() {
         echo -e "  ${BGREEN}[3]${NC} Connect ke Server"
         echo -e "  ${BGREEN}[4]${NC} Hapus Server"
         echo -e "  ${BGREEN}[5]${NC} Deploy Agent ke Remote"
+        echo -e "  ${BGREEN}[6]${NC} Setting Telegram per Server"
         echo ""
         echo -e "  ${BRED}[0]${NC} Kembali ke Menu Utama"
         echo ""
@@ -28,6 +29,7 @@ menu_server() {
             3) bash /etc/zv-manager/menu/server/connect-server.sh ;;
             4) bash /etc/zv-manager/menu/server/del-server.sh ;;
             5) bash /etc/zv-manager/menu/server/deploy-agent.sh ;;
+            6) bash /etc/zv-manager/menu/server/tg-server-setting.sh ;;
             0) break ;;
             *) echo -e "  ${BRED}Pilihan tidak valid!${NC}"; sleep 1 ;;
         esac
