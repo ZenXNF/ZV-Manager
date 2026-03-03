@@ -304,7 +304,7 @@ if [[ "$SILENT" == false ]] && [ -t 1 ]; then
         read -rp "  Pilihan: " pilihan
         case $pilihan in
             1)
-                rm -f /root/zv.sh 2>/dev/null
+                rm -f /root/zv.sh /root/update.sh 2>/dev/null
                 echo ""
                 echo -e "\033[1;32m  File sisa berhasil dihapus.\033[0m"
                 echo ""
