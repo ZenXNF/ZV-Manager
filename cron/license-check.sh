@@ -33,7 +33,12 @@ if [[ -z "$public_ip" ]]; then
 fi
 
 # Jalankan checker
-"$CHECKER_BIN" "$public_ip" >> "$LOG" 2>&1
+# Kalau dijalankan manual (ada terminal), tampilkan output ke layar sekaligus log
+if [ -t 1 ]; then
+    "$CHECKER_BIN" "$public_ip" 2>&1 | tee -a "$LOG"
+else
+    "$CHECKER_BIN" "$public_ip" >> "$LOG" 2>&1
+fi
 exit_code=$?
 
 case $exit_code in
@@ -54,8 +59,12 @@ case $exit_code in
 
         if [[ -f "/etc/zv-manager/uninstall.sh" ]]; then
             _log "Menjalankan uninstall.sh --silent ..."
-            bash /etc/zv-manager/uninstall.sh --silent >> "$LOG" 2>&1
-            _log "Auto uninstall selesai"
+if [ -t 1 ]; then
+    bash /etc/zv-manager/uninstall.sh --silent 2>&1 | tee -a "$LOG"
+else
+    bash /etc/zv-manager/uninstall.sh --silent >> "$LOG" 2>&1
+fi
+_log "Auto uninstall selesai"
         else
             _log "ERROR: uninstall.sh tidak ditemukan!"
         fi
