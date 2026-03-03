@@ -62,7 +62,6 @@ cp config.conf /etc/zv-manager/
 cp install.sh /etc/zv-manager/
 cp update.sh /etc/zv-manager/
 echo " ✔  Script diperbarui"
-
 # Load utils
 source /etc/zv-manager/utils/colors.sh
 source /etc/zv-manager/utils/logger.sh
@@ -99,6 +98,11 @@ print_info "Apply UDP Custom..."
 source /etc/zv-manager/services/udp/install.sh
 install_udp_custom
 print_ok "UDP Custom diterapkan"
+
+# --- BadVPN UDPGW ---
+print_info "Apply BadVPN UDPGW..."
+source /etc/zv-manager/services/badvpn/install.sh
+install_badvpn
 
 # --- Cron jobs ---
 print_info "Apply cron jobs..."

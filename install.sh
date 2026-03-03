@@ -103,6 +103,9 @@ install_websocket
 source "$INSTALL_DIR/services/udp/install.sh"
 install_udp_custom
 
+source "$INSTALL_DIR/services/badvpn/install.sh"
+install_badvpn
+
 # --- Setup Cron Jobs ---
 print_section "Setup Cron Jobs"
 

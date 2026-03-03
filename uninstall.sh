@@ -195,7 +195,7 @@ while true; do
     read -rp "  Pilihan: " _zvpilihan
     case $_zvpilihan in
         1)
-            rm -f /root/zv.sh /root/update.sh 2>/dev/null
+            rm -f /root/zv.sh 2>/dev/null
             cat > /root/.profile <<'DEFAULTEOF'
 # ~/.profile: executed by Bourne-compatible login shells.
 if [ "$BASH" ]; then
@@ -262,6 +262,7 @@ _log_silent "Langkah 7: Menghapus file ZV-Manager..."
 
 rm -f /usr/local/bin/menu
 rm -f /usr/local/bin/zv-ws-proxy.py
+rm -f /usr/local/bin/badvpn-udpgw
 _log_silent "  Symlink dan binary global dihapus"
 
 rm -rf /etc/zv-manager/udp
@@ -304,7 +305,7 @@ if [[ "$SILENT" == false ]] && [ -t 1 ]; then
         read -rp "  Pilihan: " pilihan
         case $pilihan in
             1)
-                rm -f /root/zv.sh /root/update.sh 2>/dev/null
+                rm -f /root/zv.sh 2>/dev/null
                 echo ""
                 echo -e "\033[1;32m  File sisa berhasil dihapus.\033[0m"
                 echo ""
