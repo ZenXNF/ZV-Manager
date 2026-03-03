@@ -7,6 +7,7 @@
 source /etc/zv-manager/utils/colors.sh
 source /etc/zv-manager/utils/logger.sh
 source /etc/zv-manager/utils/helpers.sh
+source /etc/zv-manager/utils/remote.sh
 
 # ============================================================
 # Hitung semua sesi aktif untuk satu user
@@ -130,8 +131,14 @@ show_monitor() {
     today=$(date +"%Y-%m-%d")
     now=$(date +"%H:%M:%S")
 
+    local target
+    target=$(get_target_server)
+    local target_info
+    target_info=$(target_display)
+
     echo -e "${BCYAN}  ╔══════════════════════════════════════════════════╗${NC}"
     echo -e "${BCYAN}  ║${NC}  ${BWHITE}⚡ MONITOR SSH ONLINE${NC}  ${BYELLOW}${now}${NC}"
+    echo -e "${BCYAN}  ║${NC}  ${BWHITE}Target :${NC} ${BGREEN}${target_info}${NC}"
     echo -e "${BCYAN}  ╚══════════════════════════════════════════════════╝${NC}"
     echo ""
 
@@ -139,6 +146,40 @@ show_monitor() {
     local total_akun_online=0
     local ada_data=false
 
+    # ---- REMOTE mode: tampilkan hanya jumlah sesi ----
+    if ! is_local_target; then
+        print_info "Mengambil data online dari ${target_info}..."
+        echo ""
+        local raw
+        raw=$(remote_agent "$target" "online")
+        printf "  ${BWHITE}%-16s %-8s${NC}\n" "Username" "Sesi"
+        echo -e "  ${BCYAN}──────────────────────────────────────────────────────${NC}"
+        if [[ "$raw" == REMOTE-ERR* ]]; then
+            echo -e "  ${BRED}${raw#REMOTE-ERR|}${NC}"
+        elif [[ -z "$raw" ]]; then
+            echo -e "  ${BYELLOW}Belum ada akun SSH.${NC}"
+        else
+            while IFS='|' read -r r_user r_sesi; do
+                [[ -z "$r_user" ]] && continue
+                ada_data=true
+                if [[ "$r_sesi" -gt 0 ]]; then
+                    printf "  ${BGREEN}%-16s${NC} ${BYELLOW}%sx${NC}\n" "$r_user" "$r_sesi"
+                    total_sesi=$(( total_sesi + r_sesi ))
+                    total_akun_online=$(( total_akun_online + 1 ))
+                else
+                    printf "  ${WHITE}%-16s${NC} ${WHITE}offline${NC}\n" "$r_user"
+                fi
+            done <<< "$raw"
+        fi
+        echo ""
+        echo -e "  ${BCYAN}──────────────────────────────────────────────────────${NC}"
+        echo -e "  ${BWHITE}Total sesi aktif :${NC} ${BYELLOW}${total_sesi}${NC}"
+        echo -e "  ${BWHITE}Akun online      :${NC} ${BYELLOW}${total_akun_online}${NC}"
+        echo ""
+        return
+    fi
+
+    # ---- LOCAL mode ----
     printf "  ${BWHITE}%-16s %-7s %-9s %-22s${NC}\n" \
         "Username" "Sesi" "Status" "Koneksi"
     echo -e "  ${BCYAN}──────────────────────────────────────────────────────${NC}"

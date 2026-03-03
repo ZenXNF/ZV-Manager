@@ -1,12 +1,14 @@
 #!/bin/bash
 # ============================================================
-#   ZV-Manager - Add SSH User
+#   ZV-Manager - Add SSH User (Local + Remote)
 # ============================================================
 
 source /etc/zv-manager/utils/colors.sh
 source /etc/zv-manager/utils/logger.sh
 source /etc/zv-manager/utils/helpers.sh
+source /etc/zv-manager/utils/remote.sh
 
+# Ambil domain untuk server lokal
 get_local_domain() {
     local local_ip
     local_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null)
@@ -22,19 +24,38 @@ get_local_domain() {
             break
         fi
     done
-
     echo "${found_domain:-$local_ip}"
 }
 
-add_ssh_user() {
-    clear
-    local host
-    host=$(get_local_domain)
+# Ambil domain untuk server target
+get_target_domain() {
+    local target="$1"
+    if [[ "$target" == "local" || -z "$target" ]]; then
+        get_local_domain
+        return
+    fi
+    local conf="/etc/zv-manager/servers/${target}.conf"
+    if [[ -f "$conf" ]]; then
+        unset DOMAIN IP
+        source "$conf"
+        echo "${DOMAIN:-$IP}"
+    fi
+}
 
+add_ssh_user() {
+    local target
+    target=$(get_target_server)
+    local target_info
+    target_info=$(target_display)
+
+    clear
     echo -e "${BCYAN} ┌─────────────────────────────────────────────┐${NC}"
     echo -e " │           ${BWHITE}TAMBAH AKUN SSH BARU${NC}              │"
     echo -e "${BCYAN} └─────────────────────────────────────────────┘${NC}"
     echo ""
+    echo -e "  ${BWHITE}Target :${NC} ${BGREEN}${target_info}${NC}"
+    echo ""
+
     read -rp "  Username      : " username
     read -rp "  Password      : " password
     read -rp "  Limit Login   : " limit
@@ -47,32 +68,72 @@ add_ssh_user() {
         return
     fi
 
-    if user_exists "$username"; then
-        print_error "Username '$username' sudah ada di sistem Linux!"
-        press_any_key
-        return
-    fi
+    [[ -z "$limit" ]] && limit=2
 
-    if [[ -f "/etc/zv-manager/accounts/ssh/${username}.conf" ]]; then
-        print_error "Username '$username' sudah ada di data akun!"
-        press_any_key
-        return
-    fi
+    # ============================================================
+    # LOCAL
+    # ============================================================
+    if is_local_target; then
+        if user_exists "$username"; then
+            print_error "Username '$username' sudah ada di sistem Linux!"
+            press_any_key
+            return
+        fi
+        if [[ -f "/etc/zv-manager/accounts/ssh/${username}.conf" ]]; then
+            print_error "Username '$username' sudah ada di data akun!"
+            press_any_key
+            return
+        fi
 
-    local exp_date
-    exp_date=$(expired_date "$days")
-    useradd -e "$exp_date" -s /bin/false -M "$username" &>/dev/null
-    echo -e "$password\n$password" | passwd "$username" &>/dev/null
+        local exp_date
+        exp_date=$(expired_date "$days")
+        useradd -e "$exp_date" -s /bin/false -M "$username" &>/dev/null
+        echo -e "$password\n$password" | passwd "$username" &>/dev/null
 
-    mkdir -p /etc/zv-manager/accounts/ssh
-    cat > "/etc/zv-manager/accounts/ssh/${username}.conf" <<EOF
+        mkdir -p /etc/zv-manager/accounts/ssh
+        cat > "/etc/zv-manager/accounts/ssh/${username}.conf" <<EOF
 USERNAME=$username
 PASSWORD=$password
 LIMIT=$limit
 EXPIRED=$exp_date
 CREATED=$(date +"%Y-%m-%d")
 EOF
+        _show_account_info "$username" "$password" "$limit" "$exp_date" "$(get_local_domain)"
 
+    # ============================================================
+    # REMOTE
+    # ============================================================
+    else
+        print_info "Membuat akun di ${target_info}..."
+        echo ""
+
+        local result
+        result=$(remote_agent "$target" "add" "$username" "$password" "$limit" "$days")
+
+        if [[ "$result" == ADD-OK* ]]; then
+            IFS='|' read -r _ r_user r_pass r_limit r_exp <<< "$result"
+            print_ok "Akun berhasil dibuat di ${target_info}!"
+            echo ""
+            local domain
+            domain=$(get_target_domain "$target")
+            _show_account_info "$r_user" "$r_pass" "$r_limit" "$r_exp" "$domain"
+        elif [[ "$result" == ADD-ERR* ]]; then
+            local reason="${result#ADD-ERR|}"
+            print_error "Gagal: ${reason}"
+            press_any_key
+        elif [[ "$result" == REMOTE-ERR* ]]; then
+            local reason="${result#REMOTE-ERR|}"
+            print_error "${reason}"
+            press_any_key
+        else
+            print_error "Response tidak dikenal: ${result}"
+            press_any_key
+        fi
+    fi
+}
+
+_show_account_info() {
+    local username="$1" password="$2" limit="$3" exp_date="$4" host="$5"
     local created_date
     created_date=$(date +"%d %b %Y")
 

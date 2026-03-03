@@ -1,17 +1,25 @@
 #!/bin/bash
 # ============================================================
-#   ZV-Manager - Renew SSH User
+#   ZV-Manager - Renew SSH User (Local + Remote)
 # ============================================================
 
 source /etc/zv-manager/utils/colors.sh
 source /etc/zv-manager/utils/logger.sh
 source /etc/zv-manager/utils/helpers.sh
+source /etc/zv-manager/utils/remote.sh
 
 renew_ssh_user() {
+    local target
+    target=$(get_target_server)
+    local target_info
+    target_info=$(target_display)
+
     clear
     echo -e "${BCYAN} ┌─────────────────────────────────────────────┐${NC}"
     echo -e " │          ${BWHITE}PERPANJANG AKUN SSH${NC}                  │"
     echo -e "${BCYAN} └─────────────────────────────────────────────┘${NC}"
+    echo ""
+    echo -e "  ${BWHITE}Target :${NC} ${BGREEN}${target_info}${NC}"
     echo ""
     read -rp "  Username   : " username
     read -rp "  Tambah hari: " days
@@ -23,26 +31,43 @@ renew_ssh_user() {
         return
     fi
 
-    if ! user_exists "$username"; then
-        print_error "Username '$username' tidak ditemukan!"
-        press_any_key
-        return
+    # LOCAL
+    if is_local_target; then
+        if ! user_exists "$username"; then
+            print_error "Username '$username' tidak ditemukan!"
+            press_any_key
+            return
+        fi
+
+        local new_exp
+        new_exp=$(expired_date "$days")
+        chage -E "$new_exp" "$username" &>/dev/null
+
+        local conf_file="/etc/zv-manager/accounts/ssh/${username}.conf"
+        if [[ -f "$conf_file" ]]; then
+            sed -i "s/^EXPIRED=.*/EXPIRED=${new_exp}/" "$conf_file"
+        fi
+
+        print_ok "Akun '$username' diperpanjang hingga: $new_exp"
+
+    # REMOTE
+    else
+        print_info "Memperpanjang akun di ${target_info}..."
+        local result
+        result=$(remote_agent "$target" "renew" "$username" "$days")
+
+        if [[ "$result" == RENEW-OK* ]]; then
+            IFS='|' read -r _ r_user r_exp <<< "$result"
+            print_ok "Akun '$r_user' diperpanjang hingga: $r_exp"
+        elif [[ "$result" == RENEW-ERR* ]]; then
+            print_error "Gagal: ${result#RENEW-ERR|}"
+        elif [[ "$result" == REMOTE-ERR* ]]; then
+            print_error "${result#REMOTE-ERR|}"
+        else
+            print_error "Response tidak dikenal: ${result}"
+        fi
     fi
 
-    # Hitung expired baru dari hari ini
-    local new_exp
-    new_exp=$(expired_date "$days")
-
-    # Update expired di sistem
-    chage -E "$new_exp" "$username" &>/dev/null
-
-    # Update file conf
-    local conf_file="/etc/zv-manager/accounts/ssh/${username}.conf"
-    if [[ -f "$conf_file" ]]; then
-        sed -i "s/^EXPIRED=.*/EXPIRED=${new_exp}/" "$conf_file"
-    fi
-
-    print_ok "Akun '$username' diperpanjang hingga: $new_exp"
     press_any_key
 }
 
