@@ -1,7 +1,7 @@
 #!/bin/bash
 # ============================================================
 #   ZV-Manager — Uninstaller / Self-Destruct
-#   Mengembalikan VPS ke kondisi bersih setelah apt update & upgrade
+#   Mengembalikan VPS ke kondisi bersih
 #
 #   Penggunaan:
 #     bash uninstall.sh           → interaktif (minta konfirmasi)
@@ -62,7 +62,6 @@ if [[ -d "/etc/zv-manager/accounts/ssh" ]]; then
         while IFS='=' read -r key val; do
             [[ "$key" == "USERNAME" ]] && username="$val"
         done < "$conf_file"
-
         if [[ -n "$username" ]]; then
             pkill -u "$username" 2>/dev/null
             sleep 0.3
@@ -151,7 +150,91 @@ for f in /etc/update-motd.d/*; do
 done
 _log_silent "  Script MOTD default diaktifkan kembali"
 
-cat > /root/.profile <<'PROFILEOF'
+# ── .profile — tergantung mode ────────────────────────────────────────────────
+if [[ "$SILENT" == true ]]; then
+    # Mode otomatis (cron) — tulis .profile berisi notifikasi
+    # Notifikasi ini muncul setiap login sampai user pilih [1] hapus
+    _log_silent "  /root/.profile diisi notifikasi izin berakhir"
+    cat > /root/.profile <<'NOTIFEOF'
+# ~/.profile — ZV-Manager Expired Notification
+if [ "$BASH" ]; then
+    if [ -f ~/.bashrc ]; then
+        . ~/.bashrc
+    fi
+fi
+mesg n 2>/dev/null || true
+
+case $- in
+    *i*) ;;
+    *) return ;;
+esac
+[ -t 1 ] || return
+[ -z "$SSH_TTY" ] && return
+[ -n "$SSH_ORIGINAL_COMMAND" ] && return
+
+clear
+echo ""
+echo -e "\033[1;31m  ╔══════════════════════════════════════╗\033[0m"
+echo -e "\033[1;31m  ║    ⚠  IZIN VPS TELAH BERAKHIR  ⚠    ║\033[0m"
+echo -e "\033[1;31m  ╚══════════════════════════════════════╝\033[0m"
+echo ""
+echo -e "\033[0;37m  Izin penggunaan ZV-Manager untuk VPS ini\033[0m"
+echo -e "\033[0;37m  telah berakhir dan melewati masa toleransi.\033[0m"
+echo ""
+echo -e "\033[0;37m  Semua konfigurasi, akun SSH, dan service\033[0m"
+echo -e "\033[0;37m  telah dihapus. VPS kembali ke kondisi bersih.\033[0m"
+echo ""
+echo -e "\033[0;36m  ──────────────────────────────────────\033[0m"
+echo ""
+echo -e "\033[1;33m  [1]\033[0m Hapus semua & kembalikan ke default"
+echo -e "\033[1;32m  [2]\033[0m Perpanjang lisensi → t.me/ZenXNF"
+echo -e "\033[1;37m  [0]\033[0m Keluar"
+echo ""
+
+while true; do
+    read -rp "  Pilihan: " _zvpilihan
+    case $_zvpilihan in
+        1)
+            rm -f /root/zv.sh 2>/dev/null
+            cat > /root/.profile <<'DEFAULTEOF'
+# ~/.profile: executed by Bourne-compatible login shells.
+if [ "$BASH" ]; then
+  if [ -f ~/.bashrc ]; then
+    . ~/.bashrc
+  fi
+fi
+mesg n 2>/dev/null || true
+DEFAULTEOF
+            echo ""
+            echo -e "\033[1;32m  Semua file sisa berhasil dihapus.\033[0m"
+            echo -e "\033[0;37m  VPS sepenuhnya kembali ke kondisi default.\033[0m"
+            echo ""
+            break
+            ;;
+        2)
+            echo ""
+            echo -e "\033[1;36m  Silahkan hubungi Telegram: @ZenXNF / t.me/ZenXNF\033[0m"
+            echo -e "\033[0;37m  Setelah lisensi aktif, jalankan kembali:\033[0m"
+            echo -e "\033[1;33m  wget -q https://raw.githubusercontent.com/ZenXNF/ZV-Manager/main/zv.sh && bash zv.sh\033[0m"
+            echo ""
+            break
+            ;;
+        0)
+            echo ""
+            echo -e "\033[0;37m  Notifikasi ini akan muncul kembali saat login berikutnya.\033[0m"
+            echo ""
+            break
+            ;;
+        *)
+            echo -e "\033[1;31m  Pilihan tidak valid!\033[0m"
+            ;;
+    esac
+done
+NOTIFEOF
+
+else
+    # Mode manual — kembalikan .profile ke default Ubuntu langsung
+    cat > /root/.profile <<'PROFILEOF'
 # ~/.profile: executed by Bourne-compatible login shells.
 if [ "$BASH" ]; then
   if [ -f ~/.bashrc ]; then
@@ -160,7 +243,8 @@ if [ "$BASH" ]; then
 fi
 mesg n 2>/dev/null || true
 PROFILEOF
-_log_silent "  /root/.profile dikembalikan ke default"
+    _log_silent "  /root/.profile dikembalikan ke default"
+fi
 
 rm -f /etc/stunnel/zv-wss.conf
 _log_silent "  Config stunnel ZV-Manager dihapus"
@@ -198,28 +282,21 @@ _log_silent "  Backup sshd_config lama dihapus"
 _log_silent "====== UNINSTALL SELESAI ======"
 
 # ── Self-delete script ────────────────────────────────────────────────────────
-# File dihapus tapi script tetap lanjut berjalan dari memori
 rm -f "$0"
 
-# ── Notifikasi akhir (hanya kalau ada terminal aktif) ────────────────────────
-# Cron yang jalan di background tidak akan sampai ke sini karena tidak ada TTY
-if [ -t 1 ]; then
+# ── Notifikasi akhir untuk mode manual ───────────────────────────────────────
+if [[ "$SILENT" == false ]] && [ -t 1 ]; then
     clear
     echo ""
-    echo -e "\033[1;31m  ╔══════════════════════════════════════╗\033[0m"
-    echo -e "\033[1;31m  ║    ⚠  IZIN VPS TELAH BERAKHIR  ⚠    ║\033[0m"
-    echo -e "\033[1;31m  ╚══════════════════════════════════════╝\033[0m"
+    echo -e "\033[1;32m  ╔══════════════════════════════════════╗\033[0m"
+    echo -e "\033[1;32m  ║    ✔  UNINSTALL SELESAI              ║\033[0m"
+    echo -e "\033[1;32m  ╚══════════════════════════════════════╝\033[0m"
     echo ""
-    echo -e "\033[0;37m  Izin penggunaan ZV-Manager untuk VPS ini\033[0m"
-    echo -e "\033[0;37m  telah berakhir dan melewati masa toleransi.\033[0m"
-    echo ""
-    echo -e "\033[0;37m  Semua konfigurasi, akun SSH, dan service\033[0m"
-    echo -e "\033[0;37m  telah dihapus. VPS kembali ke kondisi bersih.\033[0m"
-    echo ""
-    echo -e "\033[0;36m  ──────────────────────────────────────\033[0m"
+    echo -e "\033[0;37m  Semua komponen ZV-Manager telah dihapus.\033[0m"
+    echo -e "\033[0;37m  VPS sudah kembali bersih.\033[0m"
     echo ""
     echo -e "\033[1;33m  [1]\033[0m Hapus file sisa (zv.sh)"
-    echo -e "\033[1;32m  [2]\033[0m Perpanjang lisensi → t.me/ZenXNF"
+    echo -e "\033[1;32m  [2]\033[0m Pasang lagi → t.me/ZenXNF"
     echo -e "\033[1;37m  [0]\033[0m Keluar"
     echo ""
 

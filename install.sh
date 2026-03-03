@@ -23,7 +23,7 @@ if [[ "$(uname -m)" != "x86_64" ]]; then
     exit 1
 fi
 
-# --- Banner mobile-friendly (lebar ~42 char) ---
+# --- Banner ---
 clear
 echo -e "\033[1;36m"
 echo "  ╔══════════════════════════════════════╗"
@@ -36,11 +36,10 @@ echo -e "\033[0;36m  ───────────────────�
 echo ""
 
 # --- Cek izin SEBELUM tanya konfirmasi ---
-# Kalau tidak punya izin, langsung stop tanpa perlu interaksi apapun
 source "$SCRIPT_DIR/core/license.sh"
 check_license
 
-# --- Konfirmasi mulai (mobile-friendly, tanpa Ctrl+C) ---
+# --- Konfirmasi mulai ---
 echo -e "\033[1;33m  Ketik y lalu Enter untuk mulai"
 echo -e "  Ketik n lalu Enter untuk batal\033[0m"
 echo ""
@@ -58,7 +57,6 @@ echo "[ INFO ] Menyalin file ke ${INSTALL_DIR}..."
 mkdir -p "$INSTALL_DIR"
 cp -r "$SCRIPT_DIR"/* "$INSTALL_DIR/"
 
-# chmod kompatibel tanpa globstar
 find "$INSTALL_DIR" -name "*.sh" -exec chmod +x {} \;
 find "$INSTALL_DIR" -name "*.py" -exec chmod +x {} \;
 chmod +x "$INSTALL_DIR/checker/zv-checker" 2>/dev/null
@@ -66,7 +64,7 @@ chmod +x "$INSTALL_DIR/checker/zv-checker" 2>/dev/null
 echo "[ INFO ] File berhasil disalin"
 echo ""
 
-# --- Load utils (dari SCRIPT_DIR karena file sudah pasti ada di sini) ---
+# --- Load utils ---
 source "$SCRIPT_DIR/utils/colors.sh"
 source "$SCRIPT_DIR/utils/logger.sh"
 source "$SCRIPT_DIR/utils/checker.sh"
@@ -85,10 +83,10 @@ source "$INSTALL_DIR/core/system.sh"
 run_system_setup
 
 source "$INSTALL_DIR/core/domain.sh"
-setup_domain   # otomatis ambil IP, tidak tanya user
+setup_domain
 
 source "$INSTALL_DIR/core/ssl.sh"
-setup_ssl      # otomatis self-signed, tidak tanya user
+setup_ssl
 
 source "$INSTALL_DIR/services/ssh/install.sh"
 install_ssh
@@ -119,8 +117,8 @@ cat > /etc/cron.d/zv-expired <<'CRONEOF'
 CRONEOF
 
 cat > /etc/cron.d/zv-license <<'CRONEOF'
-# ZV-Manager - Cek Izin Harian
-0 1 * * * root /bin/bash /etc/zv-manager/cron/license-check.sh
+# ZV-Manager - Cek Izin Harian (jam 00:05)
+5 0 * * * root /bin/bash /etc/zv-manager/cron/license-check.sh
 CRONEOF
 
 service cron restart &>/dev/null
@@ -138,7 +136,6 @@ mkdir -p /etc/zv-manager/accounts
 echo "$PUBLIC_IP" > /etc/zv-manager/accounts/ipvps
 
 # --- Setup auto-launch menu saat login SSH ---
-# Cek interactive session dulu agar tidak konflik dengan Termius/automation
 cat > /root/.profile <<'PROFILEEOF'
 if [ "$BASH" ]; then
     if [ -f ~/.bashrc ]; then
@@ -147,24 +144,18 @@ if [ "$BASH" ]; then
 fi
 mesg n 2>/dev/null || true
 
-# Hanya jalankan menu jika:
-# 1. Session benar-benar interactive (flag -i)
-# 2. Ada terminal yang proper (stdout ke TTY)
-# 3. Bukan session non-interactive seperti Termius HostOS detection / SCP / SFTP
 case $- in
     *i*) ;;
     *) return ;;
 esac
 [ -t 1 ] || return
 [ -z "$SSH_TTY" ] && return
-# Jangan jalankan menu kalau ada command yang dikirim langsung (Termius detection)
 [ -n "$SSH_ORIGINAL_COMMAND" ] && return
 
 menu
 PROFILEEOF
 
 # --- Selesai ---
-ZV_DOMAIN=$(cat /etc/zv-manager/domain 2>/dev/null || echo "$PUBLIC_IP")
 ZV_IP="$PUBLIC_IP"
 
 echo ""
@@ -174,7 +165,6 @@ echo "  ║      INSTALASI SELESAI!              ║"
 echo "  ╚══════════════════════════════════════╝"
 echo -e "${NC}"
 echo -e "  ${BWHITE}IP VPS   :${NC} ${BGREEN}${ZV_IP}${NC}"
-echo -e "  ${BWHITE}Host     :${NC} ${BGREEN}${ZV_DOMAIN}${NC}"
 echo ""
 echo -e "  ${BWHITE}OpenSSH  :${NC} ${BPURPLE}22, 500, 40000${NC}"
 echo -e "  ${BWHITE}Dropbear :${NC} ${BPURPLE}109, 143${NC}"
@@ -183,7 +173,6 @@ echo -e "  ${BWHITE}WS HTTPS :${NC} ${BPURPLE}443${NC}"
 echo -e "  ${BWHITE}UDP      :${NC} ${BPURPLE}1-65535${NC}"
 echo ""
 
-# --- Status service ringkas ---
 echo -e "  ${BWHITE}Status Service:${NC}"
 for svc in ssh dropbear nginx zv-wss zv-udp; do
     if systemctl is-active --quiet "$svc" 2>/dev/null; then

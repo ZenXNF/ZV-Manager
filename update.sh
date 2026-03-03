@@ -56,7 +56,7 @@ cp -r services /etc/zv-manager/
 cp -r menu /etc/zv-manager/
 cp -r utils /etc/zv-manager/
 cp -r cron /etc/zv-manager/
-cp -r checker /etc/zv-manager/          # FIX: binary zv-checker ikut terupdate
+cp -r checker /etc/zv-manager/
 chmod +x /etc/zv-manager/checker/zv-checker
 cp config.conf /etc/zv-manager/
 cp install.sh /etc/zv-manager/
@@ -113,8 +113,8 @@ cat > /etc/cron.d/zv-expired <<'CRONEOF'
 CRONEOF
 
 cat > /etc/cron.d/zv-license <<'CRONEOF'
-# ZV-Manager - Cek Izin Harian
-0 1 * * * root /bin/bash /etc/zv-manager/cron/license-check.sh
+# ZV-Manager - Cek Izin Harian (jam 00:05)
+5 0 * * * root /bin/bash /etc/zv-manager/cron/license-check.sh
 CRONEOF
 
 service cron restart &>/dev/null
