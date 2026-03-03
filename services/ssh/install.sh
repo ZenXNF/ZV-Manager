@@ -39,19 +39,10 @@ install_ssh() {
     #   SYARAT          : 2 spasi 　　  → sudah pas
     #   Rules ✗ & ✔    : 3 spasi 　　　 → fix dari 2 → 3
     grep -q "^Banner" "$sshd_config" || echo "Banner /etc/issue.net" >> "$sshd_config"
-    cat > /etc/issue.net <<'BANNEREOF'
-<font color="#00e5ff">　　　▬▬▬ஜ۩۞۩ஜ▬▬▬</font><br>
-<font color="#ffd600">　⚡  ZV-Manager SSH Tunnel  ⚡</font><br>
-<font color="#00e5ff">　　　▬▬▬ஜ۩۞۩ஜ▬▬▬</font><br>
-<font color="#ffffff">　　 ☆ SYARAT PENGGUNAAN ☆</font><br>
-<font color="#ff1744">　　　✗  Dilarang SPAM</font><br>
-<font color="#ff1744">　　　✗  Dilarang DDoS / Serangan</font><br>
-<font color="#ff1744">　　　✗  Dilarang Hacking / Carding</font><br>
-<font color="#ff1744">　　　✗  Dilarang Torrent</font><br>
-<font color="#ff1744">　　　✗  Dilarang Berbagi Akun</font><br>
-<font color="#69ff47">　　　✔  Melanggar = Ban Permanen</font><br>
-<font color="#00e5ff">　　　▬▬▬ஜ۩۞۩ஜ▬▬▬</font>
-BANNEREOF
+
+    # Generate banner dari config (core/banner.sh)
+    source /etc/zv-manager/core/banner.sh
+    generate_banner
 
     # --- MOTD berwarna — tampil di Termius setelah login ---
     # Ubuntu 24.04: PrintMotd no → PAM yang handle via pam_motd.so
