@@ -97,8 +97,8 @@ DEBIAN_FRONTEND=noninteractive apt-get purge -y \
     nginx nginx-common nginx-core \
     stunnel4 \
     dropbear \
-    2>/dev/null
-apt-get autoremove -y 2>/dev/null
+    &>/dev/null
+apt-get autoremove -y &>/dev/null
 _log_silent "  Package nginx, stunnel4, dropbear dihapus"
 
 # ── LANGKAH 4: Kembalikan sshd_config ke default Ubuntu 24.04 ─────────────────
