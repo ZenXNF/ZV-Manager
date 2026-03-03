@@ -1,0 +1,55 @@
+#!/bin/bash
+# ============================================================
+#   ZV-Manager - Telegram Bot Installer
+# ============================================================
+
+source /etc/zv-manager/utils/colors.sh
+source /etc/zv-manager/utils/logger.sh
+
+install_telegram_bot() {
+    print_section "Install Telegram Bot"
+
+    # Pastikan python3 ada (untuk parse JSON)
+    if ! command -v python3 &>/dev/null; then
+        print_info "Menginstall python3..."
+        apt-get install -y python3 &>/dev/null
+    fi
+
+    # Pastikan curl ada
+    if ! command -v curl &>/dev/null; then
+        apt-get install -y curl &>/dev/null
+    fi
+
+    # Copy bot script
+    cp /etc/zv-manager/services/telegram/bot.sh /usr/local/bin/zv-telegram-bot
+    chmod +x /usr/local/bin/zv-telegram-bot
+
+    # Systemd service
+    cat > /etc/systemd/system/zv-telegram.service <<'SVCEOF'
+[Unit]
+Description=ZV-Manager Telegram Bot
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/bin/bash /usr/local/bin/zv-telegram-bot
+Restart=always
+RestartSec=5s
+StandardOutput=append:/var/log/zv-manager/telegram-bot.log
+StandardError=append:/var/log/zv-manager/telegram-bot.log
+
+[Install]
+WantedBy=multi-user.target
+SVCEOF
+
+    systemctl daemon-reload
+    systemctl enable zv-telegram &>/dev/null
+    systemctl restart zv-telegram &>/dev/null
+
+    sleep 2
+    if systemctl is-active --quiet zv-telegram; then
+        print_success "Telegram Bot"
+    else
+        print_error "Bot gagal start! Cek: systemctl status zv-telegram"
+    fi
+}
