@@ -195,7 +195,7 @@ while true; do
     read -rp "  Pilihan: " _zvpilihan
     case $_zvpilihan in
         1)
-            rm -f /root/zv.sh 2>/dev/null
+            rm -f /root/zv.sh /root/update.sh 2>/dev/null
             cat > /root/.profile <<'DEFAULTEOF'
 # ~/.profile: executed by Bourne-compatible login shells.
 if [ "$BASH" ]; then
