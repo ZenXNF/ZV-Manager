@@ -1,22 +1,24 @@
 #!/bin/bash
 # ============================================================
 #   ZV-Manager - SSL Certificate Setup
-#   Self-signed, tanpa identitas spesifik
+#   Mode 1: Self-Signed (default, tanpa domain)
+#   Mode 2: Let's Encrypt Wildcard via Cloudflare DNS
 # ============================================================
 
 source /etc/zv-manager/utils/colors.sh 2>/dev/null || true
 source /etc/zv-manager/utils/logger.sh 2>/dev/null || true
 
 SSL_DIR="/etc/zv-manager/ssl"
+LE_CRED="/etc/zv-manager/cloudflare.ini"
 
+# ============================================================
+# MODE 1: Self-Signed (fallback / tanpa domain)
+# ============================================================
 setup_ssl() {
     print_section "Generate SSL Certificate (Self-Signed)"
 
     mkdir -p "$SSL_DIR"
 
-    # Cari domain dari servers/*.conf yang match IP lokal
-    # Kalau ada → pakai domain sebagai CN (lebih proper)
-    # Kalau tidak → fallback ke IP
     local local_ip
     local_ip=$(cat /etc/zv-manager/domain 2>/dev/null)
 
@@ -49,17 +51,159 @@ setup_ssl() {
     print_success "SSL Self-Signed"
 }
 
-# Fungsi untuk regenerate SSL dengan domain terbaru
-# Dipanggil dari menu system → "Perbarui SSL Certificate"
-regenerate_ssl() {
-    local old_cert_info
-    old_cert_info=$(openssl x509 -in "$SSL_DIR/cert.pem" -noout -subject 2>/dev/null)
+# ============================================================
+# MODE 2: Let's Encrypt Wildcard via Cloudflare DNS challenge
+# Butuh: domain, Cloudflare API Token (Zone:DNS:Edit)
+# ============================================================
+setup_ssl_wildcard() {
+    local domain="$1"
+    local cf_token="$2"
 
-    setup_ssl
+    [[ -z "$domain" || -z "$cf_token" ]] && {
+        print_error "Argumen tidak lengkap: setup_ssl_wildcard <domain> <cf_token>"
+        return 1
+    }
 
-    # Restart nginx agar pakai cert baru
-    systemctl reload nginx &>/dev/null || systemctl restart nginx &>/dev/null
+    print_section "Let's Encrypt Wildcard SSL"
+    print_info "Domain   : *.${domain}"
+    print_info "Provider : Cloudflare DNS Challenge"
+    echo ""
 
-    print_ok "SSL Certificate diperbarui!"
-    print_ok "Nginx di-reload dengan cert baru"
+    # Install certbot + plugin cloudflare
+    print_info "Menginstall certbot + plugin Cloudflare..."
+    apt-get install -y certbot python3-certbot-dns-cloudflare &>/dev/null
+    if ! command -v certbot &>/dev/null; then
+        print_error "Gagal install certbot!"
+        return 1
+    fi
+
+    # Simpan Cloudflare credentials
+    mkdir -p "$(dirname "$LE_CRED")"
+    cat > "$LE_CRED" <<EOF
+dns_cloudflare_api_token = ${cf_token}
+EOF
+    chmod 600 "$LE_CRED"
+
+    # Request wildcard cert
+    print_info "Meminta wildcard certificate... (bisa 30-60 detik)"
+    local le_log="/tmp/certbot-zv.log"
+    certbot certonly \
+        --dns-cloudflare \
+        --dns-cloudflare-credentials "$LE_CRED" \
+        --dns-cloudflare-propagation-seconds 30 \
+        -d "*.${domain}" \
+        -d "${domain}" \
+        --non-interactive \
+        --agree-tos \
+        --register-unsafely-without-email \
+        --quiet \
+        2>&1 | tee "$le_log" | grep -E "error|Error|warning|Congratulations|Successfully" || true
+
+    local le_cert="/etc/letsencrypt/live/${domain}/fullchain.pem"
+    local le_key="/etc/letsencrypt/live/${domain}/privkey.pem"
+
+    if [[ ! -f "$le_cert" ]]; then
+        print_error "Wildcard cert gagal dibuat! Cek log: $le_log"
+        print_info "Fallback ke self-signed..."
+        setup_ssl
+        return 1
+    fi
+
+    print_ok "Wildcard certificate berhasil!"
+
+    # Salin ke SSL_DIR supaya stunnel & service lain pakai path yang sama
+    mkdir -p "$SSL_DIR"
+    cp "$le_cert" "$SSL_DIR/cert.pem"
+    cp "$le_key"  "$SSL_DIR/key.pem"
+    cat "$SSL_DIR/key.pem" "$SSL_DIR/cert.pem" > "$SSL_DIR/stunnel.pem"
+
+    chmod 600 "$SSL_DIR/key.pem"
+    chmod 644 "$SSL_DIR/cert.pem"
+    chmod 600 "$SSL_DIR/stunnel.pem"
+
+    # Simpan info domain wildcard
+    echo "$domain" > /etc/zv-manager/domain
+    echo "wildcard" > /etc/zv-manager/ssl/ssl-type
+
+    # Setup auto-renew cron (certbot renew sudah handle sendiri)
+    _setup_ssl_renew_cron "$domain"
+
+    print_success "Let's Encrypt Wildcard SSL (*.${domain})"
 }
+
+# ============================================================
+# Cek apakah cert yang aktif adalah Let's Encrypt
+# ============================================================
+is_letsencrypt() {
+    [[ "$(cat /etc/zv-manager/ssl/ssl-type 2>/dev/null)" == "wildcard" ]]
+}
+
+# ============================================================
+# Renew wildcard cert (dipanggil dari cron atau manual)
+# ============================================================
+renew_ssl_wildcard() {
+    if ! is_letsencrypt; then
+        print_info "SSL bukan Let's Encrypt, skip renew."
+        return 0
+    fi
+
+    print_info "Renew Let's Encrypt certificate..."
+    certbot renew --quiet 2>/dev/null
+
+    local domain
+    domain=$(cat /etc/zv-manager/domain 2>/dev/null)
+    local le_cert="/etc/letsencrypt/live/${domain}/fullchain.pem"
+    local le_key="/etc/letsencrypt/live/${domain}/privkey.pem"
+
+    if [[ -f "$le_cert" ]]; then
+        cp "$le_cert" "$SSL_DIR/cert.pem"
+        cp "$le_key"  "$SSL_DIR/key.pem"
+        cat "$SSL_DIR/key.pem" "$SSL_DIR/cert.pem" > "$SSL_DIR/stunnel.pem"
+        chmod 600 "$SSL_DIR/key.pem"
+        chmod 600 "$SSL_DIR/stunnel.pem"
+
+        systemctl reload nginx   &>/dev/null || true
+        systemctl restart zv-stunnel &>/dev/null || true
+        print_ok "Certificate berhasil diperbarui!"
+    else
+        print_error "Renew gagal! Cert tidak ditemukan."
+        return 1
+    fi
+}
+
+# ============================================================
+# Setup cron renew otomatis
+# ============================================================
+_setup_ssl_renew_cron() {
+    cat > /etc/cron.d/zv-ssl-renew <<'CRONEOF'
+# ZV-Manager - Auto Renew Let's Encrypt (tiap hari jam 03:00)
+0 3 * * * root /bin/bash /etc/zv-manager/core/ssl.sh renew >> /var/log/zv-manager/ssl-renew.log 2>&1
+CRONEOF
+    service cron restart &>/dev/null
+}
+
+# ============================================================
+# Regenerate (self-signed atau renew LE)
+# ============================================================
+regenerate_ssl() {
+    if is_letsencrypt; then
+        renew_ssl_wildcard
+    else
+        setup_ssl
+    fi
+
+    systemctl reload nginx &>/dev/null || systemctl restart nginx &>/dev/null
+    systemctl restart zv-stunnel &>/dev/null || true
+    print_ok "SSL Certificate diperbarui & service di-reload"
+}
+
+# ============================================================
+# Entry point kalau dipanggil langsung (dari cron)
+# ============================================================
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    source /etc/zv-manager/utils/colors.sh 2>/dev/null || true
+    source /etc/zv-manager/utils/logger.sh 2>/dev/null || true
+    case "$1" in
+        renew) renew_ssl_wildcard ;;
+    esac
+fi
