@@ -98,9 +98,10 @@ case $exit_code in
 
         if [[ -f "/etc/zv-manager/uninstall.sh" ]]; then
             _log "Menjalankan uninstall.sh --silent ..."
-            # Kalau ada terminal (dijalankan manual), tampilkan progress
+            # Jalankan langsung tanpa pipe agar TTY tetap utuh
+            # sehingga menu pilihan di uninstall.sh bisa tampil
             if [ -t 1 ]; then
-                bash /etc/zv-manager/uninstall.sh --silent 2>&1 | tee -a "$LOG"
+                bash /etc/zv-manager/uninstall.sh --silent
             else
                 bash /etc/zv-manager/uninstall.sh --silent >> "$LOG" 2>&1
             fi
