@@ -61,7 +61,14 @@ chmod +x /etc/zv-manager/checker/zv-checker
 cp config.conf /etc/zv-manager/
 cp install.sh /etc/zv-manager/
 cp update.sh /etc/zv-manager/
+cp zv-agent.sh /etc/zv-manager/
 echo " ✔  Script diperbarui"
+
+# --- Update zv-agent binary ---
+cp /etc/zv-manager/zv-agent.sh /usr/local/bin/zv-agent
+chmod +x /usr/local/bin/zv-agent
+echo " ✔  zv-agent diperbarui"
+
 # Load utils
 source /etc/zv-manager/utils/colors.sh
 source /etc/zv-manager/utils/logger.sh
@@ -138,6 +145,7 @@ echo -e "  ${BGREEN}✔${NC} Script (menu, services, utils, core)"
 echo -e "  ${BGREEN}✔${NC} Config Nginx, Stunnel SSL, WebSocket"
 echo -e "  ${BGREEN}✔${NC} Config SSH, Dropbear, UDP Custom"
 echo -e "  ${BGREEN}✔${NC} Binary zv-checker (sistem izin)"
+echo -e "  ${BGREEN}✔${NC} zv-agent (manajemen remote server)"
 echo ""
 echo -e "  ${BWHITE}Yang tidak tersentuh:${NC}"
 echo -e "  ${BYELLOW}✔${NC} Akun SSH yang sudah dibuat"

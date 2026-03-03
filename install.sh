@@ -61,6 +61,10 @@ find "$INSTALL_DIR" -name "*.sh" -exec chmod +x {} \;
 find "$INSTALL_DIR" -name "*.py" -exec chmod +x {} \;
 chmod +x "$INSTALL_DIR/checker/zv-checker" 2>/dev/null
 
+# --- Install zv-agent binary (untuk local + bisa di-deploy ke remote) ---
+cp "$INSTALL_DIR/zv-agent.sh" /usr/local/bin/zv-agent
+chmod +x /usr/local/bin/zv-agent
+
 echo "[ INFO ] File berhasil disalin"
 echo ""
 
@@ -112,6 +116,11 @@ print_section "Setup Cron Jobs"
 cat > /etc/cron.d/zv-autokill <<'CRONEOF'
 # ZV-Manager - Auto Kill Multi-Login
 */1 * * * * root /bin/bash /etc/zv-manager/cron/autokill.sh
+CRONEOF
+
+cat > /etc/cron.d/zv-trial <<'CRONEOF'
+# ZV-Manager - Trial Account Cleanup (tiap menit)
+*/1 * * * * root /bin/bash /etc/zv-manager/cron/trial-cleanup.sh
 CRONEOF
 
 cat > /etc/cron.d/zv-expired <<'CRONEOF'

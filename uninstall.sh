@@ -261,6 +261,7 @@ service cron restart 2>/dev/null
 _log_silent "Langkah 7: Menghapus file ZV-Manager..."
 
 rm -f /usr/local/bin/menu
+rm -f /usr/local/bin/zv-agent
 rm -f /usr/local/bin/zv-ws-proxy.py
 rm -f /usr/local/bin/badvpn-udpgw
 _log_silent "  Symlink dan binary global dihapus"
