@@ -1,190 +1,164 @@
-# ZV-Manager
+<div align="center">
 
-> SSH Tunneling Manager untuk Ubuntu 24.04 LTS  
-> Dibangun dari scratch, bersih, modular, dan mudah dikembangkan.
+<!-- Animated SVG header -->
+<img src="https://readme-typing-svg.demolab.com?font=JetBrains+Mono&size=28&duration=3000&pause=1000&color=00E5FF&center=true&vCenter=true&width=600&lines=ZV-Manager+SSH+Tunnel;Auto+Deploy+%7C+Multi+Server;Telegram+Bot+%7C+Full+Panel" alt="ZV-Manager" />
 
----
+<br/>
 
-## ✨ Fitur
+![Version](https://img.shields.io/badge/version-1.0.0-00e5ff?style=for-the-badge&logo=github)
+![Platform](https://img.shields.io/badge/platform-Ubuntu%2024.04-orange?style=for-the-badge&logo=ubuntu)
+![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)
+![Telegram](https://img.shields.io/badge/Telegram-@ZenXNF-blue?style=for-the-badge&logo=telegram)
 
-| Fitur | Status |
-|---|---|
-| SSH WebSocket HTTP (port 80) | ✅ |
-| SSH WebSocket HTTPS (port 443) | ✅ |
-| HTTP CONNECT Tunnel (HTTP Custom, HTTP Injector, NapsternetV) | ✅ |
-| UDP Custom ePro Dev (port 1-65535) | ✅ |
-| Dropbear (port 109, 143) | ✅ |
-| Nginx SSL Stream + Reverse Proxy | ✅ |
-| Manajemen User SSH (add/del/list/renew/lock/unlock) | ✅ |
-| Verifikasi koneksi saat tambah server | ✅ |
-| Auto-Kill Multi-Login | ✅ |
-| Auto-Delete Expired User | ✅ |
-| BBR TCP Congestion Control | ✅ |
-| Blokir Torrent (iptables) | ✅ |
-| Auto Reboot Scheduler | ✅ |
-| Multi-Server Manager | ✅ |
-| SSH Banner plain text | ✅ |
-| Menu CLI Interaktif | ✅ |
+</div>
 
 ---
 
-## 🖥️ Requirement
+## Overview
 
-| | |
-|---|---|
-| **OS** | Ubuntu 24.04 LTS |
-| **Arsitektur** | x86_64 |
-| **RAM** | Minimal 512MB |
-| **Akses** | Root |
-| **Virtualisasi** | KVM / VMware / HyperV (bukan OpenVZ) |
+ZV-Manager adalah panel manajemen SSH Tunnel berbasis console untuk Ubuntu 24.04. Dirancang untuk kebutuhan jualan VPN/SSH dengan fitur lengkap mulai dari manajemen akun, multi-server, hingga bot Telegram otomatis.
 
 ---
 
-## 🚀 Instalasi
+## Fitur
 
-Cukup **2 langkah**:
+### SSH Management
+- Tambah, hapus, edit, renew akun SSH
+- Lock / unlock akun
+- Monitor akun online real-time
+- Auto delete akun expired (cron harian)
+- Auto kill multi-login (cron per menit)
 
-**Langkah 1 — Update sistem:**
-```bash
-apt update && apt upgrade -y
-```
+### Multi Server
+- Kelola banyak VPS dari 1 panel (otak)
+- Remote via `zv-agent` (lightweight, tanpa menu)
+- Dukungan SSH key atau password (sshpass)
 
-**Langkah 2 — Pasang ZV-Manager:**
+### Telegram Bot
+- `/start` → menu inline lengkap
+- Buat akun SSH langsung dari Telegram
+- Trial gratis 30 menit (1x/hari)
+- Sistem saldo — potong otomatis saat beli
+- Notifikasi otomatis 20 jam sebelum expired
+- Info server: harga, quota, limit IP, total akun
+
+### WebSocket & SSL
+- WebSocket WS (port 80) + WSS (port 443)
+- Catch-all host header — support bug host / SNI
+- Let's Encrypt Wildcard SSL via Cloudflare DNS
+- Auto renew certificate
+
+### Services
+- OpenSSH multi-port (22, 500, 40000)
+- Dropbear (109, 143)
+- Nginx (reverse proxy WS)
+- Stunnel4 (SSL termination)
+- BadVPN UDPGW (port 7300)
+- UDP Custom (1-65535)
+
+### Panel
+- Sistem lisensi (grace period, auto uninstall)
+- Edit server banner dari menu
+- Edit banner tampil di NetMod / HTTP Custom
+- Backup & manajemen saldo via console
+
+---
+
+## Instalasi
+
 ```bash
 wget -q https://raw.githubusercontent.com/ZenXNF/ZV-Manager/main/zv.sh && bash zv.sh
 ```
 
-Setelah selesai, ketik `menu` untuk membuka panel:
-```bash
-menu
-```
+**Requirement:**
+- Ubuntu 24.04 LTS
+- Akses root
+- Koneksi internet
 
 ---
 
-## 🔄 Update
-
-Untuk update ZV-Manager ke versi terbaru tanpa reinstall:
+## Update
 
 ```bash
 wget -q https://raw.githubusercontent.com/ZenXNF/ZV-Manager/main/update.sh && bash update.sh
 ```
 
-Yang diperbarui otomatis:
-- Script terbaru dari GitHub disalin ke `/etc/zv-manager/`
-- Config nginx, websocket, SSH, dropbear, UDP di-reapply
-- Semua service direstart
+---
 
-Yang **tidak tersentuh** saat update:
-- Akun SSH yang sudah dibuat (`/etc/zv-manager/accounts/`)
-- Daftar server (`/etc/zv-manager/servers/`)
-- Sertifikat SSL (`/etc/zv-manager/ssl/`)
-- File domain/IP (`/etc/zv-manager/domain`)
+## Uninstall
+
+```bash
+bash /etc/zv-manager/uninstall.sh
+```
 
 ---
 
-## 📡 Port Default
+## Struktur Direktori
 
-| Layanan | Port |
+```
+/etc/zv-manager/
+├── core/           # License, SSL, Telegram helper, Banner
+├── menu/
+│   ├── ssh/        # Manajemen akun SSH
+│   ├── server/     # Manajemen server
+│   └── system/     # System settings
+├── services/
+│   ├── nginx/      # Nginx config
+│   ├── websocket/  # WS proxy + Stunnel
+│   ├── badvpn/     # BadVPN UDPGW
+│   ├── dropbear/   # Dropbear SSH
+│   └── telegram/   # Bot Telegram
+├── cron/           # Auto task (expired, trial, notify)
+├── utils/          # Colors, logger, helpers
+├── accounts/ssh/   # Data akun (.conf per user)
+├── accounts/saldo/ # Saldo per Telegram user ID
+└── servers/        # Data server remote
+```
+
+---
+
+## Setup Telegram Bot
+
+1. Buat bot di [@BotFather](https://t.me/BotFather)
+2. Buka menu: **System → Setup Telegram Bot**
+3. Masukkan Bot Token → verifikasi otomatis
+4. Masukkan Telegram User ID kamu (cek di [@userinfobot](https://t.me/userinfobot))
+5. Bot langsung aktif
+
+---
+
+## Setup Wildcard SSL
+
+1. Arahkan `*.domain.com` ke IP VPS di Cloudflare
+2. Buka menu: **System → Manajemen SSL → Let's Encrypt Wildcard**
+3. Masukkan domain + Cloudflare API Token
+4. Sertifikat otomatis diinstall & auto renew tiap hari jam 03:00
+
+---
+
+## Port Default
+
+| Service | Port |
 |---|---|
 | OpenSSH | 22, 500, 40000 |
 | Dropbear | 109, 143 |
-| WS HTTP / HTTP CONNECT | 80 |
-| WSS HTTPS / HTTP CONNECT SSL | 443 |
-| UDP Custom (ePro Dev) | 1-65535 |
+| WebSocket (WS) | 80 |
+| WebSocket SSL (WSS) | 443 |
+| BadVPN UDPGW | 7300 |
+| UDP Custom | 1-65535 |
+| Web Info | 81 |
 
 ---
 
-## 🔧 Arsitektur Teknis
+## Kontak
 
-### WebSocket & HTTP CONNECT (Port 443)
-
-Nginx menggunakan modul `stream{}` (bukan `http{}`) untuk port 443, sehingga bekerja di level TCP murni. Ini yang memungkinkan HTTP CONNECT request melewati nginx tanpa mendapat `400 Bad Request`.
-
-```
-Client
-  │
-  ├─ Port 80  → Nginx http{} → 127.0.0.1:8880 → ws-proxy.py
-  │
-  └─ Port 443 → Nginx stream{} (SSL termination) → 127.0.0.1:8880 → ws-proxy.py
-                                                           │
-                                                  HTTP CONNECT → SSH :22
-                                                  WebSocket    → SSH :22
-```
-
-### UDP Custom
-
-Binary UDP Custom dari **ePro Dev** ([http-custom/udp-custom](https://github.com/http-custom/udp-custom)) bekerja dengan memasang rule **iptables TPROXY** yang menginterceptasi semua UDP traffic port **1-65535**. Port `36712` di `config.json` adalah internal listener binary, bukan port yang diisi di aplikasi tunneling.
-
-Di aplikasi (HTTP Custom, dsb.) isi port UDP: **1-65535**
-
-### Multi-Server Manager
-
-Satu VPS (Neva) bisa jadi pusat kendali untuk banyak VPS lain. Data server disimpan di `/etc/zv-manager/servers/nama.conf`. Saat tambah server, koneksi SSH akan diverifikasi terlebih dahulu — jika gagal, server tidak akan disimpan.
-
-> **Catatan:** Menu SSH (buat/hapus akun) hanya bisa diakses setelah minimal 1 server ditambahkan.
+- Telegram : [@ZenXNF](https://t.me/ZenXNF)
+- GitHub   : [ZenXNF/ZV-Manager](https://github.com/ZenXNF/ZV-Manager)
 
 ---
 
-## 📱 Payload Aplikasi
+<div align="center">
 
-**WebSocket (HTTP Injector / NapsternetV):**
-```
-GET / HTTP/1.1[crlf]Host: [domain/ip][crlf]Upgrade: websocket[crlf]Connection: Upgrade[crlf][crlf]
-```
+Made with ❤️ by ZenXNF
 
-**HTTP CONNECT (HTTP Custom):**
-```
-CONNECT [domain/ip]:443 HTTP/1.0[crlf][crlf]
-```
-
----
-
-## 📁 Struktur Folder
-
-```
-ZV-Manager/
-├── zv.sh                   # Entry point instalasi (wget one-liner)
-├── install.sh              # Installer utama
-├── update.sh               # Script updater (aman, tidak hapus akun/server)
-├── uninstall.sh            # Uninstaller
-├── config.conf             # Konfigurasi global (port, versi, dll)
-│
-├── core/
-│   ├── system.sh           # Install dependencies, swap, BBR, iptables
-│   ├── domain.sh           # Ambil IP publik otomatis
-│   └── ssl.sh              # Generate sertifikat self-signed otomatis
-│
-├── services/
-│   ├── ssh/                # OpenSSH — port 22, 500, 40000
-│   ├── websocket/          # ws-proxy.py (HTTP CONNECT + WebSocket)
-│   ├── nginx/              # stream{} port 443 + http{} port 80 & 81
-│   ├── dropbear/           # Dropbear — port 109, 143
-│   └── udp/                # UDP Custom ePro Dev — 1-65535 via TPROXY
-│
-├── menu/
-│   ├── menu.sh             # Main menu (auto-launch saat SSH login)
-│   ├── ssh/                # Kelola akun SSH (add/del/list/renew/lock/unlock)
-│   ├── server/             # Multi-server manager (add/list/connect/del)
-│   ├── system/             # Restart, status service, clear cache, auto-reboot
-│   └── info/               # Info server (IP, OS, RAM, disk, uptime, port)
-│
-├── utils/
-│   ├── colors.sh           # Definisi warna ANSI
-│   ├── logger.sh           # print_ok / print_error / print_info / timer
-│   ├── checker.sh          # Cek OS, arsitektur, virtualisasi, internet
-│   └── helpers.sh          # Helper functions (expired_date, user_exists, dll)
-│
-└── cron/
-    ├── autokill.sh         # Auto-kill sesi melebihi limit (tiap 1 menit)
-    └── expired.sh          # Auto-hapus user expired (tiap hari jam 00:02)
-```
-
----
-
-## 📝 License
-
-MIT License — bebas digunakan dan dimodifikasi.
-
----
-
-> Made with ❤️ — ZV Team
+</div>
