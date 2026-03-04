@@ -10,12 +10,12 @@ SALDO_DIR="/etc/zv-manager/accounts/saldo"
 mkdir -p "$SALDO_DIR"
 
 _get_saldo() {
-    local f="${SALDO_DIR}/${1}.conf"
-    [[ -f "$f" ]] && grep "^SALDO=" "$f" | cut -d= -f2 || echo "0"
+    local f="${SALDO_DIR}/${1}.saldo"
+    [[ -f "$f" ]] && cat "$f" | tr -d "[:space:]" || echo "0"
 }
 
 _set_saldo() {
-    echo "SALDO=${2}" > "${SALDO_DIR}/${1}.conf"
+    echo "SALDO=${2}" > "${SALDO_DIR}/${1}.saldo"
 }
 
 saldo_menu() {
@@ -42,7 +42,8 @@ saldo_menu() {
                 local s; s=$(_get_saldo "$uid")
                 echo -e ""
                 echo -e "  ${BWHITE}User ID :${NC} ${BYELLOW}${uid}${NC}"
-                echo -e "  ${BWHITE}Saldo   :${NC} ${BGREEN}Rp${s}${NC}"
+                s_fmt=$(echo "$s" | python3 -c "import sys; n=int(sys.stdin.read().strip() or 0); print('{:,}'.format(n).replace(',','.'))" 2>/dev/null || echo "$s")
+                echo -e "  ${BWHITE}Saldo   :${NC} ${BGREEN}Rp${s_fmt}${NC}"
                 echo ""
                 press_any_key
                 ;;
@@ -90,8 +91,8 @@ saldo_menu() {
                 local found=0
                 for f in "$SALDO_DIR"/*.conf; do
                     [[ -f "$f" ]] || continue
-                    local fuid; fuid=$(basename "$f" .conf)
-                    local s; s=$(grep "^SALDO=" "$f" | cut -d= -f2)
+                    local fuid; fuid=$(basename "$f" .saldo)
+                    local s; s=$(cat "$f" | tr -d "[:space:]")
                     printf "  %-20s ${BGREEN}Rp%-15s${NC}\n" "$fuid" "$s"
                     found=1
                 done
