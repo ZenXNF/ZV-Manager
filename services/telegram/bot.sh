@@ -133,13 +133,13 @@ _get_server_list() {
 # Keyboards
 # ============================================================
 _kb_home() {
-    echo '[[{"text":"⚡ Buat Akun","callback_data":"m_buat"}],[{"text":"🎁 Coba Gratis","callback_data":"m_trial"}],[{"text":"📋 Akun Saya","callback_data":"m_akun"}]]'
+    echo '[[{"text":"⚡ Buat Akun","callback_data":"m_buat"},{"text":"🎁 Coba Gratis","callback_data":"m_trial"}],[{"text":"📋 Akun Saya","callback_data":"m_akun"},{"text":"🔄 Perpanjang","callback_data":"m_perpanjang"}]]'
 }
 _kb_proto_buat() {
-    echo '[[{"text":"SSH","callback_data":"p_buat_ssh"}],[{"text":"↩ Kembali","callback_data":"home"}]]'
+    echo '[[{"text":"SSH","callback_data":"p_buat_ssh"},{"text":"↩ Kembali","callback_data":"home"}]]'
 }
 _kb_proto_trial() {
-    echo '[[{"text":"SSH","callback_data":"p_trial_ssh"}],[{"text":"↩ Kembali","callback_data":"home"}]]'
+    echo '[[{"text":"SSH","callback_data":"p_trial_ssh"},{"text":"↩ Kembali","callback_data":"home"}]]'
 }
 _kb_server_list() {
     local prefix="$1" page="${2:-0}" per_page=6
@@ -341,6 +341,168 @@ _cb_akun_saya() {
     _edit "$chat_id" "$msg_id" "$(echo -e "$out")" "$(_kb_home_btn)"
 }
 
+
+# ============================================================
+# Perpanjang Akun
+# ============================================================
+
+# Tampil list akun user untuk diperpanjang
+_cb_perpanjang() {
+    local chat_id="$1" cb_id="$2" msg_id="$3"
+    _answer "$cb_id" ""
+
+    # Kumpulkan akun milik user ini
+    local akun_list=()
+    for conf in "$ACCOUNT_DIR"/*.conf; do
+        [[ -f "$conf" ]] || continue
+        local tg_uid; tg_uid=$(grep "^TG_USER_ID=" "$conf" | cut -d= -f2)
+        [[ "$tg_uid" != "$chat_id" ]] && continue
+        local uname is_trial
+        uname=$(grep "^USERNAME=" "$conf" | cut -d= -f2)
+        is_trial=$(grep "^IS_TRIAL=" "$conf" | cut -d= -f2)
+        [[ "$is_trial" == "1" ]] && continue  # skip trial
+        [[ -n "$uname" ]] && akun_list+=("$uname")
+    done
+
+    if [[ ${#akun_list[@]} -eq 0 ]]; then
+        _edit "$chat_id" "$msg_id" "📋 <b>Perpanjang Akun</b>
+
+Kamu belum punya akun premium yang bisa diperpanjang." "$(_kb_home_btn)"
+        return
+    fi
+
+    # Buat keyboard dari list akun
+    local rows='[' first=true
+    for uname in "${akun_list[@]}"; do
+        local btn="{"text":"${uname}","callback_data":"renew_${uname}"}"
+        if $first; then
+            rows="${rows}[${btn}]"
+            first=false
+        else
+            rows="${rows},[${btn}]"
+        fi
+    done
+    rows="${rows},[{"text":"↩ Kembali","callback_data":"home"}]]"
+
+    _edit "$chat_id" "$msg_id" "🔄 <b>Perpanjang Akun</b>
+
+Pilih akun yang ingin diperpanjang:" "$rows"
+}
+
+# Pilih akun → minta jumlah hari
+_cb_renew_akun() {
+    local chat_id="$1" cb_id="$2" msg_id="$3" username="$4"
+    _answer "$cb_id" ""
+
+    # Cari conf akun ini
+    local conf="${ACCOUNT_DIR}/${username}.conf"
+    [[ ! -f "$conf" ]] && { _edit "$chat_id" "$msg_id" "❌ Akun tidak ditemukan." "$(_kb_home_btn)"; return; }
+
+    local tg_uid; tg_uid=$(grep "^TG_USER_ID=" "$conf" | cut -d= -f2)
+    [[ "$tg_uid" != "$chat_id" ]] && { _answer "$cb_id" "❌ Bukan akun kamu"; return; }
+
+    local exp_ts exp_date exp_display sname
+    exp_ts=$(grep "^EXPIRED_TS=" "$conf" | cut -d= -f2)
+    exp_date=$(grep "^EXPIRED=" "$conf" | cut -d= -f2)
+    sname=$(grep "^SERVER=" "$conf" | cut -d= -f2)
+
+    _load_tg_conf "$sname"
+    local harga=$(( 10#${TG_HARGA_HARI} ))
+    local hh; [[ $harga -eq 0 ]] && hh="Gratis" || hh="Rp$(_fmt "$harga")/hari"
+
+    if [[ -n "$exp_ts" && "$exp_ts" =~ ^[0-9]+$ ]]; then
+        exp_display=$(TZ="Asia/Jakarta" date -d "@${exp_ts}" +"%d %b %Y %H:%M WIB" 2>/dev/null || echo "$exp_date")
+    else
+        exp_display="$exp_date"
+    fi
+
+    _state_clear "$chat_id"
+    _state_set "$chat_id" "STATE"    "renew_days"
+    _state_set "$chat_id" "USERNAME" "$username"
+    _state_set "$chat_id" "SERVER"   "$sname"
+
+    _edit "$chat_id" "$msg_id" "🔄 <b>Perpanjang Akun</b>
+━━━━━━━━━━━━━━━━━━━
+👤 Username : <code>${username}</code>
+🌐 Server   : ${TG_SERVER_LABEL}
+⏳ Expired  : ${exp_display}
+💰 Harga    : ${hh}
+━━━━━━━━━━━━━━━━━━━
+Berapa hari ingin diperpanjang? (1-365)" "$(_kb_home_btn)"
+}
+
+# Konfirmasi perpanjang
+_cb_konfirm_renew() {
+    local chat_id="$1" cb_id="$2" msg_id="$3"
+    [[ "$(_state_get "$chat_id" "STATE")" != "renew_confirm" ]] && {
+        _answer "$cb_id" "⚠️ Sesi habis, mulai ulang"
+        _state_clear "$chat_id"; return
+    }
+    _answer "$cb_id" "⏳ Memperpanjang akun..."
+
+    local username sname days
+    username=$(_state_get "$chat_id" "USERNAME")
+    sname=$(_state_get "$chat_id" "SERVER")
+    days=$(_state_get "$chat_id" "DAYS")
+
+    _load_tg_conf "$sname"
+    local harga=$(( 10#${TG_HARGA_HARI} ))
+    local total=$(( harga * days ))
+
+    # Potong saldo
+    if [[ $harga -gt 0 && $total -gt 0 ]]; then
+        _saldo_deduct "$chat_id" "$total" || {
+            _edit "$chat_id" "$msg_id" "❌ Saldo tidak cukup. Hubungi admin untuk top up." ""
+            _state_clear "$chat_id"; return
+        }
+    fi
+
+    local conf="${ACCOUNT_DIR}/${username}.conf"
+    local old_exp_ts; old_exp_ts=$(grep "^EXPIRED_TS=" "$conf" | cut -d= -f2)
+    local now_ts; now_ts=$(date +%s)
+    local base_ts
+    # Kalau masih aktif, perpanjang dari expired lama. Kalau sudah habis, dari sekarang
+    if [[ -n "$old_exp_ts" && "$old_exp_ts" =~ ^[0-9]+$ && $old_exp_ts -gt $now_ts ]]; then
+        base_ts=$old_exp_ts
+    else
+        base_ts=$now_ts
+    fi
+
+    local new_exp_ts=$(( base_ts + days * 86400 ))
+    local new_exp_date; new_exp_date=$(date -d "@${new_exp_ts}" +"%Y-%m-%d")
+    local new_exp_display; new_exp_display=$(TZ="Asia/Jakarta" date -d "@${new_exp_ts}" +"%d %b %Y %H:%M WIB")
+
+    local local_ip; local_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null)
+    local domain; domain=$(grep "^DOMAIN=" "$conf" | cut -d= -f2)
+
+    # Update conf lokal
+    local tmp; tmp=$(mktemp)
+    grep -v "^EXPIRED=\|^EXPIRED_TS=" "$conf" > "$tmp"
+    echo "EXPIRED=$new_exp_date"    >> "$tmp"
+    echo "EXPIRED_TS=$new_exp_ts"   >> "$tmp"
+    mv "$tmp" "$conf"
+
+    # Update di sistem
+    chage -E "$new_exp_date" "$username" &>/dev/null
+
+    # Hapus notifikasi lama biar bisa kirim notif baru nanti
+    rm -f "/etc/zv-manager/accounts/notified/${username}.notified"
+
+    _state_clear "$chat_id"
+    _log "RENEW: $chat_id user=$username days=$days total=$total"
+
+    _edit "$chat_id" "$msg_id" "✅ Akun berhasil diperpanjang!" ""
+    _send "$chat_id" "🔄 <b>Perpanjang Berhasil</b>
+━━━━━━━━━━━━━━━━━━━
+👤 Username  : <code>${username}</code>
+📅 Tambah    : ${days} hari
+⏳ Expired   : ${new_exp_display}
+💸 Dibayar   : Rp$(_fmt "$total")
+💰 Sisa Saldo: Rp$(_fmt "$(_saldo_get "$chat_id")")
+━━━━━━━━━━━━━━━━━━━
+Akun kamu sudah aktif sampai ${new_exp_display}!"
+}
+
 # ============================================================
 # Handlers
 # ============================================================
@@ -494,6 +656,48 @@ Ketik password:"; return 0
             _state_set "$chat_id" "PASSWORD" "$text"
             _state_set "$chat_id" "STATE" "await_days"
             _send "$chat_id" "Berapa hari masa aktif? (1-365)"
+            ;;
+        renew_days)
+            if ! echo "$text" | grep -qE '^[0-9]+$' || [[ $text -lt 1 || $text -gt 365 ]]; then
+                _send "$chat_id" "❌ Masukkan angka antara 1 sampai 365.
+
+Berapa hari perpanjang?"
+                return 0
+            fi
+            local sname; sname=$(_state_get "$chat_id" "SERVER")
+            local username; username=$(_state_get "$chat_id" "USERNAME")
+            local days="$text"
+            _load_tg_conf "$sname"
+            local harga=$(( 10#${TG_HARGA_HARI} ))
+            local total=$(( harga * days ))
+            local saldo=$(( 10#$(_saldo_get "$chat_id") ))
+            _state_set "$chat_id" "DAYS" "$days"
+            _state_set "$chat_id" "STATE" "renew_confirm"
+            local hh; [[ $harga -eq 0 ]] && hh="Gratis" || hh="Rp$(_fmt "$harga")/hari"
+            if [[ $harga -gt 0 && $saldo -lt $total ]]; then
+                _send "$chat_id" "📋 <b>Konfirmasi Perpanjang</b>
+━━━━━━━━━━━━━━━━━━━
+👤 Username  : <code>${username}</code>
+📅 Tambah    : ${days} hari
+💰 Harga     : ${hh}
+💸 Total     : Rp$(_fmt "$total")
+💳 Saldo     : Rp$(_fmt "$saldo")
+❌ Kurang    : Rp$(_fmt "$(( total - saldo ))")
+━━━━━━━━━━━━━━━━━━━
+Saldo tidak cukup. Hubungi admin untuk top up."
+                _state_clear "$chat_id"; return 0
+            fi
+            local saldo_line=""; [[ $harga -gt 0 ]] && saldo_line="
+💳 Saldo     : Rp$(_fmt "$saldo")"
+            _send "$chat_id" "📋 <b>Konfirmasi Perpanjang</b>
+━━━━━━━━━━━━━━━━━━━
+👤 Username  : <code>${username}</code>
+🌐 Server    : ${TG_SERVER_LABEL}
+📅 Tambah    : ${days} hari
+💰 Harga     : ${hh}
+💸 Total     : Rp$(_fmt "$total")${saldo_line}
+━━━━━━━━━━━━━━━━━━━
+Lanjutkan?" "$(_kb_confirm "konfirm_renew")"
             ;;
         await_days)
             if ! echo "$text" | grep -qE '^[0-9]+$' || [[ $text -lt 1 || $text -gt 365 ]]; then
@@ -672,6 +876,9 @@ except: pass
             home)          _cb_home           "$chat_id" "$cb_id" "$msg_id" "$fname" ;;
             m_buat)        _cb_menu_buat       "$chat_id" "$cb_id" "$msg_id" ;;
             m_akun)        _cb_akun_saya       "$chat_id" "$cb_id" "$msg_id" ;;
+            m_perpanjang)  _cb_perpanjang      "$chat_id" "$cb_id" "$msg_id" ;;
+            konfirm_renew_ok) _cb_konfirm_renew "$chat_id" "$cb_id" "$msg_id" ;;
+            renew_*)       _cb_renew_akun      "$chat_id" "$cb_id" "$msg_id" "${data#renew_}" ;;
             m_trial)       _cb_menu_trial      "$chat_id" "$cb_id" "$msg_id" ;;
             p_buat_ssh)    _cb_proto_buat_ssh  "$chat_id" "$cb_id" "$msg_id" ;;
             p_trial_ssh)   _cb_proto_trial_ssh "$chat_id" "$cb_id" "$msg_id" ;;
