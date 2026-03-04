@@ -538,32 +538,46 @@ Ketik pesan:" '[[{"text":"❌ Batal","callback_data":"home"}]]'
 
 _do_broadcast() {
     local chat_id="$1" text="$2"
-    # Kumpulkan semua TG_USER_ID unik
-    declare -A seen
-    local uids=()
+
+    # Kumpulkan UID unik pakai file tmp — hindari declare -A
+    local uid_file; uid_file=$(mktemp)
     for conf in "$ACCOUNT_DIR"/*.conf; do
         [[ -f "$conf" ]] || continue
         local uid; uid=$(grep "^TG_USER_ID=" "$conf" | cut -d= -f2 | tr -d "[:space:]")
-        [[ -z "$uid" || -n "${seen[$uid]}" ]] && continue
-        seen[$uid]=1
-        uids+=("$uid")
-    done
+        [[ -z "$uid" ]] && continue
+        echo "$uid"
+    done | sort -u > "$uid_file"
 
-    local total=${#uids[@]}
-    [[ $total -eq 0 ]] && { _send "$chat_id" "❌ Belum ada user terdaftar."; return; }
+    local total; total=$(wc -l < "$uid_file")
+    total=$(echo "$total" | tr -d "[:space:]")
+
+    if [[ "$total" -eq 0 ]]; then
+        rm -f "$uid_file"
+        _send "$chat_id" "❌ Belum ada user terdaftar."
+        return
+    fi
 
     _send "$chat_id" "⏳ Mengirim ke ${total} user..."
 
+    # Buat JSON text sekali pakai python — aman untuk semua karakter
+    local json_text; json_text=$(python3 -c "import json,sys; print(json.dumps(sys.argv[1]))" "$text" 2>/dev/null)
+    [[ -z "$json_text" ]] && json_text='"(pesan kosong)"'
+
     local ok=0 fail=0
-    for uid in "${uids[@]}"; do
+    while IFS= read -r uid; do
+        [[ -z "$uid" ]] && continue
+        local body="{"chat_id":"${uid}","text":${json_text},"parse_mode":"HTML"}"
         local res
-        res=$(curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
-            -H "Content-Type: application/json" \
-            -d "{"chat_id":"${uid}","text":$(_jstr "$text"),"parse_mode":"HTML"}" \
-            --max-time 10 2>/dev/null)
-        echo "$res" | grep -q '"ok":true' && ok=$(( ok + 1 )) || fail=$(( fail + 1 ))
+        res=$(curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage"             -H "Content-Type: application/json"             -d "$body" --max-time 10 2>/dev/null)
+        if echo "$res" | grep -q '"ok":true'; then
+            ok=$(( ok + 1 ))
+        else
+            fail=$(( fail + 1 ))
+            _log "BROADCAST FAIL uid=$uid err=$(echo "$res" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('description','?'))" 2>/dev/null)"
+        fi
         sleep 0.05
-    done
+    done < "$uid_file"
+    rm -f "$uid_file"
 
     _log "BROADCAST: admin=$chat_id total=$total ok=$ok fail=$fail"
     _send "$chat_id" "📢 <b>Broadcast Selesai</b>
@@ -574,18 +588,6 @@ _do_broadcast() {
 <i>Gagal biasanya karena user memblokir bot.</i>"
 }
 
-# ============================================================
-# Handlers
-# ============================================================
-_kb_for_user() {
-    local uid="$1"
-    if _is_admin "$uid"; then
-        echo '[[{"text":"⚡ Buat Akun","callback_data":"m_buat"},{"text":"🎁 Coba Gratis","callback_data":"m_trial"}],[{"text":"📋 Akun Saya","callback_data":"m_akun"},{"text":"🔄 Perpanjang","callback_data":"m_perpanjang"}],[{"text":"📢 Broadcast","callback_data":"m_broadcast"}]]'
-    else
-        echo "$(_kb_home)"
-    fi
-}
-_handle_start() { _state_clear "$1"; _send "$1" "$(_text_home "$2" "$1")" "$(_kb_for_user "$1")"; }
 
 _cb_home() {
     _answer "$2" ""; _state_clear "$1"
