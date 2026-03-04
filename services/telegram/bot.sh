@@ -406,7 +406,7 @@ Kamu belum punya akun premium yang bisa diperpanjang." "$(_kb_home_btn)"
 Pilih akun yang ingin diperpanjang:" "$kb"
 }
 _cb_renew_akun() {
-    local chat_id="$1" cb_id="$2" msg_id="$3" username="$4"
+    local chat_id="$1" cb_id="$2" msg_id="$3" username="$4" fname="$5"
     _answer "$cb_id" ""
 
     # Cari conf akun ini
@@ -440,6 +440,7 @@ _cb_renew_akun() {
     _state_set "$chat_id" "STATE"    "renew_days"
     _state_set "$chat_id" "USERNAME" "$username"
     _state_set "$chat_id" "SERVER"   "$sname"
+    _state_set "$chat_id" "FNAME"    "${fname:-User}"
 
     _edit "$chat_id" "$msg_id" "🔄 <b>Perpanjang Akun</b>
 ━━━━━━━━━━━━━━━━━━━
@@ -460,10 +461,11 @@ _cb_konfirm_renew() {
     }
     _answer "$cb_id" "⏳ Memperpanjang akun..."
 
-    local username sname days
+    local username sname days fname
     username=$(_state_get "$chat_id" "USERNAME")
     sname=$(_state_get "$chat_id" "SERVER")
     days=$(_state_get "$chat_id" "DAYS")
+    fname=$(_state_get "$chat_id" "FNAME")
 
     _load_tg_conf "$sname"
     local harga=$(( 10#${TG_HARGA_HARI} ))
@@ -519,6 +521,7 @@ _cb_konfirm_renew() {
 
     _state_clear "$chat_id"
     _log "RENEW: $chat_id user=$username days=$days total=$total"
+    _notify_admin_beli "RENEW" "${fname:-User}" "$chat_id" "$username" "$TG_SERVER_LABEL" "$days" "$total"
 
     _edit "$chat_id" "$msg_id" "✅ Akun berhasil diperpanjang!" ""
     _send "$chat_id" "🔄 <b>Perpanjang Berhasil</b>
@@ -925,7 +928,88 @@ Belum ada transaksi." '[[{"text":"🏠 Menu Utama","callback_data":"home"}]]'
 }
 
 
-_handle_start() {
+# ============================================================
+# Notif Admin — dipanggil setelah pembelian / perpanjang
+# ============================================================
+_notify_admin_beli() {
+    local tipe="$1"   # BELI / RENEW / BW
+    local fname="$2" chat_id="$3" username="$4" sname="$5" days="$6" total="$7"
+    [[ -z "$TG_ADMIN_ID" || "$chat_id" == "$TG_ADMIN_ID" ]] && return
+    local icon label
+    case "$tipe" in
+        BELI)  icon="🛒"; label="Pembelian Baru" ;;
+        RENEW) icon="🔄"; label="Perpanjang Akun" ;;
+        BW)    icon="📶"; label="Tambah Bandwidth" ;;
+        *)     icon="💡"; label="Transaksi" ;;
+    esac
+    local extra_line=""
+    [[ "$tipe" == "BW" ]] && extra_line="
+📶 Tambah   : ${days} GB" || extra_line="
+📅 Durasi   : ${days} hari"
+    _send "$TG_ADMIN_ID" "${icon} <b>${label}</b>
+━━━━━━━━━━━━━━━━━━━
+👤 User     : ${fname} (<code>${chat_id}</code>)
+🖥️ Akun     : <code>${username}</code>
+🌐 Server   : ${sname}${extra_line}
+💸 Total    : Rp$(_fmt "$total")
+━━━━━━━━━━━━━━━━━━━"
+}
+
+# ============================================================
+# /topup — Admin only: top up saldo user
+# ============================================================
+_handle_topup() {
+    local chat_id="$1" text="$2"
+    _is_admin "$chat_id" || {
+        _send "$chat_id" "❌ Perintah ini hanya untuk admin."
+        return
+    }
+
+    # Format: /topup <user_id> <jumlah>
+    local target_id amount
+    target_id=$(echo "$text" | awk '{print $2}')
+    amount=$(echo "$text"   | awk '{print $3}')
+
+    if [[ -z "$target_id" || -z "$amount" ]]; then
+        _send "$chat_id" "❌ Format salah.
+Gunakan: <code>/topup &lt;user_id&gt; &lt;jumlah&gt;</code>
+Contoh : <code>/topup 123456789 50000</code>"
+        return
+    fi
+
+    if ! [[ "$target_id" =~ ^[0-9]+$ && "$amount" =~ ^[0-9]+$ ]]; then
+        _send "$chat_id" "❌ User ID dan jumlah harus berupa angka."
+        return
+    fi
+
+    if [[ "$amount" -eq 0 ]]; then
+        _send "$chat_id" "❌ Jumlah top up tidak boleh 0."
+        return
+    fi
+
+    local cur; cur=$(( 10#$(_saldo_get "$target_id") ))
+    local new=$(( cur + amount ))
+    _saldo_set "$target_id" "$new"
+    _log "TOPUP: admin=$chat_id target=$target_id amount=$amount new=$new"
+
+    # Notif ke admin
+    _send "$chat_id" "✅ <b>Top Up Berhasil</b>
+━━━━━━━━━━━━━━━━━━━
+🆔 User ID  : <code>${target_id}</code>
+💳 Ditambah : Rp$(_fmt "$amount")
+💰 Saldo    : Rp$(_fmt "$cur") → Rp$(_fmt "$new")
+━━━━━━━━━━━━━━━━━━━"
+
+    # Notif ke user yang di-topup
+    _send "$target_id" "💰 <b>Saldo Kamu Bertambah!</b>
+━━━━━━━━━━━━━━━━━━━
+💳 Ditambah : Rp$(_fmt "$amount")
+💰 Saldo    : Rp$(_fmt "$new")
+━━━━━━━━━━━━━━━━━━━
+Terima kasih sudah top up! 🙏" '[[{"text":"🏠 Menu Utama","callback_data":"home"}]]'
+}
+
+
     _state_clear "$1"
     _register_user "$1" "$2"
     _send "$1" "$(_text_home "$2" "$1")" "$(_kb_for_user "$1")"
@@ -980,7 +1064,7 @@ _cb_proto_trial_ssh() {
 
 # Pilih server buat → minta username, TANPA tombol
 _cb_s_buat() {
-    local chat_id="$1" cb_id="$2" sname="$4"
+    local chat_id="$1" cb_id="$2" fname="$3" sname="$4"
     local conf="${SERVER_DIR}/${sname}.conf"
     [[ ! -f "$conf" ]] && { _answer "$cb_id" "❌ Server tidak ditemukan"; return; }
     unset NAME IP DOMAIN; source "$conf"; _load_tg_conf "$sname"
@@ -990,6 +1074,7 @@ _cb_s_buat() {
     _state_clear "$chat_id"
     _state_set "$chat_id" "STATE"  "await_user"
     _state_set "$chat_id" "SERVER" "$sname"
+    _state_set "$chat_id" "FNAME"  "$fname"
 
     # Kirim pesan baru TANPA tombol
     _send "$chat_id" "Server : <b>${TG_SERVER_LABEL}</b>
@@ -1217,11 +1302,12 @@ _cb_konfirm() {
     }
     _answer "$cb_id" "⏳ Membuat akun..."
 
-    local sname username password days
+    local sname username password days fname
     sname=$(_state_get "$chat_id" "SERVER")
     username=$(_state_get "$chat_id" "USERNAME")
     password=$(_state_get "$chat_id" "PASSWORD")
     days=$(_state_get "$chat_id" "DAYS")
+    fname=$(_state_get "$chat_id" "FNAME")
 
     unset NAME IP DOMAIN PORT USER PASS
     source "${SERVER_DIR}/${sname}.conf"
@@ -1283,6 +1369,7 @@ EOF
 
     _state_clear "$chat_id"
     _log "BELI: $chat_id server=$sname user=$username days=$days total=$total"
+    _notify_admin_beli "BELI" "$fname" "$chat_id" "$username" "$TG_SERVER_LABEL" "$days" "$total"
     # Hapus inline keyboard dari pesan konfirmasi
     _edit "$chat_id" "$msg_id" "✅ Akun sedang dibuat..." ""
     _send_akun "$chat_id" "BELI" "$username" "$password" "$domain" \
@@ -1322,6 +1409,7 @@ except: pass
         if [[ "$cmd" == "/start" ]]; then _handle_start "$chat_id" "$fname"
         elif [[ "$cmd" == "/saldo" ]]; then _handle_saldo "$chat_id"
         elif [[ "$cmd" == "/history" ]]; then _handle_history "$chat_id"
+        elif [[ "$cmd" == "/topup" ]]; then _handle_topup "$chat_id" "$text"
         else _handle_input "$chat_id" "$text" || _send "$chat_id" "Ketuk /start untuk membuka menu."; fi
 
     elif [[ "$kind" == "CB" ]]; then
@@ -1343,14 +1431,14 @@ except: pass
             bw_beli_*)     local _bw_parts; IFS="_" read -r _ _ _bw_gb _bw_user <<< "${data}"; _cb_bw_beli "$chat_id" "$cb_id" "$msg_id" "$_bw_gb" "$_bw_user" ;;
             bw_konfirm_ok) _cb_konfirm_bw      "$chat_id" "$cb_id" "$msg_id" ;;
             konfirm_renew_ok) _cb_konfirm_renew "$chat_id" "$cb_id" "$msg_id" ;;
-            renew_*)       _cb_renew_akun      "$chat_id" "$cb_id" "$msg_id" "${data#renew_}" ;;
+            renew_*)       _cb_renew_akun      "$chat_id" "$cb_id" "$msg_id" "${data#renew_}" "$fname" ;;
             m_trial)       _cb_menu_trial      "$chat_id" "$cb_id" "$msg_id" ;;
             p_buat_ssh)    _cb_proto_buat_ssh  "$chat_id" "$cb_id" "$msg_id" ;;
             p_trial_ssh)   _cb_proto_trial_ssh "$chat_id" "$cb_id" "$msg_id" ;;
             konfirm_ok)    _cb_konfirm         "$chat_id" "$cb_id" "$msg_id" ;;
             s_buat_pg_*)   _cb_proto_buat_ssh  "$chat_id" "$cb_id" "$msg_id" "${data#s_buat_pg_}" ;;
             s_trial_pg_*)  _cb_proto_trial_ssh "$chat_id" "$cb_id" "$msg_id" "${data#s_trial_pg_}" ;;
-            s_buat_*)      _cb_s_buat          "$chat_id" "$cb_id" "$msg_id" "${data#s_buat_}" ;;
+            s_buat_*)      _cb_s_buat          "$chat_id" "$cb_id" "$msg_id" "$fname" "${data#s_buat_}" ;;
             s_trial_*)     _cb_s_trial         "$chat_id" "$cb_id" "$msg_id" "${data#s_trial_}" ;;
             *)             _answer "$cb_id" "" ;;
         esac
