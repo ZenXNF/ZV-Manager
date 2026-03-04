@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-#   ZV-Manager - SSH Sub-Menu
+#   ZV-Manager - Menu SSH
 # ============================================================
 
 source /etc/zv-manager/utils/colors.sh
@@ -12,18 +12,10 @@ SERVER_DIR="/etc/zv-manager/servers"
 
 check_server_exists() {
     local count=0
-    for conf in "${SERVER_DIR}"/*.conf; do
-        [[ -f "$conf" ]] && count=$((count + 1))
-    done
-
+    for conf in "${SERVER_DIR}"/*.conf; do [[ -f "$conf" ]] && count=$((count+1)); done
     if [[ $count -eq 0 ]]; then
         clear
-        echo -e "${BRED} ┌──────────────────────────────────────────────┐${NC}"
-        echo -e "${BRED} │            BELUM ADA SERVER!                  │${NC}"
-        echo -e "${BRED} └──────────────────────────────────────────────┘${NC}"
-        echo ""
-        echo -e "  ${BYELLOW}Tambahkan server dulu sebelum bisa buat akun.${NC}"
-        echo -e "  Menu Utama → ${BGREEN}[2] Manajemen Server${NC} → ${BGREEN}[1] Tambah Server${NC}"
+        echo -e "${BRED}  Belum ada server! Tambah dulu di Manajemen Server.${NC}"
         echo ""
         press_any_key
         return 1
@@ -31,11 +23,8 @@ check_server_exists() {
     return 0
 }
 
-# Pastikan target default sudah di-set (pertama kali)
 _init_target() {
-    if [[ ! -f "/tmp/zv_target_server" ]]; then
-        set_target_server "local"
-    fi
+    [[ ! -f "/tmp/zv_target_server" ]] && set_target_server "local"
 }
 
 menu_ssh() {
@@ -43,30 +32,21 @@ menu_ssh() {
     _init_target
 
     while true; do
-        local target_info
-        target_info=$(target_display)
-
+        local target_info; target_info=$(target_display)
         clear
-        echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-        echo -e " │            ${BWHITE}MENU MANAJEMEN SSH${NC}                │"
-        echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+        echo -e "${BCYAN}  ┌──────────────────────────────────────────────┐${NC}"
+        echo -e "  │            ${BWHITE}MANAJEMEN SSH${NC}                     │"
+        echo -e "${BCYAN}  └──────────────────────────────────────────────┘${NC}"
         echo ""
-        echo -e "  ${BWHITE}Target Server :${NC} ${BGREEN}${target_info}${NC}"
+        echo -e "  ${BWHITE}Target :${NC} ${BGREEN}${target_info}${NC}"
         echo ""
-        echo -e "${BCYAN}  ──────────────────────────────────────────────${NC}"
+        echo -e "  ${BGREEN}[1]${NC} Tambah Akun          ${BGREEN}[2]${NC} Hapus Akun"
+        echo -e "  ${BGREEN}[3]${NC} List Akun            ${BGREEN}[4]${NC} Perpanjang Akun"
+        echo -e "  ${BGREEN}[5]${NC} Lock Akun            ${BGREEN}[6]${NC} Unlock Akun"
+        echo -e "  ${BGREEN}[7]${NC} Monitor Online       ${BGREEN}[8]${NC} Edit Akun"
         echo ""
-        echo -e "  ${BGREEN}[1]${NC} Tambah Akun SSH"
-        echo -e "  ${BGREEN}[2]${NC} Hapus Akun SSH"
-        echo -e "  ${BGREEN}[3]${NC} List Akun SSH"
-        echo -e "  ${BGREEN}[4]${NC} Perpanjang Akun SSH"
-        echo -e "  ${BGREEN}[5]${NC} Lock Akun SSH"
-        echo -e "  ${BGREEN}[6]${NC} Unlock Akun SSH"
-        echo -e "  ${BGREEN}[7]${NC} Monitor Online"
-        echo -e "  ${BGREEN}[8]${NC} Edit Akun SSH"
-        echo ""
-        echo -e "  ${BYELLOW}[s]${NC} Ganti Target Server"
-        echo -e "  ${BYELLOW}[d]${NC} Manajemen Saldo Telegram"
-        echo -e "  ${BRED}[0]${NC} Kembali ke Menu Utama"
+        echo -e "  ${BYELLOW}[s]${NC} Ganti Target         ${BYELLOW}[d]${NC} Saldo Telegram"
+        echo -e "  ${BRED}[0]${NC} Kembali"
         echo ""
         read -rp "  Pilihan: " choice
 
@@ -79,9 +59,8 @@ menu_ssh() {
             6) bash /etc/zv-manager/menu/ssh/unlock-user.sh ;;
             7) bash /etc/zv-manager/menu/ssh/monitor-online.sh ;;
             8) bash /etc/zv-manager/menu/ssh/edit-user.sh ;;
-            s|S)
-                pick_target_server
-                ;;
+            s|S) pick_target_server ;;
+            d|D) bash /etc/zv-manager/menu/ssh/saldo.sh ;;
             0) break ;;
             *) echo -e "  ${BRED}Pilihan tidak valid!${NC}"; sleep 1 ;;
         esac
