@@ -274,7 +274,8 @@ _cb_akun_saya() {
     for conf in "$ACCOUNT_DIR"/*.conf; do
         [[ -f "$conf" ]] || continue
         local tg_uid; tg_uid=$(grep "^TG_USER_ID=" "$conf" | cut -d= -f2)
-        [[ "$tg_uid" != "$chat_id" ]] && continue
+        local tg_uid_clean; tg_uid_clean=$(echo "$tg_uid" | tr -d "[:space:]")
+        [[ "$tg_uid_clean" != "$chat_id" ]] && continue
 
         local uname pass exp_ts exp_date limit is_trial server domain
         uname=$(grep    "^USERNAME="   "$conf" | cut -d= -f2)
@@ -356,7 +357,8 @@ _cb_perpanjang() {
     for conf in "$ACCOUNT_DIR"/*.conf; do
         [[ -f "$conf" ]] || continue
         local tg_uid; tg_uid=$(grep "^TG_USER_ID=" "$conf" | cut -d= -f2)
-        [[ "$tg_uid" != "$chat_id" ]] && continue
+        local tg_uid_clean; tg_uid_clean=$(echo "$tg_uid" | tr -d "[:space:]")
+        [[ "$tg_uid_clean" != "$chat_id" ]] && continue
         local uname is_trial
         uname=$(grep "^USERNAME=" "$conf" | cut -d= -f2)
         is_trial=$(grep "^IS_TRIAL=" "$conf" | cut -d= -f2)
@@ -400,13 +402,18 @@ _cb_renew_akun() {
     local conf="${ACCOUNT_DIR}/${username}.conf"
     [[ ! -f "$conf" ]] && { _edit "$chat_id" "$msg_id" "❌ Akun tidak ditemukan." "$(_kb_home_btn)"; return; }
 
-    local tg_uid; tg_uid=$(grep "^TG_USER_ID=" "$conf" | cut -d= -f2)
-    [[ "$tg_uid" != "$chat_id" ]] && { _answer "$cb_id" "❌ Bukan akun kamu"; return; }
+    # Trim whitespace agar perbandingan tidak gagal diam-diam
+    local tg_uid; tg_uid=$(grep "^TG_USER_ID=" "$conf" | cut -d= -f2 | tr -d "[:space:]")
+    local chat_id_clean; chat_id_clean=$(echo "$chat_id" | tr -d "[:space:]")
+    [[ "$tg_uid" != "$chat_id_clean" ]] && {
+        _edit "$chat_id" "$msg_id" "❌ Akun ini bukan milikmu." "$(_kb_home_btn)"
+        return
+    }
 
     local exp_ts exp_date exp_display sname
-    exp_ts=$(grep "^EXPIRED_TS=" "$conf" | cut -d= -f2)
-    exp_date=$(grep "^EXPIRED=" "$conf" | cut -d= -f2)
-    sname=$(grep "^SERVER=" "$conf" | cut -d= -f2)
+    exp_ts=$(grep "^EXPIRED_TS=" "$conf" | cut -d= -f2 | tr -d "[:space:]")
+    exp_date=$(grep "^EXPIRED="    "$conf" | cut -d= -f2 | tr -d "[:space:]")
+    sname=$(grep   "^SERVER="     "$conf" | cut -d= -f2 | tr -d "[:space:]")
 
     _load_tg_conf "$sname"
     local harga=$(( 10#${TG_HARGA_HARI} ))
