@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-#   ZV-Manager - System Menu
+#   ZV-Manager - Menu System
 # ============================================================
 
 source /etc/zv-manager/utils/colors.sh
@@ -10,34 +10,28 @@ source /etc/zv-manager/utils/helpers.sh
 restart_all_services() {
     clear
     print_section "Restart Semua Service"
-
     for svc in ssh dropbear nginx zv-stunnel zv-wss zv-udp fail2ban; do
-        if systemctl list-units --type=service --all | grep -q "${svc}.service"; then
+        systemctl list-units --type=service --all | grep -q "${svc}.service" && \
             restart_service "$svc"
-        fi
     done
-
     press_any_key
 }
 
 show_running_services() {
     clear
-    echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-    echo -e " │             ${BWHITE}STATUS LAYANAN${NC}                    │"
-    echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+    echo -e "${BCYAN}  ┌──────────────────────────────────────────────┐${NC}"
+    echo -e "  │              ${BWHITE}STATUS LAYANAN${NC}                  │"
+    echo -e "${BCYAN}  └──────────────────────────────────────────────┘${NC}"
     echo ""
-
-    local services=("ssh" "dropbear" "nginx" "zv-stunnel" "zv-wss" "zv-udp" "fail2ban")
+    local services=(ssh dropbear nginx zv-stunnel zv-wss zv-udp zv-telegram fail2ban)
     for svc in "${services[@]}"; do
-        if systemctl list-units --type=service --all | grep -q "${svc}.service"; then
-            if systemctl is-active --quiet "$svc"; then
-                echo -e "  ${BGREEN}●${NC} ${svc}: ${BGREEN}Running${NC}"
-            else
-                echo -e "  ${BRED}●${NC} ${svc}: ${BRED}Stopped${NC}"
-            fi
+        systemctl list-units --type=service --all 2>/dev/null | grep -q "${svc}.service" || continue
+        if systemctl is-active --quiet "$svc"; then
+            echo -e "  ${BGREEN}●${NC} ${svc}"
+        else
+            echo -e "  ${BRED}●${NC} ${svc}"
         fi
     done
-
     echo ""
     press_any_key
 }
@@ -45,19 +39,16 @@ show_running_services() {
 menu_system() {
     while true; do
         clear
-        echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-        echo -e " │            ${BWHITE}MENU SYSTEM${NC}                       │"
-        echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+        echo -e "${BCYAN}  ┌──────────────────────────────────────────────┐${NC}"
+        echo -e "  │             ${BWHITE}SYSTEM & SERVICES${NC}               │"
+        echo -e "${BCYAN}  └──────────────────────────────────────────────┘${NC}"
         echo ""
-        echo -e "  ${BGREEN}[1]${NC} Restart Semua Service"
-        echo -e "  ${BGREEN}[2]${NC} Status Semua Service"
-        echo -e "  ${BGREEN}[3]${NC} Clear Cache"
-        echo -e "  ${BGREEN}[4]${NC} Set Auto Reboot"
-        echo -e "  ${BGREEN}[5]${NC} Edit Server Banner"
-        echo -e "  ${BGREEN}[6]${NC} Manajemen SSL"
+        echo -e "  ${BGREEN}[1]${NC} Restart Services     ${BGREEN}[2]${NC} Status Services"
+        echo -e "  ${BGREEN}[3]${NC} Clear Cache          ${BGREEN}[4]${NC} Auto Reboot"
+        echo -e "  ${BGREEN}[5]${NC} Edit Banner          ${BGREEN}[6]${NC} Manajemen SSL"
         echo -e "  ${BGREEN}[7]${NC} Setup Telegram Bot"
         echo ""
-        echo -e "  ${BRED}[0]${NC} Kembali ke Menu Utama"
+        echo -e "  ${BRED}[0]${NC} Kembali"
         echo ""
         read -rp "  Pilihan: " choice
 
