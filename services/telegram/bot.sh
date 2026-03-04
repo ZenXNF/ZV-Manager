@@ -561,15 +561,22 @@ _do_broadcast() {
     _send "$chat_id" "⏳ Mengirim ke ${total} user..."
 
     local ok=0 fail=0
+    # Pre-compute JSON text sekali — jangan panggil fungsi di dalam -d curl
+    local json_text
+    json_text=$(python3 -c "import json,sys; print(json.dumps(sys.argv[1]))" "$text" 2>/dev/null)
+    if [[ -z "$json_text" ]]; then
+        _send "$chat_id" "❌ Gagal encode pesan."; rm -f "$uid_file"; return
+    fi
+
     while IFS= read -r uid; do
         [[ -z "$uid" ]] && continue
-        # Pakai _send yang sudah terbukti jalan
+        local body="{"chat_id":"${uid}","text":${json_text},"parse_mode":"HTML"}"
         local res
-        res=$(curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage"             -H "Content-Type: application/json"             -d "{"chat_id":"${uid}","text":$(_jstr "$text"),"parse_mode":"HTML"}"             --max-time 10 2>/dev/null)
+        res=$(curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+            -H "Content-Type: application/json" -d "$body" --max-time 10 2>/dev/null)
         local err_desc; err_desc=$(echo "$res" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('description','ok'))" 2>/dev/null)
         if echo "$res" | grep -q '"ok":true'; then
             ok=$(( ok + 1 ))
-            _log "BROADCAST OK uid=$uid"
         else
             fail=$(( fail + 1 ))
             _log "BROADCAST FAIL uid=$uid err=${err_desc}"
@@ -586,6 +593,20 @@ _do_broadcast() {
 ━━━━━━━━━━━━━━━━━━━
 <i>Gagal biasanya karena user memblokir bot.</i>"
 }
+_kb_for_user() {
+    local uid="$1"
+    if _is_admin "$uid"; then
+        echo '[[{"text":"⚡ Buat Akun","callback_data":"m_buat"},{"text":"🎁 Coba Gratis","callback_data":"m_trial"}],[{"text":"📋 Akun Saya","callback_data":"m_akun"},{"text":"🔄 Perpanjang","callback_data":"m_perpanjang"}],[{"text":"📢 Broadcast","callback_data":"m_broadcast"}]]'
+    else
+        echo "$(_kb_home)"
+    fi
+}
+
+_handle_start() {
+    _state_clear "$1"
+    _send "$1" "$(_text_home "$2" "$1")" "$(_kb_for_user "$1")"
+}
+
 
 _cb_home() {
     _answer "$2" ""; _state_clear "$1"
