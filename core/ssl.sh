@@ -19,19 +19,29 @@ setup_ssl() {
 
     mkdir -p "$SSL_DIR"
 
-    local local_ip
-    local_ip=$(cat /etc/zv-manager/domain 2>/dev/null)
+    local domain_file; domain_file=$(cat /etc/zv-manager/domain 2>/dev/null | tr -d "[:space:]")
 
-    local cn="$local_ip"
-    for conf in /etc/zv-manager/servers/*.conf; do
-        [[ -f "$conf" ]] || continue
-        unset IP DOMAIN
-        source "$conf"
-        if [[ "$IP" == "$local_ip" && -n "$DOMAIN" && "$DOMAIN" != "$local_ip" ]]; then
-            cn="$DOMAIN"
-            break
-        fi
-    done
+    # Gunakan domain jika bukan IP, fallback ke IP publik
+    local cn
+    if [[ -n "$domain_file" && ! "$domain_file" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        # /etc/zv-manager/domain sudah berisi domain — pakai langsung
+        cn="$domain_file"
+    else
+        # Coba cari domain dari server conf
+        local local_ip; local_ip="$domain_file"
+        cn="$local_ip"
+        for conf in /etc/zv-manager/servers/*.conf; do
+            [[ -f "$conf" ]] || continue
+            unset IP DOMAIN
+            source "$conf"
+            if [[ "$IP" == "$local_ip" && -n "$DOMAIN" && "$DOMAIN" != "$local_ip" ]]; then
+                cn="$DOMAIN"
+                break
+            fi
+        done
+        # Kalau masih IP, fallback ke IP publik VPS
+        [[ -z "$cn" ]] && cn=$(curl -s --max-time 5 ipv4.icanhazip.com 2>/dev/null || hostname -I | awk '{print $1}')
+    fi
 
     print_info "Generate certificate untuk: $cn"
 
