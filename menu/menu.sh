@@ -94,6 +94,7 @@ main_menu() {
         echo ""
         echo -e "  ${BGREEN}[1]${NC} Manajemen SSH        ${BGREEN}[2]${NC} Manajemen Server"
         echo -e "  ${BGREEN}[3]${NC} Informasi Server     ${BGREEN}[4]${NC} System & Services"
+        echo -e "  ${BGREEN}[5]${NC} Statistik Penjualan"
         echo ""
         echo -e "  ${BYELLOW}[r]${NC} Restart Services     ${BRED}[0]${NC} Keluar"
         echo ""
@@ -104,6 +105,7 @@ main_menu() {
             2) bash /etc/zv-manager/menu/server/menu-server.sh ;;
             3) bash /etc/zv-manager/menu/info/server-info.sh ;;
             4) bash /etc/zv-manager/menu/system/menu-system.sh ;;
+            5) bash /etc/zv-manager/menu/info/statistik.sh ;;
             r|R)
                 for svc in ssh dropbear nginx zv-stunnel zv-wss zv-udp; do
                     systemctl restart "$svc" &>/dev/null
