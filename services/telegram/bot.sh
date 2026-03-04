@@ -145,7 +145,7 @@ _username_exists_local() {
 # Keyboards (tanpa emoji di tombol)
 # ============================================================
 _kb_home() {
-    echo '[[{"text":"Buat Akun SSH","callback_data":"m_buat"}],[{"text":"Coba Gratis","callback_data":"m_trial"},{"text":"Cara Pakai","callback_data":"m_howto"}]]'
+    echo '[[{"text":"⚡ Buat Akun SSH","callback_data":"m_buat"}],[{"text":"🎁 Coba Gratis","callback_data":"m_trial"},{"text":"📖 Cara Pakai","callback_data":"m_howto"}]]'
 }
 
 _kb_server_list() {
@@ -186,8 +186,8 @@ _kb_server_list() {
     echo "$rows"
 }
 
-_kb_home_only() { echo '[[{"text":"Menu Utama","callback_data":"home"}]]'; }
-_kb_confirm()   { echo "[[{\"text\":\"Konfirmasi\",\"callback_data\":\"${1}_ok\"},{\"text\":\"Batal\",\"callback_data\":\"home\"}]]"; }
+_kb_home_only() { echo '[[{"text":"🏠 Menu Utama","callback_data":"home"}]]'; }
+_kb_confirm()   { echo "[[{\"text\":\"✅ Konfirmasi\",\"callback_data\":\"${1}_ok\"},{\"text\":\"❌ Batal\",\"callback_data\":\"home\"}]]"; }
 
 # ============================================================
 # Teks
@@ -198,22 +198,18 @@ _text_home() {
     for conf in "$SERVER_DIR"/*.conf; do [[ -f "$conf" && "$conf" != *.tg.conf ]] && sc=$((sc+1)); done
     local saldo; saldo=$(_saldo_get "$uid")
     cat <<EOF
-<b>ZV-Manager SSH Tunnel</b>
-
-Server Tersedia  : ${sc}
-User ID          : <code>${uid}</code>
-Saldo Kamu       : Rp${saldo}
-
-<b>Layanan</b>
-- SSH Tunnel (OpenSSH + Dropbear)
-- WebSocket WS / WSS
-- UDP Custom
-- Support Bug Host / SNI
-
-<b>Fitur</b>
-- Full Speed & Low Ping
-- Auto Deploy Akun
-- Masa Aktif Fleksibel
+⚡ <b>ZV-Manager SSH Tunnel</b>
+━━━━━━━━━━━━━━━━━━━
+🖥️ Server   : ${sc} server
+🆔 User ID  : <code>${uid}</code>
+💰 Saldo    : Rp${saldo}
+━━━━━━━━━━━━━━━━━━━
+🔹 SSH Tunnel (OpenSSH + Dropbear)
+🔹 WebSocket WS / WSS
+🔹 UDP Custom
+🔹 Support Bug Host / SNI
+━━━━━━━━━━━━━━━━━━━
+Pilih menu di bawah 👇
 EOF
 }
 
@@ -228,12 +224,12 @@ _text_server_list() {
         local hh hb
         [[ "$TG_HARGA_HARI" == "0" ]] && hh="Hubungi admin" || hh="Rp${TG_HARGA_HARI}"
         [[ "$TG_HARGA_BULAN" == "0" ]] && hb="Hubungi admin" || hb="Rp${TG_HARGA_BULAN}"
-        out+="<b>${TG_SERVER_LABEL}</b>
-Harga / hari    : ${hh}
-Harga / 30 hari : ${hb}
-Quota           : ${TG_QUOTA}
-Limit IP        : ${TG_LIMIT_IP} IP/akun
-Total Akun      : ${count}/${TG_MAX_AKUN}
+        out+="🌐 <b>${TG_SERVER_LABEL}</b>
+💰 Harga/hari  : ${hh}
+📅 Harga/30hr  : ${hb}
+📊 Quota       : ${TG_QUOTA}
+🔢 Limit IP    : ${TG_LIMIT_IP} IP/akun
+👥 Total Akun  : ${count}/${TG_MAX_AKUN}
 
 "
     done < <(_get_server_list)
@@ -252,7 +248,7 @@ _send_akun() {
     local days="${9}" total_harga="${10}"
 
     local header extra=""
-    [[ "$type" == "TRIAL" ]] && header="Akun Trial SSH" || header="Akun SSH Premium"
+    [[ "$type" == "TRIAL" ]] && header="🎁 Akun Trial SSH" || header="⭐ Akun SSH Premium"
 
     if [[ "$type" == "BELI" ]]; then
         extra="
@@ -263,7 +259,7 @@ Total Bayar : Rp${total_harga}"
     local txt
     txt="<b>${header}</b>
 ━━━━━━━━━━━━━━━━━━━
-<b>Informasi Akun</b>
+👤 <b>Informasi Akun</b>
 
 Username : <code>${username}</code>
 Password : <code>${password}</code>
@@ -271,29 +267,27 @@ Host     : <code>${domain}</code>
 Server   : ${server_label}${extra}
 Expired  : ${exp_display}
 ━━━━━━━━━━━━━━━━━━━
-<b>Port</b>
+🔌 <b>Port</b>
 
 OpenSSH  : 22, 500, 40000
 Dropbear : 143, 109
 BadVPN   : 7300
-WS       : 80
-WSS      : 443
+WS       : 80  |  WSS : 443
 UDP      : 1-65535
 ━━━━━━━━━━━━━━━━━━━
-<b>HTTP Custom / NetMod</b>
+🌐 <b>HTTP Custom</b>
 
 WS  → <code>${domain}:80@${username}:${password}</code>
 WSS → <code>${domain}:443@${username}:${password}</code>
 
-<b>UDP Custom</b>
+📡 <b>UDP Custom</b>
 
 Host : <code>${domain}</code>
 Port : 1-65535
 User : <code>${username}</code>
 Pass : <code>${password}</code>
 ━━━━━━━━━━━━━━━━━━━
-Limit : ${limit} perangkat
-Dilarang share akun!"
+⚠️ Limit ${limit} perangkat · Dilarang share akun!"
 
     _send "$chat_id" "$txt" "$(_kb_home_only)"
 }
@@ -547,14 +541,14 @@ Total      : Rp${total}${saldo_info}" "$(_kb_home_only)"
                 fi
             fi
 
-            _send "$chat_id" "Konfirmasi Pesanan
+            _send "$chat_id" "📋 <b>Konfirmasi Pesanan</b>
 ━━━━━━━━━━━━━━━━━━━
-Server     : ${TG_SERVER_LABEL}
-Username   : <code>${username}</code>
-Password   : <code>${password}</code>
-Masa Aktif : ${days} hari
-Harga      : ${hh}
-Total      : Rp${total}${saldo_info}
+🌐 Server     : ${TG_SERVER_LABEL}
+👤 Username   : <code>${username}</code>
+🔑 Password   : <code>${password}</code>
+📅 Masa Aktif : ${days} hari
+💰 Harga      : ${hh}
+💸 Total      : Rp${total}${saldo_info}
 ━━━━━━━━━━━━━━━━━━━
 Lanjutkan?" "$(_kb_confirm "konfirm")"
             ;;
