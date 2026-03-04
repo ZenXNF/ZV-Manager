@@ -7,6 +7,7 @@
 # ============================================================
 
 source /etc/zv-manager/core/telegram.sh
+source /etc/zv-manager/core/bandwidth.sh
 tg_load 2>/dev/null || true
 
 LOG="/var/log/zv-manager/install.log"
@@ -52,6 +53,9 @@ _sweep_local() {
             local server_del; server_del=$(grep "^SERVER=" "$conf_file" | cut -d= -f2 | tr -d "[:space:]")
             # Hapus file notified agar slot bersih
             rm -f "/etc/zv-manager/accounts/notified/${USERNAME}.notified"
+            rm -f "/etc/zv-manager/accounts/notified/${USERNAME}.bw_warn"
+            # Cleanup iptables chain bandwidth
+            _bw_cleanup_user "$USERNAME" 2>/dev/null
             pkill -u "$USERNAME" &>/dev/null
             userdel -r "$USERNAME" &>/dev/null 2>&1
             rm -f "$conf_file"
@@ -121,6 +125,7 @@ _sweep_remote() {
                     [[ -f "$r_conf" ]] && r_tg_uid=$(grep "^TG_USER_ID=" "$r_conf" | cut -d= -f2 | tr -d "[:space:]")
                     [[ -n "$r_tg_uid" ]] && _notify_deleted "$r_tg_uid" "$r_user" "$NAME"
                     rm -f "/etc/zv-manager/accounts/notified/${r_user}.notified"
+                    rm -f "/etc/zv-manager/accounts/notified/${r_user}.bw_warn"
                     _log "REMOTE [$NAME]: Auto-deleted expired user: $r_user (expired: $r_exp)"
                     count=$((count + 1))
                 else
