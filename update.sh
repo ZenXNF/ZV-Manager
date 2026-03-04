@@ -140,6 +140,11 @@ cat > /etc/cron.d/zv-license <<'CRONEOF'
 5 0 * * * root /bin/bash /etc/zv-manager/cron/license-check.sh
 CRONEOF
 
+cat > /etc/cron.d/zv-bandwidth <<'CRONEOF'
+# ZV-Manager - Cek Bandwidth tiap 5 menit
+*/5 * * * * root /bin/bash /etc/zv-manager/cron/bw-check.sh
+CRONEOF
+
 service cron restart &>/dev/null
 print_ok "Cron jobs diterapkan"
 
