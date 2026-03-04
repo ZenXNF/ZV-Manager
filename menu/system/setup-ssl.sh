@@ -67,7 +67,7 @@ _setup_wildcard() {
     local domain
     domain=$(cat /etc/zv-manager/domain 2>/dev/null)
 
-    read -rp "  Domain utama (contoh: zenxu.my.id) [${domain}]: " input_domain
+    read -rp "  Domain utama (contoh: server.zenxnf.com) [${domain}]: " input_domain
     [[ -n "$input_domain" ]] && domain="$input_domain"
 
     if [[ -z "$domain" || "$domain" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
