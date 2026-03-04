@@ -538,9 +538,9 @@ Ketik pesan:" '[[{"text":"❌ Batal","callback_data":"home"}]]'
 
 _do_broadcast() {
     local chat_id="$1" text="$2"
-
     tg_load
 
+    # Kumpulkan UID unik ke file
     local uid_file; uid_file=$(mktemp)
     for conf in "$ACCOUNT_DIR"/*.conf; do
         [[ -f "$conf" ]] || continue
@@ -549,10 +549,8 @@ _do_broadcast() {
         echo "$uid"
     done | sort -u > "$uid_file"
 
-    local total; total=$(grep -c . "$uid_file" 2>/dev/null || echo 0)
-    total=$(echo "$total" | tr -d "[:space:]")
-
-    if [[ "$total" -eq 0 ]]; then
+    local total; total=$(wc -l < "$uid_file" | tr -d "[:space:]")
+    if [[ $total -eq 0 ]]; then
         rm -f "$uid_file"
         _send "$chat_id" "❌ Belum ada user terdaftar."
         return
@@ -561,31 +559,34 @@ _do_broadcast() {
     _send "$chat_id" "⏳ Mengirim ke ${total} user..."
 
     local ok=0 fail=0
-    # Pre-compute JSON text sekali — jangan panggil fungsi di dalam -d curl
-    local json_text
-    json_text=$(python3 -c "import json,sys; print(json.dumps(sys.argv[1]))" "$text" 2>/dev/null)
-    if [[ -z "$json_text" ]]; then
-        _send "$chat_id" "❌ Gagal encode pesan."; rm -f "$uid_file"; return
-    fi
-
     while IFS= read -r uid; do
         [[ -z "$uid" ]] && continue
-        local body="{"chat_id":"${uid}","text":${json_text},"parse_mode":"HTML"}"
-        local res
-        res=$(curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
-            -H "Content-Type: application/json" -d "$body" --max-time 10 2>/dev/null)
-        local err_desc; err_desc=$(echo "$res" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('description','ok'))" 2>/dev/null)
-        if echo "$res" | grep -q '"ok":true'; then
+
+        # Tulis JSON ke temp file — hindari quoting hell di bash
+        local jfile; jfile=$(mktemp)
+        python3 - "$uid" "$text" > "$jfile" << 'PYINLINE'
+import json, sys
+uid, text = sys.argv[1], sys.argv[2]
+print(json.dumps({"chat_id": uid, "text": text, "parse_mode": "HTML"}))
+PYINLINE
+
+        local result
+        result=$(curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage"             -H "Content-Type: application/json"             -d "@${jfile}"             --max-time 10 2>/dev/null)
+        rm -f "$jfile"
+
+        if echo "$result" | grep -q '"ok":true'; then
             ok=$(( ok + 1 ))
+            _log "BROADCAST OK uid=$uid"
         else
+            local err; err=$(echo "$result" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('description','?'))" 2>/dev/null)
             fail=$(( fail + 1 ))
-            _log "BROADCAST FAIL uid=$uid err=${err_desc}"
+            _log "BROADCAST FAIL uid=$uid err=${err}"
         fi
-        sleep 0.05
+        sleep 0.1
     done < "$uid_file"
     rm -f "$uid_file"
 
-    _log "BROADCAST DONE: total=$total ok=$ok fail=$fail"
+    _log "BROADCAST DONE total=$total ok=$ok fail=$fail"
     _send "$chat_id" "📢 <b>Broadcast Selesai</b>
 ━━━━━━━━━━━━━━━━━━━
 ✅ Terkirim : ${ok} user
@@ -593,6 +594,8 @@ _do_broadcast() {
 ━━━━━━━━━━━━━━━━━━━
 <i>Gagal biasanya karena user memblokir bot.</i>"
 }
+
+
 _kb_for_user() {
     local uid="$1"
     if _is_admin "$uid"; then
