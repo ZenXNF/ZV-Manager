@@ -352,17 +352,15 @@ _cb_perpanjang() {
     local chat_id="$1" cb_id="$2" msg_id="$3"
     _answer "$cb_id" ""
 
-    # Kumpulkan akun milik user ini
     local akun_list=()
     for conf in "$ACCOUNT_DIR"/*.conf; do
         [[ -f "$conf" ]] || continue
-        local tg_uid; tg_uid=$(grep "^TG_USER_ID=" "$conf" | cut -d= -f2)
-        local tg_uid_clean; tg_uid_clean=$(echo "$tg_uid" | tr -d "[:space:]")
-        [[ "$tg_uid_clean" != "$chat_id" ]] && continue
+        local tg_uid; tg_uid=$(grep "^TG_USER_ID=" "$conf" | cut -d= -f2 | tr -d "[:space:]")
+        [[ "$tg_uid" != "$chat_id" ]] && continue
         local uname is_trial
-        uname=$(grep "^USERNAME=" "$conf" | cut -d= -f2)
-        is_trial=$(grep "^IS_TRIAL=" "$conf" | cut -d= -f2)
-        [[ "$is_trial" == "1" ]] && continue  # skip trial
+        uname=$(grep    "^USERNAME=" "$conf" | cut -d= -f2 | tr -d "[:space:]")
+        is_trial=$(grep "^IS_TRIAL=" "$conf" | cut -d= -f2 | tr -d "[:space:]")
+        [[ "$is_trial" == "1" ]] && continue
         [[ -n "$uname" ]] && akun_list+=("$uname")
     done
 
@@ -373,27 +371,29 @@ Kamu belum punya akun premium yang bisa diperpanjang." "$(_kb_home_btn)"
         return
     fi
 
-    # Buat keyboard dari list akun — pakai python agar quote aman
-    local kb_json
-    kb_json=$(python3 -c "
-import json, sys
-names = sys.argv[1:]
-rows = []
-for i in range(0, len(names), 2):
-    row = [{'text': names[i], 'callback_data': 'renew_' + names[i]}]
-    if i+1 < len(names):
-        row.append({'text': names[i+1], 'callback_data': 'renew_' + names[i+1]})
-    rows.append(row)
-rows.append([{'text': '\u21a9 Kembali', 'callback_data': 'home'}])
-print(json.dumps(rows))
-" "\${akun_list[@]}")
+    # Build JSON keyboard manual — hindari python3 untuk portabilitas
+    local kb='['
+    local i=0
+    local total=${#akun_list[@]}
+    while [[ $i -lt $total ]]; do
+        local uname1="${akun_list[$i]}"
+        local row="[{\"text\":\"${uname1}\",\"callback_data\":\"renew_${uname1}\"}"
+        if [[ $(( i + 1 )) -lt $total ]]; then
+            local uname2="${akun_list[$(( i + 1 ))]}"
+            row="${row},{\"text\":\"${uname2}\",\"callback_data\":\"renew_${uname2}\"}"
+            i=$(( i + 2 ))
+        else
+            i=$(( i + 1 ))
+        fi
+        row="${row}]"
+        [[ "$kb" == "[" ]] && kb="${kb}${row}" || kb="${kb},${row}"
+    done
+    kb="${kb},[{\"text\":\"\u21a9 Kembali\",\"callback_data\":\"home\"}]]"
 
-    _edit "\$chat_id" "\$msg_id" "🔄 <b>Perpanjang Akun</b>
+    _edit "$chat_id" "$msg_id" "🔄 <b>Perpanjang Akun</b>
 
-Pilih akun yang ingin diperpanjang:" "\$kb_json"
+Pilih akun yang ingin diperpanjang:" "$kb"
 }
-
-# Pilih akun → minta jumlah hari
 _cb_renew_akun() {
     local chat_id="$1" cb_id="$2" msg_id="$3" username="$4"
     _answer "$cb_id" ""
