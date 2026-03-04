@@ -285,7 +285,16 @@ _cb_akun_saya() {
         limit=$(grep    "^LIMIT="      "$conf" | cut -d= -f2)
         is_trial=$(grep "^IS_TRIAL="   "$conf" | cut -d= -f2)
         server=$(grep   "^SERVER="     "$conf" | cut -d= -f2)
-        domain=$(grep   "^DOMAIN="     "$conf" | cut -d= -f2)
+        # Selalu ambil domain terbaru dari server conf
+        local sconf="${SERVER_DIR}/${server}.conf"
+        local srv_domain srv_ip
+        if [[ -f "$sconf" ]]; then
+            srv_domain=$(grep "^DOMAIN=" "$sconf" | cut -d= -f2 | tr -d "[:space:]")
+            srv_ip=$(grep     "^IP="     "$sconf" | cut -d= -f2 | tr -d "[:space:]")
+            domain="${srv_domain:-$srv_ip}"
+        else
+            domain=$(grep "^DOMAIN=" "$conf" | cut -d= -f2)
+        fi
 
         [[ -z "$uname" ]] && continue
 
@@ -482,7 +491,16 @@ _cb_konfirm_renew() {
     local new_exp_display; new_exp_display=$(TZ="Asia/Jakarta" date -d "@${new_exp_ts}" +"%d %b %Y %H:%M WIB")
 
     local local_ip; local_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null)
-    local domain; domain=$(grep "^DOMAIN=" "$conf" | cut -d= -f2)
+    # Ambil domain dari server conf supaya selalu up to date
+    local sconf_r="${SERVER_DIR}/${sname}.conf"
+    local domain
+    if [[ -f "$sconf_r" ]]; then
+        local sd; sd=$(grep "^DOMAIN=" "$sconf_r" | cut -d= -f2 | tr -d "[:space:]")
+        local si; si=$(grep "^IP="     "$sconf_r" | cut -d= -f2 | tr -d "[:space:]")
+        domain="${sd:-$si}"
+    else
+        domain=$(grep "^DOMAIN=" "$conf" | cut -d= -f2)
+    fi
 
     # Update conf lokal
     local tmp; tmp=$(mktemp)
