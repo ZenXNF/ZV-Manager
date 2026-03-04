@@ -1,71 +1,81 @@
 #!/bin/bash
 # ============================================================
 #   ZV-Manager - Telegram Bot
-#   Flow: /start → BUAT AKUN/COBA GRATIS → server → akun
 # ============================================================
 
 source /etc/zv-manager/core/telegram.sh
 
 ACCOUNT_DIR="/etc/zv-manager/accounts/ssh"
 TRIAL_DIR="/etc/zv-manager/accounts/trial"
+SALDO_DIR="/etc/zv-manager/accounts/saldo"
 SERVER_DIR="/etc/zv-manager/servers"
 STATE_DIR="/tmp/zv-tg-state"
 LOG="/var/log/zv-manager/telegram-bot.log"
 OFFSET_FILE="/tmp/zv-tg-offset"
 
-mkdir -p "$TRIAL_DIR" "$STATE_DIR" "$(dirname "$LOG")"
+mkdir -p "$TRIAL_DIR" "$STATE_DIR" "$SALDO_DIR" "$(dirname "$LOG")"
 
 _log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$LOG"; }
 
 # ============================================================
-# State management per user
+# State management
 # ============================================================
 _state_set() {
     local uid="$1" key="$2" val="$3"
     local f="${STATE_DIR}/${uid}"
-    # Hapus baris lama kalau ada
     touch "$f"
     grep -v "^${key}=" "$f" > "${f}.tmp" 2>/dev/null && mv "${f}.tmp" "$f"
     echo "${key}=${val}" >> "$f"
 }
-
 _state_get() {
-    local uid="$1" key="$2"
-    local f="${STATE_DIR}/${uid}"
+    local uid="$1" key="$2" f="${STATE_DIR}/${1}"
     [[ -f "$f" ]] && grep "^${key}=" "$f" | cut -d= -f2- | head -1
 }
+_state_clear() { rm -f "${STATE_DIR}/${1}"; }
 
-_state_clear() {
-    rm -f "${STATE_DIR}/${1}"
+# ============================================================
+# Saldo management
+# ============================================================
+_saldo_get() {
+    local uid="$1" f="${SALDO_DIR}/${uid}.conf"
+    [[ -f "$f" ]] && grep "^SALDO=" "$f" | cut -d= -f2 || echo "0"
 }
-
-_state_exists() {
-    local uid="$1" key="$2"
-    local f="${STATE_DIR}/${uid}"
-    [[ -f "$f" ]] && grep -q "^${key}=" "$f"
+_saldo_set() {
+    local uid="$1" amount="$2"
+    echo "SALDO=${amount}" > "${SALDO_DIR}/${uid}.conf"
+}
+_saldo_deduct() {
+    local uid="$1" amount="$2"
+    local cur; cur=$(_saldo_get "$uid")
+    local new=$(( cur - amount ))
+    [[ $new -lt 0 ]] && return 1
+    _saldo_set "$uid" "$new"
+    return 0
 }
 
 # ============================================================
 # HTTP helpers
 # ============================================================
-_json_str() {
+_jstr() {
     python3 -c "import json,sys; print(json.dumps(sys.argv[1]))" "$1" 2>/dev/null
 }
 
+# Send new message
 _send() {
     local chat_id="$1" text="$2" keyboard="$3"
     local body
-    body="{\"chat_id\":\"${chat_id}\",\"text\":$(_json_str "$text"),\"parse_mode\":\"HTML\""
+    body="{\"chat_id\":\"${chat_id}\",\"text\":$(_jstr "$text"),\"parse_mode\":\"HTML\""
     [[ -n "$keyboard" ]] && body="${body},\"reply_markup\":{\"inline_keyboard\":${keyboard}}"
     body="${body}}"
     curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
         -H "Content-Type: application/json" -d "$body" --max-time 10 &>/dev/null
 }
 
+# Edit existing message
 _edit() {
     local chat_id="$1" msg_id="$2" text="$3" keyboard="$4"
     local body
-    body="{\"chat_id\":\"${chat_id}\",\"message_id\":\"${msg_id}\",\"text\":$(_json_str "$text"),\"parse_mode\":\"HTML\""
+    body="{\"chat_id\":\"${chat_id}\",\"message_id\":\"${msg_id}\",\"text\":$(_jstr "$text"),\"parse_mode\":\"HTML\""
     [[ -n "$keyboard" ]] && body="${body},\"reply_markup\":{\"inline_keyboard\":${keyboard}}"
     body="${body}}"
     curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/editMessageText" \
@@ -84,23 +94,23 @@ _answer() {
 # ============================================================
 _load_tg_conf() {
     local name="$1"
-    TG_SERVER_LABEL="$name"
-    TG_HARGA_HARI="0"
-    TG_HARGA_BULAN="0"
-    TG_QUOTA="Unlimited"
-    TG_LIMIT_IP="2"
-    TG_MAX_AKUN="500"
+    TG_SERVER_LABEL="$name"; TG_HARGA_HARI="0"; TG_HARGA_BULAN="0"
+    TG_QUOTA="Unlimited"; TG_LIMIT_IP="2"; TG_MAX_AKUN="500"
     local f="${SERVER_DIR}/${name}.tg.conf"
     [[ -f "$f" ]] && source "$f"
 }
 
+# Hitung akun NON-trial saja
 _count_accounts() {
     local ip="$1"
-    local local_ip
-    local_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null)
+    local local_ip; local_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null)
     local count=0
     if [[ "$ip" == "$local_ip" ]]; then
-        for f in "$ACCOUNT_DIR"/*.conf; do [[ -f "$f" ]] && count=$((count+1)); done
+        for f in "$ACCOUNT_DIR"/*.conf; do
+            [[ -f "$f" ]] || continue
+            local is_trial; is_trial=$(grep "^IS_TRIAL=" "$f" | cut -d= -f2)
+            [[ "$is_trial" != "1" ]] && count=$((count+1))
+        done
     else
         for conf in "$SERVER_DIR"/*.conf; do
             [[ -f "$conf" && "$conf" != *.tg.conf ]] || continue
@@ -111,6 +121,7 @@ _count_accounts() {
                 -o ConnectTimeout=8 -o BatchMode=no \
                 -p "$PORT" "${USER}@${IP}" "zv-agent list" 2>/dev/null)
             [[ "$raw" == "LIST-EMPTY" || -z "$raw" ]] && break
+            # Remote tidak bisa bedain trial, tampilkan semua
             count=$(echo "$raw" | grep -c '|' || echo 0)
             break
         done
@@ -126,332 +137,263 @@ _get_server_list() {
     done
 }
 
-# Cek apakah username sudah ada di server
-_username_exists() {
-    local ip="$1" uname="$2"
-    local local_ip
-    local_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null)
-    if [[ "$ip" == "$local_ip" ]]; then
-        id "$uname" &>/dev/null && return 0
-    else
-        for conf in "$SERVER_DIR"/*.conf; do
-            [[ -f "$conf" && "$conf" != *.tg.conf ]] || continue
-            unset IP PASS PORT USER; source "$conf"
-            [[ "$IP" != "$ip" ]] && continue
-            local result
-            result=$(sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no \
-                -o ConnectTimeout=8 -o BatchMode=no \
-                -p "$PORT" "${USER}@${IP}" "zv-agent info $uname" 2>/dev/null)
-            [[ "$result" == INFO-OK* ]] && return 0
-            break
-        done
-    fi
-    return 1
+_username_exists_local() {
+    id "$1" &>/dev/null
 }
 
 # ============================================================
-# Keyboards
+# Keyboards (tanpa emoji di tombol)
 # ============================================================
 _kb_home() {
-    echo '[[{"text":"⚡ BUAT AKUN","callback_data":"m_buat"}],[{"text":"🎁 COBA GRATIS","callback_data":"m_trial"}]]'
+    echo '[[{"text":"Buat Akun SSH","callback_data":"m_buat"}],[{"text":"Coba Gratis","callback_data":"m_trial"},{"text":"Cara Pakai","callback_data":"m_howto"}]]'
 }
 
-_kb_buat_proto() {
-    echo '[[{"text":"🔑 CREATE SSH","callback_data":"buat_ssh"},{"text":"❌ CREATE VMESS","callback_data":"proto_na"}],[{"text":"❌ CREATE VLESS","callback_data":"proto_na"},{"text":"❌ CREATE TROJAN","callback_data":"proto_na"}],[{"text":"↩️ Kembali","callback_data":"home"}]]'
-}
-
-_kb_trial_proto() {
-    echo '[[{"text":"🔑 TRIAL SSH","callback_data":"trial_ssh"},{"text":"❌ TRIAL VMESS","callback_data":"proto_na"}],[{"text":"❌ TRIAL VLESS","callback_data":"proto_na"},{"text":"❌ TRIAL TROJAN","callback_data":"proto_na"}],[{"text":"↩️ Kembali","callback_data":"home"}]]'
-}
-
-# List server 2 kolom + pagination
 _kb_server_list() {
-    local prefix="$1" page="${2:-0}"
-    local per_page=6  # 3 baris × 2 kolom
+    local prefix="$1" page="${2:-0}" per_page=6
     local start=$(( page * per_page ))
+    local all=()
+    while IFS= read -r line; do [[ -n "$line" ]] && all+=("$line"); done < <(_get_server_list)
+    local total=${#all[@]}
 
-    local all_servers=()
-    while IFS= read -r line; do
-        [[ -n "$line" ]] && all_servers+=("$line")
-    done < <(_get_server_list)
-
-    local total=${#all_servers[@]}
-    local rows='['
-    local i=$start
-    local count=0
-    local row_buf=""
-
+    local rows='[' count=0 i=$start pair=""
     while [[ $i -lt $total && $count -lt $per_page ]]; do
-        IFS='|' read -r name domain ip <<< "${all_servers[$i]}"
+        IFS='|' read -r name domain ip <<< "${all[$i]}"
         _load_tg_conf "$name"
-        local label="${TG_SERVER_LABEL} 🇮🇩"
-        local btn="{\"text\":\"${label}\",\"callback_data\":\"${prefix}_${name}\"}"
-
+        local btn="{\"text\":\"${TG_SERVER_LABEL}\",\"callback_data\":\"${prefix}_${name}\"}"
         if [[ $((count % 2)) -eq 0 ]]; then
-            # Baris baru
-            [[ $count -gt 0 ]] && rows="${rows},[${row_buf}]"
-            [[ $count -eq 0 ]] && rows="${rows}[${btn}"
-            [[ $count -gt 0 ]] && row_buf="$btn"
+            pair="$btn"
         else
-            if [[ $count -eq 1 && -z "$row_buf" ]]; then
-                rows="${rows},${btn}]"
-                row_buf=""
-            else
-                rows="${rows},[${row_buf},${btn}]"
-                row_buf=""
-            fi
+            [[ $count -eq 1 ]] && rows="${rows}[${pair},${btn}]" || rows="${rows},[${pair},${btn}]"
+            pair=""
         fi
-
-        i=$((i+1))
-        count=$((count+1))
+        i=$((i+1)); count=$((count+1))
     done
-
-    # Tutup baris ganjil yang tersisa
-    if [[ $((count % 2)) -eq 1 && $count -gt 0 ]]; then
-        if [[ $count -eq 1 ]]; then
-            rows="${rows}]"
-        else
-            rows="${rows},[${row_buf}]"
-        fi
+    # Sisa baris ganjil
+    if [[ -n "$pair" ]]; then
+        [[ $count -eq 1 ]] && rows="${rows}[${pair}]" || rows="${rows},[${pair}]"
     fi
 
     # Navigasi
-    local have_prev=false have_next=false
-    [[ $page -gt 0 ]] && have_prev=true
-    [[ $((start + per_page)) -lt $total ]] && have_next=true
-
-    if $have_prev || $have_next; then
-        local nav='['
-        if $have_prev; then
-            nav="${nav}{\"text\":\"⬅️ Back\",\"callback_data\":\"${prefix}_page_$((page-1))\"}"
-            $have_next && nav="${nav},"
-        fi
-        $have_next && nav="${nav}{\"text\":\"➡️ Next\",\"callback_data\":\"${prefix}_page_$((page+1))\"}"
-        nav="${nav}]"
-        rows="${rows},${nav}"
+    local nav=""
+    [[ $page -gt 0 ]] && nav="{\"text\":\"Prev\",\"callback_data\":\"${prefix}_pg_$((page-1))\"}"
+    if [[ $((start + per_page)) -lt $total ]]; then
+        local next="{\"text\":\"Next\",\"callback_data\":\"${prefix}_pg_$((page+1))\"}"
+        [[ -n "$nav" ]] && nav="${nav},${next}" || nav="$next"
     fi
+    [[ -n "$nav" ]] && rows="${rows},[${nav}]"
 
-    rows="${rows},[{\"text\":\"↩️ Kembali ke Menu Utama\",\"callback_data\":\"home\"}]]"
+    rows="${rows},[{\"text\":\"Kembali\",\"callback_data\":\"home\"}]]"
     echo "$rows"
 }
 
-_kb_back_home() {
-    echo '[[{"text":"🏠 Menu Utama","callback_data":"home"}]]'
-}
-
-_kb_konfirmasi() {
-    local prefix="$1"
-    echo "[[{\"text\":\"✅ Konfirmasi\",\"callback_data\":\"${prefix}_confirm\"},{\"text\":\"❌ Batal\",\"callback_data\":\"home\"}]]"
-}
+_kb_home_only() { echo '[[{"text":"Menu Utama","callback_data":"home"}]]'; }
+_kb_confirm()   { echo "[[{\"text\":\"Konfirmasi\",\"callback_data\":\"${1}_ok\"},{\"text\":\"Batal\",\"callback_data\":\"home\"}]]"; }
 
 # ============================================================
-# Teks menu utama
+# Teks
 # ============================================================
 _text_home() {
-    local first_name="$1" user_id="$2"
-    local server_count=0
-    for conf in "$SERVER_DIR"/*.conf; do
-        [[ -f "$conf" && "$conf" != *.tg.conf ]] && server_count=$((server_count+1))
-    done
-
+    local fname="$1" uid="$2"
+    local sc=0
+    for conf in "$SERVER_DIR"/*.conf; do [[ -f "$conf" && "$conf" != *.tg.conf ]] && sc=$((sc+1)); done
+    local saldo; saldo=$(_saldo_get "$uid")
     cat <<EOF
-⚡ VPN PREMIUM SERVICE ⚡
-〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓
+<b>ZV-Manager SSH Tunnel</b>
 
-📊 STATUS SYSTEM
-━━━━━━━━━━━━━━━━━━━
-🖥️  Server Tersedia  : ${server_count}
-🆔  User ID          : ${user_id}
-👤  Halo, ${first_name}!
-━━━━━━━━━━━━━━━━━━━
+Server Tersedia  : ${sc}
+User ID          : <code>${uid}</code>
+Saldo Kamu       : Rp${saldo}
 
-⚙️ LAYANAN TERSEDIA
-━━━━━━━━━━━━━━━━━━━
-🔹 SSH Tunnel (OpenSSH + Dropbear)
-🔹 WebSocket WS / WSS
-🔹 UDP Custom
-🔹 Support Bug Host / SNI
-🔹 Support Wildcard Host
+<b>Layanan</b>
+- SSH Tunnel (OpenSSH + Dropbear)
+- WebSocket WS / WSS
+- UDP Custom
+- Support Bug Host / SNI
 
-💎 FITUR PREMIUM
-━━━━━━━━━━━━━━━━━━━
-⚡ Full Speed & Low Ping
-📡 Support Bug Host / SNI
-📆 Masa Aktif Fleksibel
-🤖 Auto Deploy Akun 24 Jam
-━━━━━━━━━━━━━━━━━━━
+<b>Fitur</b>
+- Full Speed & Low Ping
+- Auto Deploy Akun
+- Masa Aktif Fleksibel
 EOF
 }
 
-# Teks daftar server + info
 _text_server_list() {
-    local proto_label="$1"
-    local out="🌐 <b>SERVER ${proto_label}</b>\n\n"
-
+    local title="$1" out="<b>${title}</b>\n\n"
     local found=false
     while IFS='|' read -r name domain ip; do
         [[ -z "$name" ]] && continue
         found=true
         _load_tg_conf "$name"
-        local count
-        count=$(_count_accounts "$ip")
-        local harga_hari harga_bulan
-        if [[ "$TG_HARGA_HARI" == "0" ]]; then
-            harga_hari="Hubungi admin"
-            harga_bulan="Hubungi admin"
-        else
-            harga_hari="Rp${TG_HARGA_HARI}"
-            harga_bulan="Rp${TG_HARGA_BULAN}"
-        fi
-        out+="🌐 <b>${TG_SERVER_LABEL}</b> 🇮🇩
-💰 Harga per hari: ${harga_hari}
-📅 Harga per 30 hari: ${harga_bulan}
-📊 Quota: ${TG_QUOTA}
-🔢 Limit IP: ${TG_LIMIT_IP} IP
-👥 Role: Member
-👥 Total Create Akun: ${count}/${TG_MAX_AKUN}
+        local count; count=$(_count_accounts "$ip")
+        local hh hb
+        [[ "$TG_HARGA_HARI" == "0" ]] && hh="Hubungi admin" || hh="Rp${TG_HARGA_HARI}"
+        [[ "$TG_HARGA_BULAN" == "0" ]] && hb="Hubungi admin" || hb="Rp${TG_HARGA_BULAN}"
+        out+="<b>${TG_SERVER_LABEL}</b>
+Harga / hari    : ${hh}
+Harga / 30 hari : ${hb}
+Quota           : ${TG_QUOTA}
+Limit IP        : ${TG_LIMIT_IP} IP/akun
+Total Akun      : ${count}/${TG_MAX_AKUN}
 
 "
     done < <(_get_server_list)
-
-    $found || out+="❌ Belum ada server yang tersedia.\n\n"
-    out+="Pilih server di bawah 👇"
+    $found || out+="Belum ada server yang tersedia.\n\n"
+    out+="Pilih server:"
     echo -e "$out"
 }
 
 # ============================================================
-# Handlers
+# Kirim info akun (chat baru, bukan edit)
+# ============================================================
+_send_akun() {
+    local chat_id="$1" type="$2"
+    local username="$3" password="$4" domain="$5"
+    local exp_display="$6" limit="$7" server_label="$8"
+    local days="${9}" total_harga="${10}"
+
+    local header extra=""
+    [[ "$type" == "TRIAL" ]] && header="Akun Trial SSH" || header="Akun SSH Premium"
+
+    if [[ "$type" == "BELI" ]]; then
+        extra="
+Masa Aktif : ${days} hari
+Total Bayar : Rp${total_harga}"
+    fi
+
+    local txt
+    txt="<b>${header}</b>
+━━━━━━━━━━━━━━━━━━━
+<b>Informasi Akun</b>
+
+Username : <code>${username}</code>
+Password : <code>${password}</code>
+Host     : <code>${domain}</code>
+Server   : ${server_label}${extra}
+Expired  : ${exp_display}
+━━━━━━━━━━━━━━━━━━━
+<b>Port</b>
+
+OpenSSH  : 22, 500, 40000
+Dropbear : 143, 109
+BadVPN   : 7300
+WS       : 80
+WSS      : 443
+UDP      : 1-65535
+━━━━━━━━━━━━━━━━━━━
+<b>HTTP Custom / NetMod</b>
+
+WS  → <code>${domain}:80@${username}:${password}</code>
+WSS → <code>${domain}:443@${username}:${password}</code>
+
+<b>UDP Custom</b>
+
+Host : <code>${domain}</code>
+Port : 1-65535
+User : <code>${username}</code>
+Pass : <code>${password}</code>
+━━━━━━━━━━━━━━━━━━━
+Limit : ${limit} perangkat
+Dilarang share akun!"
+
+    _send "$chat_id" "$txt" "$(_kb_home_only)"
+}
+
+# ============================================================
+# /start
 # ============================================================
 _handle_start() {
-    local chat_id="$1" first_name="$2"
+    local chat_id="$1" fname="$2"
     _state_clear "$chat_id"
-    _send "$chat_id" "$(_text_home "$first_name" "$chat_id")" "$(_kb_home)"
+    _send "$chat_id" "$(_text_home "$fname" "$chat_id")" "$(_kb_home)"
 }
 
+# ============================================================
+# Callback handlers
+# ============================================================
 _cb_home() {
-    local chat_id="$1" cb_id="$2" msg_id="$3" first_name="$4"
+    local chat_id="$1" cb_id="$2" msg_id="$3" fname="$4"
     _answer "$cb_id" ""
     _state_clear "$chat_id"
-    _edit "$chat_id" "$msg_id" "$(_text_home "$first_name" "$chat_id")" "$(_kb_home)"
+    _edit "$chat_id" "$msg_id" "$(_text_home "$fname" "$chat_id")" "$(_kb_home)"
 }
 
-_cb_menu_buat() {
-    local chat_id="$1" cb_id="$2" msg_id="$3"
-    _answer "$cb_id" ""
-    _edit "$chat_id" "$msg_id" "⚡ <b>BUAT AKUN</b>
-
-Pilih protokol yang ingin kamu buat 👇" "$(_kb_buat_proto)"
-}
-
-_cb_menu_trial() {
-    local chat_id="$1" cb_id="$2" msg_id="$3"
-    _answer "$cb_id" ""
-    _edit "$chat_id" "$msg_id" "🎁 <b>COBA GRATIS</b>
-
-Pilih protokol yang ingin kamu coba 👇" "$(_kb_trial_proto)"
-}
-
-_cb_proto_na() {
-    local cb_id="$1"
-    _answer "$cb_id" "⚠️ Protokol ini belum tersedia"
-}
-
-# ── Buat SSH: tampil list server ──
-_cb_buat_ssh() {
+# Buat Akun → list server
+_cb_buat() {
     local chat_id="$1" cb_id="$2" msg_id="$3" page="${4:-0}"
     _answer "$cb_id" ""
-    local servers; servers=$(_get_server_list)
-    if [[ -z "$servers" ]]; then
-        _edit "$chat_id" "$msg_id" "❌ Belum ada server yang tersedia." "$(_kb_back_home)"
+    if [[ -z "$(_get_server_list)" ]]; then
+        _edit "$chat_id" "$msg_id" "Belum ada server yang tersedia." "$(_kb_home_only)"
         return
     fi
-    _edit "$chat_id" "$msg_id" \
-        "$(_text_server_list "SSH")" \
-        "$(_kb_server_list "dobuat_ssh" "$page")"
+    _edit "$chat_id" "$msg_id" "$(_text_server_list "Buat Akun SSH")" "$(_kb_server_list "s_buat" "$page")"
 }
 
-# ── Pilih server → minta username ──
-_cb_dobuat_ssh_server() {
-    local chat_id="$1" cb_id="$2" msg_id="$3" server_name="$4"
-    _answer "$cb_id" ""
-
-    local conf="${SERVER_DIR}/${server_name}.conf"
-    if [[ ! -f "$conf" ]]; then
-        _edit "$chat_id" "$msg_id" "❌ Server tidak ditemukan." "$(_kb_back_home)"
-        return
-    fi
+# Pilih server buat → SEND pesan baru, bukan edit
+_cb_s_buat() {
+    local chat_id="$1" cb_id="$2" msg_id="$3" sname="$4"
+    local conf="${SERVER_DIR}/${sname}.conf"
+    [[ ! -f "$conf" ]] && { _answer "$cb_id" "Server tidak ditemukan"; return; }
 
     unset NAME IP DOMAIN; source "$conf"
-    _load_tg_conf "$server_name"
+    _load_tg_conf "$sname"
 
     local count; count=$(_count_accounts "$IP")
     if [[ "$count" -ge "$TG_MAX_AKUN" ]]; then
-        _edit "$chat_id" "$msg_id" "❌ <b>Server Penuh</b>
-
-Server <b>${TG_SERVER_LABEL}</b> sudah penuh (${TG_MAX_AKUN} akun).
-Silakan pilih server lain." "$(_kb_back_home)"
+        _answer "$cb_id" "Server penuh!"
         return
     fi
 
-    # Simpan state
-    _state_set "$chat_id" "STATE" "await_username"
-    _state_set "$chat_id" "SERVER" "$server_name"
-    _state_set "$chat_id" "TYPE" "buat"
+    _answer "$cb_id" ""
+    _state_clear "$chat_id"
+    _state_set "$chat_id" "STATE" "await_user"
+    _state_set "$chat_id" "SERVER" "$sname"
+    _state_set "$chat_id" "TYPE" "beli"
 
-    _edit "$chat_id" "$msg_id" "🔑 <b>Buat Akun SSH</b>
-Server: <b>${TG_SERVER_LABEL}</b>
+    # Send pesan baru — server list tetap di atas
+    _send "$chat_id" "Server : <b>${TG_SERVER_LABEL}</b>
 
-━━━━━━━━━━━━━━━━━━━
-Ketik username yang kamu inginkan 👇
-<i>(Hanya huruf kecil, angka, minimal 3 karakter)</i>" "$(_kb_back_home)"
-
-    _send "$chat_id" "👤 Masukkan username:"
+Ketik username yang kamu inginkan.
+Hanya huruf kecil dan angka, minimal 3 karakter." "$(_kb_home_only)"
 }
 
-# ── Trial SSH: tampil list server ──
-_cb_trial_ssh() {
+# Trial → list server
+_cb_trial() {
     local chat_id="$1" cb_id="$2" msg_id="$3" page="${4:-0}"
     _answer "$cb_id" ""
-    local servers; servers=$(_get_server_list)
-    if [[ -z "$servers" ]]; then
-        _edit "$chat_id" "$msg_id" "❌ Belum ada server yang tersedia." "$(_kb_back_home)"
+    if [[ -z "$(_get_server_list)" ]]; then
+        _edit "$chat_id" "$msg_id" "Belum ada server yang tersedia." "$(_kb_home_only)"
         return
     fi
-    _edit "$chat_id" "$msg_id" \
-        "$(_text_server_list "SSH TRIAL")" \
-        "$(_kb_server_list "dotrial_ssh" "$page")"
+    _edit "$chat_id" "$msg_id" "$(_text_server_list "Trial SSH Gratis")" "$(_kb_server_list "s_trial" "$page")"
 }
 
-# ── Pilih server trial → langsung buat ──
-_already_trial_today() {
-    local uid="$1"
-    local f="${TRIAL_DIR}/${uid}.used"
+# Pilih server trial → langsung buat, kirim pesan baru
+_already_trial() {
+    local uid="$1" f="${TRIAL_DIR}/${uid}.used"
     [[ -f "$f" ]] && [[ "$(cat "$f")" == "$(date +"%Y-%m-%d")" ]]
 }
 
-_cb_dotrial_ssh_server() {
-    local chat_id="$1" cb_id="$2" msg_id="$3" server_name="$4"
-    _answer "$cb_id" "⏳ Membuat akun trial..."
+_cb_s_trial() {
+    local chat_id="$1" cb_id="$2" msg_id="$3" sname="$4"
+    _answer "$cb_id" ""
 
-    if _already_trial_today "$chat_id"; then
-        _edit "$chat_id" "$msg_id" "❌ <b>Sudah Trial Hari Ini</b>
-
-Trial hanya bisa digunakan <b>1x per hari</b>.
-Coba lagi besok! 😊" "$(_kb_back_home)"
+    if _already_trial "$chat_id"; then
+        _send "$chat_id" "Kamu sudah menggunakan trial hari ini.
+Trial hanya bisa 1x per hari. Coba lagi besok!" "$(_kb_home_only)"
         return
     fi
 
-    local conf="${SERVER_DIR}/${server_name}.conf"
-    [[ ! -f "$conf" ]] && { _edit "$chat_id" "$msg_id" "❌ Server tidak ditemukan." "$(_kb_back_home)"; return; }
+    local conf="${SERVER_DIR}/${sname}.conf"
+    [[ ! -f "$conf" ]] && { _send "$chat_id" "Server tidak ditemukan." "$(_kb_home_only)"; return; }
 
     unset NAME IP DOMAIN PORT USER PASS; source "$conf"
-    _load_tg_conf "$server_name"
+    _load_tg_conf "$sname"
     local domain="${DOMAIN:-$IP}"
     local local_ip; local_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null)
 
     local count; count=$(_count_accounts "$IP")
     if [[ "$count" -ge "$TG_MAX_AKUN" ]]; then
-        _edit "$chat_id" "$msg_id" "❌ Server penuh. Pilih server lain." "$(_kb_back_home)"
+        _send "$chat_id" "Server <b>${TG_SERVER_LABEL}</b> sedang penuh. Coba server lain." "$(_kb_home_only)"
         return
     fi
 
@@ -460,7 +402,7 @@ Coba lagi besok! 😊" "$(_kb_back_home)"
     local password; password=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 8)
     local now_ts exp_ts exp_display exp_date
     now_ts=$(date +%s); exp_ts=$(( now_ts + 1800 ))
-    exp_display=$(TZ="Asia/Jakarta" date -d "@${exp_ts}" +"%H:%M WIB")
+    exp_display=$(TZ="Asia/Jakarta" date -d "@${exp_ts}" +"%d %b %Y %H:%M WIB")
     exp_date=$(date -d "@${exp_ts}" +"%Y-%m-%d")
 
     if [[ "$IP" == "$local_ip" ]]; then
@@ -476,6 +418,7 @@ EXPIRED_TS=$exp_ts
 CREATED=$(date +"%Y-%m-%d")
 IS_TRIAL=1
 TG_USER_ID=$chat_id
+SERVER=$sname
 EOF
     else
         local result
@@ -483,181 +426,183 @@ EOF
             -o ConnectTimeout=10 -o BatchMode=no \
             -p "$PORT" "${USER}@${IP}" \
             "zv-agent add $username $password $TG_LIMIT_IP 1" 2>/dev/null)
-        [[ "$result" != ADD-OK* ]] && {
-            _edit "$chat_id" "$msg_id" "❌ Gagal membuat akun. Coba lagi nanti." "$(_kb_back_home)"
+        if [[ "$result" != ADD-OK* ]]; then
+            _send "$chat_id" "Gagal membuat akun. Coba lagi nanti." "$(_kb_home_only)"
             return
-        }
+        fi
     fi
 
     date +"%Y-%m-%d" > "${TRIAL_DIR}/${chat_id}.used"
-    _log "TRIAL: $chat_id server=$server_name user=$username"
-    _send_akun_info "$chat_id" "$msg_id" "TRIAL" "$username" "$password" "$domain" "$exp_display" "${TG_LIMIT_IP}" "${TG_SERVER_LABEL}" "0" "0"
+    _log "TRIAL: $chat_id server=$sname user=$username"
+    _send_akun "$chat_id" "TRIAL" "$username" "$password" "$domain" \
+        "$exp_display" "${TG_LIMIT_IP}" "${TG_SERVER_LABEL}" "" ""
 }
 
-# ── Kirim info akun (buat & trial) ──
-_send_akun_info() {
-    local chat_id="$1" msg_id="$2" type="$3"
-    local username="$4" password="$5" domain="$6"
-    local expired_display="$7" limit="$8" server_label="$9"
-    local days="${10}" total_harga="${11}"
+# Cara pakai
+_cb_howto() {
+    local chat_id="$1" cb_id="$2" msg_id="$3"
+    local domain; domain=$(cat /etc/zv-manager/domain 2>/dev/null || echo "host")
+    _answer "$cb_id" ""
+    _edit "$chat_id" "$msg_id" "<b>Cara Pakai</b>
+━━━━━━━━━━━━━━━━━━━
+<b>HTTP Custom / NetMod</b>
 
-    local header
-    [[ "$type" == "TRIAL" ]] && header="🌟 TRIAL SSH PREMIUM 🌟" || header="🌟 AKUN SSH PREMIUM 🌟"
+WS  → <code>host:80@user:pass</code>
+WSS → <code>host:443@user:pass</code>
 
-    local extra=""
-    if [[ "$type" == "BUAT" ]]; then
-        extra="
-⏳ Masa Aktif  : ${days} hari
-💰 Total Harga : Rp${total_harga}"
-    fi
+<b>Payload WS</b>
+<code>GET / HTTP/1.1[crlf]Host: ${domain}[crlf]Upgrade: websocket[crlf][crlf]</code>
 
-    _edit "$chat_id" "$msg_id" "${header}
+<b>Payload CONNECT (WSS)</b>
+<code>CONNECT ${domain}:443 HTTP/1.0[crlf][crlf]</code>
 
-💠 <b>Informasi Akun</b>
-━━━━━━━━━━━━━━━━━━━
-Username : <code>${username}</code>
-Password : <code>${password}</code>
-Host     : <code>${domain}</code>
-Server   : ${server_label}${extra}
-━━━━━━━━━━━━━━━━━━━
-💠 <b>Port Configuration</b>
-━━━━━━━━━━━━━━━━━━━
-OpenSSH  : 22, 500, 40000
-Dropbear : 143, 109
-BadVPN   : 7300
-SSH WS   : 80
-SSH WSS  : 443
-━━━━━━━━━━━━━━━━━━━
-🔗 <b>Format HTTP Custom</b>
-━━━━━━━━━━━━━━━━━━━
-Port 80  : <code>${domain}:80@${username}:${password}</code>
-Port 443 : <code>${domain}:443@${username}:${password}</code>
-━━━━━━━━━━━━━━━━━━━
-⌛ Expired  : ${expired_display}
-🔢 Limit    : ${limit} perangkat
-⚠️ Dilarang share akun!" "$(_kb_back_home)"
+<b>UDP Custom</b>
+Host : server kamu
+Port : 1-65535
+━━━━━━━━━━━━━━━━━━━" "$(_kb_home_only)"
 }
 
 # ============================================================
-# Handler teks (multi-step input buat akun)
+# Multi-step input: buat akun
 # ============================================================
-_handle_text_input() {
+_handle_input() {
     local chat_id="$1" text="$2"
-
     local state; state=$(_state_get "$chat_id" "STATE")
-    [[ -z "$state" ]] && return 1  # bukan dalam proses input
+    [[ -z "$state" ]] && return 1
 
     case "$state" in
-        await_username)
-            # Validasi username
-            if [[ ! "$text" =~ ^[a-z0-9]{3,20}$ ]]; then
-                _send "$chat_id" "❌ Username tidak valid!
-Hanya huruf kecil & angka, 3-20 karakter.
+        await_user)
+            # Validasi: huruf kecil & angka saja, 3-20 karakter
+            if ! echo "$text" | grep -qE '^[a-z0-9]{3,20}$'; then
+                _send "$chat_id" "Username tidak valid. Gunakan huruf kecil dan angka, 3-20 karakter.
 
-👤 Masukkan username:"
+Ketik username:"
                 return 0
             fi
+            local sname; sname=$(_state_get "$chat_id" "SERVER")
+            # Cek duplikat lokal
+            if _username_exists_local "$text"; then
+                _send "$chat_id" "Username <b>${text}</b> sudah digunakan. Pilih username lain.
 
-            local server_name; server_name=$(_state_get "$chat_id" "SERVER")
-            local server_ip=""
-            for conf in "$SERVER_DIR"/*.conf; do
-                [[ -f "$conf" && "$conf" != *.tg.conf ]] || continue
-                unset NAME IP; source "$conf"
-                [[ "$NAME" == "$server_name" ]] && { server_ip="$IP"; break; }
-            done
-
-            if _username_exists "$server_ip" "$text"; then
-                _send "$chat_id" "❌ Username <b>${text}</b> sudah digunakan!
-Pilih username lain.
-
-👤 Masukkan username:"
+Ketik username:"
                 return 0
             fi
-
             _state_set "$chat_id" "USERNAME" "$text"
-            _state_set "$chat_id" "STATE" "await_password"
-            _send "$chat_id" "🔑 Masukkan password:"
+            _state_set "$chat_id" "STATE" "await_pass"
+            _send "$chat_id" "Ketik password (minimal 4 karakter):"
             ;;
 
-        await_password)
+        await_pass)
             if [[ ${#text} -lt 4 ]]; then
-                _send "$chat_id" "❌ Password minimal 4 karakter!
+                _send "$chat_id" "Password minimal 4 karakter.
 
-🔑 Masukkan password:"
+Ketik password:"
                 return 0
             fi
             _state_set "$chat_id" "PASSWORD" "$text"
             _state_set "$chat_id" "STATE" "await_days"
-            _send "$chat_id" "⏳ Masukkan masa aktif (hari):
-<i>Contoh: 1, 7, 30</i>"
+            _send "$chat_id" "Berapa hari masa aktif? (1-365)"
             ;;
 
         await_days)
-            if [[ ! "$text" =~ ^[0-9]+$ ]] || [[ "$text" -lt 1 ]] || [[ "$text" -gt 365 ]]; then
-                _send "$chat_id" "❌ Masa aktif tidak valid! (1-365 hari)
+            if ! echo "$text" | grep -qE '^[0-9]+$' || [[ "$text" -lt 1 || "$text" -gt 365 ]]; then
+                _send "$chat_id" "Masukkan angka antara 1 sampai 365.
 
-⏳ Masukkan masa aktif (hari):"
+Berapa hari masa aktif?"
                 return 0
             fi
-
-            local server_name; server_name=$(_state_get "$chat_id" "SERVER")
+            local sname; sname=$(_state_get "$chat_id" "SERVER")
             local username; username=$(_state_get "$chat_id" "USERNAME")
             local password; password=$(_state_get "$chat_id" "PASSWORD")
             local days="$text"
 
-            _load_tg_conf "$server_name"
-
-            local total_harga=$(( TG_HARGA_HARI * days ))
+            _load_tg_conf "$sname"
+            local total=$(( TG_HARGA_HARI * days ))
+            local saldo; saldo=$(_saldo_get "$chat_id")
 
             _state_set "$chat_id" "DAYS" "$days"
             _state_set "$chat_id" "STATE" "await_confirm"
 
-            local harga_display
-            [[ "$TG_HARGA_HARI" == "0" ]] && harga_display="Gratis" || harga_display="Rp${TG_HARGA_HARI}/hari"
+            local hh; [[ "$TG_HARGA_HARI" == "0" ]] && hh="Gratis" || hh="Rp${TG_HARGA_HARI}/hari"
 
-            _send "$chat_id" "📋 <b>Konfirmasi Pesanan</b>
+            local saldo_info=""
+            if [[ "$TG_HARGA_HARI" != "0" ]]; then
+                saldo_info="
+Saldo kamu    : Rp${saldo}"
+                if [[ "$saldo" -lt "$total" ]]; then
+                    saldo_info+="
+Kekurangan    : Rp$(( total - saldo ))
+
+Saldo tidak cukup! Hubungi admin untuk top up."
+                    _send "$chat_id" "Konfirmasi Pesanan
 ━━━━━━━━━━━━━━━━━━━
-🌐 Server    : ${TG_SERVER_LABEL}
-👤 Username  : <code>${username}</code>
-🔑 Password  : <code>${password}</code>
-📅 Masa Aktif: ${days} hari
-💰 Harga     : ${harga_display}
-💸 Total     : Rp${total_harga}
+Server     : ${TG_SERVER_LABEL}
+Username   : <code>${username}</code>
+Password   : <code>${password}</code>
+Masa Aktif : ${days} hari
+Harga      : ${hh}
+Total      : Rp${total}${saldo_info}" "$(_kb_home_only)"
+                    _state_clear "$chat_id"
+                    return 0
+                fi
+            fi
+
+            _send "$chat_id" "Konfirmasi Pesanan
 ━━━━━━━━━━━━━━━━━━━
-Lanjutkan pembelian?" "$(_kb_konfirmasi "konfirm_buat_ssh")"
+Server     : ${TG_SERVER_LABEL}
+Username   : <code>${username}</code>
+Password   : <code>${password}</code>
+Masa Aktif : ${days} hari
+Harga      : ${hh}
+Total      : Rp${total}${saldo_info}
+━━━━━━━━━━━━━━━━━━━
+Lanjutkan?" "$(_kb_confirm "konfirm")"
             ;;
     esac
     return 0
 }
 
-# ── Konfirmasi buat akun ──
-_cb_konfirm_buat_ssh() {
+# Konfirmasi buat akun
+_cb_konfirm() {
     local chat_id="$1" cb_id="$2" msg_id="$3"
-
     local state; state=$(_state_get "$chat_id" "STATE")
+
     if [[ "$state" != "await_confirm" ]]; then
-        _answer "$cb_id" "⚠️ Sesi sudah expired, mulai ulang"
-        _edit "$chat_id" "$msg_id" "⚠️ Sesi habis. Silakan mulai ulang." "$(_kb_back_home)"
+        _answer "$cb_id" "Sesi habis, mulai ulang"
         _state_clear "$chat_id"
         return
     fi
 
-    _answer "$cb_id" "⏳ Membuat akun..."
+    _answer "$cb_id" "Membuat akun..."
 
-    local server_name; server_name=$(_state_get "$chat_id" "SERVER")
+    local sname; sname=$(_state_get "$chat_id" "SERVER")
     local username; username=$(_state_get "$chat_id" "USERNAME")
     local password; password=$(_state_get "$chat_id" "PASSWORD")
     local days; days=$(_state_get "$chat_id" "DAYS")
 
-    local conf="${SERVER_DIR}/${server_name}.conf"
+    local conf="${SERVER_DIR}/${sname}.conf"
     unset NAME IP DOMAIN PORT USER PASS; source "$conf"
-    _load_tg_conf "$server_name"
+    _load_tg_conf "$sname"
 
     local domain="${DOMAIN:-$IP}"
     local local_ip; local_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null)
-    local exp_date; exp_date=$(date -d "+${days} days" +"%Y-%m-%d")
-    local exp_display="${exp_date}"
-    local total_harga=$(( TG_HARGA_HARI * days ))
+
+    # Expired berbasis jam beli (timestamp)
+    local now_ts exp_ts exp_display exp_date
+    now_ts=$(date +%s)
+    exp_ts=$(( now_ts + days * 86400 ))
+    exp_display=$(TZ="Asia/Jakarta" date -d "@${exp_ts}" +"%d %b %Y %H:%M WIB")
+    exp_date=$(date -d "@${exp_ts}" +"%Y-%m-%d")
+    local total=$(( TG_HARGA_HARI * days ))
+
+    # Potong saldo
+    if [[ "$TG_HARGA_HARI" != "0" && "$total" -gt 0 ]]; then
+        if ! _saldo_deduct "$chat_id" "$total"; then
+            _edit "$chat_id" "$msg_id" "Saldo tidak cukup. Hubungi admin untuk top up." "$(_kb_home_only)"
+            _state_clear "$chat_id"
+            return
+        fi
+    fi
 
     if [[ "$IP" == "$local_ip" ]]; then
         useradd -e "$exp_date" -s /bin/false -M "$username" &>/dev/null
@@ -668,9 +613,12 @@ USERNAME=$username
 PASSWORD=$password
 LIMIT=${TG_LIMIT_IP}
 EXPIRED=$exp_date
+EXPIRED_TS=$exp_ts
 CREATED=$(date +"%Y-%m-%d")
 IS_TRIAL=0
 TG_USER_ID=$chat_id
+SERVER=$sname
+DOMAIN=$domain
 EOF
     else
         local result
@@ -679,83 +627,115 @@ EOF
             -p "$PORT" "${USER}@${IP}" \
             "zv-agent add $username $password $TG_LIMIT_IP $days" 2>/dev/null)
         if [[ "$result" != ADD-OK* ]]; then
-            _edit "$chat_id" "$msg_id" "❌ Gagal membuat akun. Coba lagi nanti." "$(_kb_back_home)"
+            # Kembalikan saldo kalau gagal
+            [[ "$total" -gt 0 ]] && _saldo_set "$chat_id" "$(( $(_saldo_get "$chat_id") + total ))"
+            _edit "$chat_id" "$msg_id" "Gagal membuat akun. Saldo dikembalikan. Coba lagi nanti." "$(_kb_home_only)"
             _state_clear "$chat_id"
             return
         fi
     fi
 
     _state_clear "$chat_id"
-    _log "BUAT: $chat_id server=$server_name user=$username days=$days"
-    _send_akun_info "$chat_id" "$msg_id" "BUAT" "$username" "$password" "$domain" \
-        "$exp_display" "${TG_LIMIT_IP}" "${TG_SERVER_LABEL}" "$days" "$total_harga"
+    _log "BELI: $chat_id server=$sname user=$username days=$days total=$total"
+    _send_akun "$chat_id" "BELI" "$username" "$password" "$domain" \
+        "$exp_display" "${TG_LIMIT_IP}" "${TG_SERVER_LABEL}" "$days" "$total"
 }
 
 # ============================================================
-# Process update
+# Parse update dengan python3 (aman untuk karakter khusus)
 # ============================================================
 _process_update() {
     local raw="$1"
     local parsed
-    parsed=$(python3 -c "
+    parsed=$(python3 << PYEOF 2>/dev/null
+import sys, json
+
+try:
+    raw = '''${raw//\'/\'\\\'\'}'''
+    u = json.loads(sys.argv[1] if len(sys.argv) > 1 else raw)
+    if 'message' in u:
+        m = u['message']
+        print('MSG')
+        print(str(m['chat']['id']))
+        print(m['from'].get('first_name','User'))
+        print(m.get('text',''))
+    elif 'callback_query' in u:
+        cq = u['callback_query']
+        print('CB')
+        print(str(cq['id']))
+        print(str(cq['message']['chat']['id']))
+        print(str(cq['message']['message_id']))
+        print(cq['from'].get('first_name','User'))
+        print(cq.get('data',''))
+except: pass
+PYEOF
+)
+    # Parse lebih aman: gunakan file temp
+    local tmpf; tmpf=$(mktemp)
+    python3 -c "
 import sys, json
 try:
     u = json.loads(sys.argv[1])
     if 'message' in u:
         m = u['message']
-        print('MSG|'+str(m['chat']['id'])+'|'+m['from'].get('first_name','User')+'|'+m.get('text',''))
+        lines = ['MSG', str(m['chat']['id']), m['from'].get('first_name','User'), m.get('text','')]
     elif 'callback_query' in u:
         cq = u['callback_query']
-        print('CB|'+str(cq['id'])+'|'+str(cq['message']['chat']['id'])+'|'+str(cq['message']['message_id'])+'|'+cq['from'].get('first_name','User')+'|'+cq.get('data',''))
+        lines = ['CB', str(cq['id']), str(cq['message']['chat']['id']),
+                 str(cq['message']['message_id']),
+                 cq['from'].get('first_name','User'), cq.get('data','')]
+    else:
+        sys.exit(0)
+    for l in lines:
+        print(l)
 except: pass
-" "$raw" 2>/dev/null)
+" "$raw" > "$tmpf" 2>/dev/null
 
-    [[ -z "$parsed" ]] && return
-    local kind; kind=$(echo "$parsed" | cut -d'|' -f1)
+    local kind; kind=$(sed -n '1p' "$tmpf")
+    [[ -z "$kind" ]] && { rm -f "$tmpf"; return; }
 
     if [[ "$kind" == "MSG" ]]; then
-        local chat_id first_name text
-        IFS='|' read -r _ chat_id first_name text <<< "$parsed"
+        local chat_id fname text
+        chat_id=$(sed -n '2p' "$tmpf")
+        fname=$(sed -n '3p' "$tmpf")
+        text=$(sed -n '4p' "$tmpf")
+        rm -f "$tmpf"
+
         local cmd; cmd=$(echo "$text" | awk '{print $1}' | cut -d'@' -f1 | tr '[:upper:]' '[:lower:]')
-        _log "MSG: $chat_id text=${text:0:30}"
+        _log "MSG $chat_id: ${text:0:40}"
 
         if [[ "$cmd" == "/start" ]]; then
-            _handle_start "$chat_id" "$first_name"
+            _handle_start "$chat_id" "$fname"
         else
-            # Cek apakah sedang dalam proses input
-            _handle_text_input "$chat_id" "$text" || \
-                _send "$chat_id" "Ketuk /start untuk membuka menu 👇"
+            _handle_input "$chat_id" "$text" || \
+                _send "$chat_id" "Ketuk /start untuk membuka menu."
         fi
 
     elif [[ "$kind" == "CB" ]]; then
-        local cb_id chat_id msg_id first_name data
-        IFS='|' read -r _ cb_id chat_id msg_id first_name data <<< "$parsed"
-        _log "CB: $chat_id data=$data"
+        local cb_id chat_id msg_id fname data
+        cb_id=$(sed -n '2p' "$tmpf")
+        chat_id=$(sed -n '3p' "$tmpf")
+        msg_id=$(sed -n '4p' "$tmpf")
+        fname=$(sed -n '5p' "$tmpf")
+        data=$(sed -n '6p' "$tmpf")
+        rm -f "$tmpf"
+
+        _log "CB $chat_id: $data"
 
         case "$data" in
-            home)             _cb_home          "$chat_id" "$cb_id" "$msg_id" "$first_name" ;;
-            m_buat)           _cb_menu_buat     "$chat_id" "$cb_id" "$msg_id" ;;
-            m_trial)          _cb_menu_trial    "$chat_id" "$cb_id" "$msg_id" ;;
-            proto_na)         _cb_proto_na      "$cb_id" ;;
-            buat_ssh)         _cb_buat_ssh      "$chat_id" "$cb_id" "$msg_id" ;;
-            trial_ssh)        _cb_trial_ssh     "$chat_id" "$cb_id" "$msg_id" ;;
-            konfirm_buat_ssh_confirm)
-                              _cb_konfirm_buat_ssh "$chat_id" "$cb_id" "$msg_id" ;;
-            dobuat_ssh_page_*)
-                local page="${data#dobuat_ssh_page_}"
-                _cb_buat_ssh "$chat_id" "$cb_id" "$msg_id" "$page" ;;
-            dobuat_ssh_*)
-                local sname="${data#dobuat_ssh_}"
-                _cb_dobuat_ssh_server "$chat_id" "$cb_id" "$msg_id" "$sname" ;;
-            dotrial_ssh_page_*)
-                local page="${data#dotrial_ssh_page_}"
-                _cb_trial_ssh "$chat_id" "$cb_id" "$msg_id" "$page" ;;
-            dotrial_ssh_*)
-                local sname="${data#dotrial_ssh_}"
-                _cb_dotrial_ssh_server "$chat_id" "$cb_id" "$msg_id" "$sname" ;;
-            *)
-                _answer "$cb_id" "❓" ;;
+            home)         _cb_home   "$chat_id" "$cb_id" "$msg_id" "$fname" ;;
+            m_buat)       _cb_buat   "$chat_id" "$cb_id" "$msg_id" ;;
+            m_trial)      _cb_trial  "$chat_id" "$cb_id" "$msg_id" ;;
+            m_howto)      _cb_howto  "$chat_id" "$cb_id" "$msg_id" ;;
+            konfirm_ok)   _cb_konfirm "$chat_id" "$cb_id" "$msg_id" ;;
+            s_buat_pg_*)  _cb_buat   "$chat_id" "$cb_id" "$msg_id" "${data#s_buat_pg_}" ;;
+            s_trial_pg_*) _cb_trial  "$chat_id" "$cb_id" "$msg_id" "${data#s_trial_pg_}" ;;
+            s_buat_*)     _cb_s_buat  "$chat_id" "$cb_id" "$msg_id" "${data#s_buat_}" ;;
+            s_trial_*)    _cb_s_trial "$chat_id" "$cb_id" "$msg_id" "${data#s_trial_}" ;;
+            *)            _answer "$cb_id" "" ;;
         esac
+    else
+        rm -f "$tmpf"
     fi
 }
 
@@ -765,7 +745,6 @@ except: pass
 main() {
     tg_load || { _log "ERROR: config tidak ditemukan!"; exit 1; }
     _log "=== Bot started ==="
-
     local offset=0
     [[ -f "$OFFSET_FILE" ]] && offset=$(cat "$OFFSET_FILE")
 
@@ -774,7 +753,6 @@ main() {
         response=$(curl -s --max-time 35 \
             "https://api.telegram.org/bot${TG_TOKEN}/getUpdates?offset=${offset}&timeout=30&allowed_updates=%5B%22message%22%2C%22callback_query%22%5D" \
             2>/dev/null)
-
         [[ -z "$response" || "$response" == *'"ok":false'* ]] && { sleep 5; continue; }
 
         while IFS= read -r line; do
