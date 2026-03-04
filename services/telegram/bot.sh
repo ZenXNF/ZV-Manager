@@ -4,6 +4,7 @@
 # ============================================================
 
 source /etc/zv-manager/core/telegram.sh
+source /etc/zv-manager/core/bandwidth.sh
 
 ACCOUNT_DIR="/etc/zv-manager/accounts/ssh"
 TRIAL_DIR="/etc/zv-manager/accounts/trial"
@@ -93,7 +94,7 @@ _answer() {
 # ============================================================
 _load_tg_conf() {
     TG_SERVER_LABEL="$1"; TG_HARGA_HARI="0"; TG_HARGA_BULAN="0"
-    TG_QUOTA="Unlimited"; TG_LIMIT_IP="2"; TG_MAX_AKUN="500"
+    TG_QUOTA="Unlimited"; TG_LIMIT_IP="2"; TG_MAX_AKUN="500"; TG_BW_PER_HARI="5"
     [[ -f "${SERVER_DIR}/${1}.tg.conf" ]] && source "${SERVER_DIR}/${1}.tg.conf"
 }
 
@@ -531,6 +532,197 @@ Akun kamu sudah aktif sampai ${new_exp_display}!"
 }
 
 
+
+# ============================================================
+# Tambah Bandwidth
+# ============================================================
+_cb_tambah_bw() {
+    local chat_id="$1" cb_id="$2" msg_id="$3"
+    _answer "$cb_id" ""
+
+    # Kumpulkan akun premium milik user yang punya BW quota
+    local akun_list=()
+    for conf in "$ACCOUNT_DIR"/*.conf; do
+        [[ -f "$conf" ]] || continue
+        local tg_uid; tg_uid=$(grep "^TG_USER_ID=" "$conf" | cut -d= -f2 | tr -d "[:space:]")
+        [[ "$tg_uid" != "$chat_id" ]] && continue
+        local is_trial; is_trial=$(grep "^IS_TRIAL=" "$conf" | cut -d= -f2 | tr -d "[:space:]")
+        [[ "$is_trial" == "1" ]] && continue
+        local bw_quota; bw_quota=$(grep "^BW_QUOTA_BYTES=" "$conf" | cut -d= -f2 | tr -d "[:space:]")
+        [[ -z "$bw_quota" || "$bw_quota" -eq 0 ]] && continue
+        local uname; uname=$(grep "^USERNAME=" "$conf" | cut -d= -f2 | tr -d "[:space:]")
+        [[ -n "$uname" ]] && akun_list+=("$uname")
+    done
+
+    if [[ ${#akun_list[@]} -eq 0 ]]; then
+        _edit "$chat_id" "$msg_id" "📶 <b>Tambah Bandwidth</b>
+
+Tidak ada akun yang mendukung fitur bandwidth." "$(_kb_home_btn)"
+        return
+    fi
+
+    local kb='[' i=0 total=${#akun_list[@]}
+    while [[ $i -lt $total ]]; do
+        local u1="${akun_list[$i]}"
+        local row="[{\"text\":\"${u1}\",\"callback_data\":\"bw_akun_${u1}\"}"
+        if [[ $(( i + 1 )) -lt $total ]]; then
+            local u2="${akun_list[$(( i + 1 ))]}"
+            row="${row},{\"text\":\"${u2}\",\"callback_data\":\"bw_akun_${u2}\"}"
+            i=$(( i + 2 ))
+        else
+            i=$(( i + 1 ))
+        fi
+        row="${row}]"
+        [[ "$kb" == "[" ]] && kb="${kb}${row}" || kb="${kb},${row}"
+    done
+    kb="${kb},[{\"text\":\"\u21a9 Kembali\",\"callback_data\":\"m_akun\"}]]"
+    _edit "$chat_id" "$msg_id" "➕ <b>Tambah Bandwidth</b>
+
+Pilih akun:" "$kb"
+}
+
+_cb_tambah_bw_akun() {
+    local chat_id="$1" cb_id="$2" msg_id="$3" username="$4"
+    _answer "$cb_id" ""
+
+    local conf="${ACCOUNT_DIR}/${username}.conf"
+    [[ ! -f "$conf" ]] && { _edit "$chat_id" "$msg_id" "❌ Akun tidak ditemukan." "$(_kb_home_btn)"; return; }
+    local tg_uid; tg_uid=$(grep "^TG_USER_ID=" "$conf" | cut -d= -f2 | tr -d "[:space:]")
+    [[ "$tg_uid" != "$chat_id" ]] && { _answer "$cb_id" "❌ Bukan akun kamu"; return; }
+
+    local sname; sname=$(grep "^SERVER=" "$conf" | cut -d= -f2 | tr -d "[:space:]")
+    _load_tg_conf "$sname"
+
+    local bw_quota bw_used bw_blocked
+    bw_quota=$(grep "^BW_QUOTA_BYTES=" "$conf" | cut -d= -f2 | tr -d "[:space:]")
+    bw_used=$(grep  "^BW_USED_BYTES="  "$conf" | cut -d= -f2 | tr -d "[:space:]")
+    bw_blocked=$(grep "^BW_BLOCKED="   "$conf" | cut -d= -f2 | tr -d "[:space:]")
+
+    local used_fmt quota_fmt bar
+    used_fmt=$(_bw_fmt "${bw_used:-0}")
+    quota_fmt=$(_bw_fmt "${bw_quota:-0}")
+    bar=$(_bw_progress_bar "${bw_used:-0}" "${bw_quota:-0}")
+
+    # Harga per GB = harga per hari / BW per hari
+    local harga_hari=$(( 10#${TG_HARGA_HARI:-0} ))
+    local bw_per_hari=$(( 10#${TG_BW_PER_HARI:-5} ))
+    local harga_per_gb=0
+    [[ $bw_per_hari -gt 0 ]] && harga_per_gb=$(( harga_hari / bw_per_hari ))
+
+    local status_str="✅ Aktif"
+    [[ "$bw_blocked" == "1" ]] && status_str="🚫 Diblokir (BW habis)"
+
+    # Paket: 1GB, 5GB, 10GB
+    local p1=$(( harga_per_gb * 1 ))
+    local p5=$(( harga_per_gb * 5 ))
+    local p10=$(( harga_per_gb * 10 ))
+
+    local saldo; saldo=$(_saldo_get "$chat_id")
+
+    _state_clear "$chat_id"
+    _state_set "$chat_id" "STATE"    "bw_pilih_paket"
+    _state_set "$chat_id" "USERNAME" "$username"
+    _state_set "$chat_id" "SERVER"   "$sname"
+
+    local kb="[[{\"text\":\"➕ 1 GB — Rp$(_fmt "$p1")\",\"callback_data\":\"bw_beli_1_${username}\"},{\"text\":\"➕ 5 GB — Rp$(_fmt "$p5")\",\"callback_data\":\"bw_beli_5_${username}\"}],[{\"text\":\"➕ 10 GB — Rp$(_fmt "$p10")\",\"callback_data\":\"bw_beli_10_${username}\"}],[{\"text\":\"\u21a9 Kembali\",\"callback_data\":\"m_tambah_bw\"}]]"
+
+    _edit "$chat_id" "$msg_id" "➕ <b>Tambah Bandwidth</b>
+━━━━━━━━━━━━━━━━━━━
+👤 Username : <code>${username}</code>
+📶 Terpakai : ${used_fmt} / ${quota_fmt}
+${bar}
+📊 Status   : ${status_str}
+💰 Saldo    : Rp$(_fmt "$saldo")
+━━━━━━━━━━━━━━━━━━━
+Pilih paket tambahan:" "$kb"
+}
+
+_cb_bw_beli() {
+    local chat_id="$1" cb_id="$2" msg_id="$3" gb="$4" username="$5"
+    _answer "$cb_id" ""
+
+    local conf="${ACCOUNT_DIR}/${username}.conf"
+    [[ ! -f "$conf" ]] && { _edit "$chat_id" "$msg_id" "❌ Akun tidak ditemukan." "$(_kb_home_btn)"; return; }
+
+    local sname; sname=$(grep "^SERVER=" "$conf" | cut -d= -f2 | tr -d "[:space:]")
+    _load_tg_conf "$sname"
+
+    local harga_hari=$(( 10#${TG_HARGA_HARI:-0} ))
+    local bw_per_hari=$(( 10#${TG_BW_PER_HARI:-5} ))
+    local harga_per_gb=0
+    [[ $bw_per_hari -gt 0 ]] && harga_per_gb=$(( harga_hari / bw_per_hari ))
+    local total=$(( harga_per_gb * gb ))
+    local saldo; saldo=$(( 10#$(_saldo_get "$chat_id") ))
+
+    if [[ $total -gt 0 && $saldo -lt $total ]]; then
+        _edit "$chat_id" "$msg_id" "❌ Saldo tidak cukup.
+Saldo  : Rp$(_fmt "$saldo")
+Butuh  : Rp$(_fmt "$total")
+
+Hubungi admin untuk top up." "$(_kb_home_btn)"
+        _state_clear "$chat_id"; return
+    fi
+
+    _state_set "$chat_id" "STATE"    "bw_confirm"
+    _state_set "$chat_id" "USERNAME" "$username"
+    _state_set "$chat_id" "SERVER"   "$sname"
+    _state_set "$chat_id" "BW_GB"    "$gb"
+    _state_set "$chat_id" "BW_TOTAL" "$total"
+
+    _edit "$chat_id" "$msg_id" "➕ <b>Konfirmasi Tambah BW</b>
+━━━━━━━━━━━━━━━━━━━
+👤 Username : <code>${username}</code>
+📶 Tambah   : ${gb} GB
+💸 Total    : Rp$(_fmt "$total")
+💰 Saldo    : Rp$(_fmt "$saldo")
+━━━━━━━━━━━━━━━━━━━
+Lanjutkan?" "$(_kb_confirm "bw_konfirm")"
+}
+
+_cb_konfirm_bw() {
+    local chat_id="$1" cb_id="$2" msg_id="$3"
+    [[ "$(_state_get "$chat_id" "STATE")" != "bw_confirm" ]] && {
+        _answer "$cb_id" "⚠️ Sesi habis"; _state_clear "$chat_id"; return
+    }
+    _answer "$cb_id" "⏳ Memproses..."
+
+    local username gb total sname
+    username=$(_state_get "$chat_id" "USERNAME")
+    gb=$(_state_get "$chat_id" "BW_GB")
+    total=$(_state_get "$chat_id" "BW_TOTAL")
+    sname=$(_state_get "$chat_id" "SERVER")
+
+    if [[ $total -gt 0 ]]; then
+        _saldo_deduct "$chat_id" "$total" || {
+            _edit "$chat_id" "$msg_id" "❌ Saldo tidak cukup." ""; _state_clear "$chat_id"; return
+        }
+    fi
+
+    local add_bytes; add_bytes=$(( gb * 1024 * 1024 * 1024 ))
+    _bw_add_quota "$username" "$add_bytes"
+
+    # Unblock kalau sebelumnya diblokir
+    _bw_unblock "$username" 2>/dev/null
+
+    _state_clear "$chat_id"
+    _log "BW_BELI: $chat_id user=$username gb=$gb total=$total"
+
+    _edit "$chat_id" "$msg_id" "✅ Bandwidth ditambahkan!" ""
+    local new_quota; new_quota=$(_bw_get_quota "$username")
+    local new_used; new_used=$(_bw_get_used "$username")
+    local new_saldo; new_saldo=$(_saldo_get "$chat_id")
+    _send "$chat_id" "➕ <b>Bandwidth Berhasil Ditambahkan</b>
+━━━━━━━━━━━━━━━━━━━
+👤 Username : <code>${username}</code>
+📶 Ditambah : ${gb} GB
+📊 Total BW : $(_bw_fmt "$new_quota")
+📈 Terpakai : $(_bw_fmt "$new_used")
+💸 Dibayar  : Rp$(_fmt "$total")
+💰 Sisa Saldo: Rp$(_fmt "$new_saldo")
+━━━━━━━━━━━━━━━━━━━
+Koneksi sudah aktif kembali!"
+}
+
 # ============================================================
 # Broadcast (Admin Only)
 # ============================================================
@@ -925,6 +1117,7 @@ _cb_konfirm() {
         useradd -e "$exp_date" -s /bin/false -M "$username" &>/dev/null
         echo "$username:$password" | chpasswd &>/dev/null
         mkdir -p "$ACCOUNT_DIR"
+        local bw_quota_bytes; bw_quota_bytes=$(( days * TG_BW_PER_HARI * 1024 * 1024 * 1024 ))
         cat > "${ACCOUNT_DIR}/${username}.conf" <<EOF
 USERNAME=$username
 PASSWORD=$password
@@ -936,7 +1129,11 @@ IS_TRIAL=0
 TG_USER_ID=$chat_id
 SERVER=$sname
 DOMAIN=$domain
+BW_QUOTA_BYTES=$bw_quota_bytes
+BW_USED_BYTES=0
+BW_BLOCKED=0
 EOF
+        _bw_init_user "$username" 2>/dev/null
     else
         local result
         result=$(sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
@@ -1005,6 +1202,10 @@ except: pass
             m_akun)        _cb_akun_saya       "$chat_id" "$cb_id" "$msg_id" ;;
             m_perpanjang)  _cb_perpanjang      "$chat_id" "$cb_id" "$msg_id" ;;
             m_broadcast)   _cb_broadcast       "$chat_id" "$cb_id" "$msg_id" ;;
+            m_tambah_bw)   _cb_tambah_bw       "$chat_id" "$cb_id" "$msg_id" ;;
+            bw_akun_*)     _cb_tambah_bw_akun  "$chat_id" "$cb_id" "$msg_id" "${data#bw_akun_}" ;;
+            bw_beli_*)     local _bw_parts; IFS="_" read -r _ _ _bw_gb _bw_user <<< "${data}"; _cb_bw_beli "$chat_id" "$cb_id" "$msg_id" "$_bw_gb" "$_bw_user" ;;
+            bw_konfirm_ok) _cb_konfirm_bw      "$chat_id" "$cb_id" "$msg_id" ;;
             konfirm_renew_ok) _cb_konfirm_renew "$chat_id" "$cb_id" "$msg_id" ;;
             renew_*)       _cb_renew_akun      "$chat_id" "$cb_id" "$msg_id" "${data#renew_}" ;;
             m_trial)       _cb_menu_trial      "$chat_id" "$cb_id" "$msg_id" ;;
