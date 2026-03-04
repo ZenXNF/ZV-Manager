@@ -28,6 +28,7 @@ deploy_agent_menu() {
     declare -A smap
     for conf in "${SERVER_DIR}"/*.conf; do
         [[ -f "$conf" ]] || continue
+        [[ "$conf" == *.tg.conf ]] && continue
         unset NAME IP PORT USER
         source "$conf"
         [[ "$IP" == "$local_ip" ]] && continue

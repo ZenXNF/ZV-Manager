@@ -20,6 +20,7 @@ connect_server() {
     declare -A server_map
     for conf in "${SERVER_DIR}"/*.conf; do
         [[ -f "$conf" ]] || continue
+        [[ "$conf" == *.tg.conf ]] && continue
         unset NAME IP DOMAIN PORT USER
         source "$conf"
         count=$((count + 1))

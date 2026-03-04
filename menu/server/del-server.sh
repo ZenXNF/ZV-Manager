@@ -19,6 +19,7 @@ del_server() {
     local count=0
     for conf in "${SERVER_DIR}"/*.conf; do
         [[ -f "$conf" ]] || continue
+        [[ "$conf" == *.tg.conf ]] && continue
         unset NAME IP DOMAIN PORT
         source "$conf"
         count=$((count + 1))
