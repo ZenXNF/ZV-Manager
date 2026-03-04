@@ -65,6 +65,7 @@ menu_ssh() {
         echo -e "  ${BGREEN}[8]${NC} Edit Akun SSH"
         echo ""
         echo -e "  ${BYELLOW}[s]${NC} Ganti Target Server"
+        echo -e "  ${BYELLOW}[d]${NC} Manajemen Saldo Telegram"
         echo -e "  ${BRED}[0]${NC} Kembali ke Menu Utama"
         echo ""
         read -rp "  Pilihan: " choice
