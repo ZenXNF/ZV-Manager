@@ -124,7 +124,6 @@ add_server() {
     echo ""
 
     # --- Simpan ke file conf ---
-    # Kutip ADDED agar spasi di tanggal tidak dianggap command
     cat > "${SERVER_DIR}/${name}.conf" <<CONFEOF
 NAME="${name}"
 IP="${ip}"
@@ -136,11 +135,52 @@ ADDED="$(date +"%Y-%m-%d %H:%M")"
 CONFEOF
     chmod 600 "${SERVER_DIR}/${name}.conf"
 
+    print_ok "Server '${name}' berhasil disimpan!"
     echo ""
-    print_ok "Server '${name}' berhasil ditambahkan!"
+
+    # --- Setup Telegram Bot Settings ---
+    echo -e "${BCYAN}  ┌─────────────────────────────────────────────┐${NC}"
+    echo -e "  │        ${BWHITE}PENGATURAN TELEGRAM BOT${NC}               │"
+    echo -e "${BCYAN}  └─────────────────────────────────────────────┘${NC}"
+    echo ""
+    echo -e "  ${BYELLOW}Atur harga & limit untuk bot Telegram.${NC}"
+    echo -e "  ${BYELLOW}Tekan Enter untuk skip / pakai default.${NC}"
+    echo ""
+
+    # Default values
+    local tg_label="$name"
+    local tg_harga_hari="0"
+    local tg_harga_bulan="0"
+    local tg_quota="Unlimited"
+    local tg_limit_ip="2"
+    local tg_max_akun="500"
+    local tg_bw_per_hari="5"
+
+    read -rp "  Label di bot         [${tg_label}]: " v; [[ -n "$v" ]] && tg_label="$v"
+    read -rp "  Harga / hari (Rp)    [${tg_harga_hari}]: " v; [[ "$v" =~ ^[0-9]+$ ]] && tg_harga_hari="$v"
+    tg_harga_bulan=$(( tg_harga_hari * 30 ))
+    read -rp "  Limit IP per akun    [${tg_limit_ip}]: " v; [[ "$v" =~ ^[0-9]+$ ]] && tg_limit_ip="$v"
+    read -rp "  Maks akun di server  [${tg_max_akun}]: " v; [[ "$v" =~ ^[0-9]+$ ]] && tg_max_akun="$v"
+    read -rp "  Bandwidth / hari (GB)[${tg_bw_per_hari}]: " v; [[ "$v" =~ ^[0-9]+$ ]] && tg_bw_per_hari="$v"
+
+    cat > "${SERVER_DIR}/${name}.tg.conf" <<TGEOF
+TG_SERVER_LABEL="${tg_label}"
+TG_HARGA_HARI="${tg_harga_hari}"
+TG_HARGA_BULAN="${tg_harga_bulan}"
+TG_QUOTA="${tg_quota}"
+TG_LIMIT_IP="${tg_limit_ip}"
+TG_MAX_AKUN="${tg_max_akun}"
+TG_BW_PER_HARI="${tg_bw_per_hari}"
+TGEOF
+
+    echo ""
+    print_ok "Pengaturan Telegram disimpan!"
+    echo ""
     echo -e "  ${BWHITE}IP     :${NC} ${BGREEN}${ip}${NC}"
     echo -e "  ${BWHITE}Domain :${NC} ${BGREEN}${domain}${NC}"
-    echo -e "  ${BWHITE}Port   :${NC} ${BGREEN}${port}${NC}"
+    echo -e "  ${BWHITE}Label  :${NC} ${BGREEN}${tg_label}${NC}"
+    echo -e "  ${BWHITE}Harga  :${NC} ${BGREEN}Rp${tg_harga_hari}/hari${NC}"
+    echo -e "  ${BWHITE}BW     :${NC} ${BGREEN}${tg_bw_per_hari} GB/hari${NC}"
     press_any_key
 }
 

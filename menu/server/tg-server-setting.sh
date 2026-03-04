@@ -60,7 +60,7 @@ _edit_server_tg() {
         echo ""
         echo -e "  ${BWHITE}Label di Bot   :${NC} ${BYELLOW}${TG_SERVER_LABEL}${NC}"
         echo -e "  ${BWHITE}Harga / hari   :${NC} ${BYELLOW}Rp${TG_HARGA_HARI}${NC}"
-        echo -e "  ${BWHITE}Harga / 30 hari:${NC} ${BYELLOW}Rp${TG_HARGA_BULAN}${NC}"
+        echo -e "  ${BWHITE}Harga / 30 hari:${NC} ${BYELLOW}Rp${TG_HARGA_BULAN}${NC} ${BCYAN}(otomatis × 30)${NC}"
         echo -e "  ${BWHITE}Quota          :${NC} ${BYELLOW}${TG_QUOTA}${NC}"
         echo -e "  ${BWHITE}Limit IP/akun  :${NC} ${BYELLOW}${TG_LIMIT_IP} IP${NC}"
         echo -e "  ${BWHITE}Maks Akun      :${NC} ${BYELLOW}${TG_MAX_AKUN}${NC}"
@@ -87,12 +87,13 @@ _edit_server_tg() {
                 ;;
             2)
                 read -rp "  Harga/hari (angka, contoh 150) [${TG_HARGA_HARI}]: " v
-                [[ "$v" =~ ^[0-9]+$ ]] && TG_HARGA_HARI="$v"
+                if [[ "$v" =~ ^[0-9]+$ ]]; then
+                    TG_HARGA_HARI="$v"
+                    TG_HARGA_BULAN=$(( v * 30 ))
+                    echo -e "  ${BCYAN}Harga 30 hari otomatis: Rp${TG_HARGA_BULAN}${NC}"
+                fi
                 ;;
-            3)
-                read -rp "  Harga/30 hari (angka) [${TG_HARGA_BULAN}]: " v
-                [[ "$v" =~ ^[0-9]+$ ]] && TG_HARGA_BULAN="$v"
-                ;;
+
             4)
                 read -rp "  Quota (contoh: 90GB / Unlimited) [${TG_QUOTA}]: " v
                 [[ -n "$v" ]] && TG_QUOTA="$v"
