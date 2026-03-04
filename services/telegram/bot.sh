@@ -900,9 +900,9 @@ Coba server lain atau tunggu 24 jam."
     [[ $(_count_accounts "$IP") -ge $TG_MAX_AKUN ]] && {
         _send "$chat_id" "❌ Server <b>${TG_SERVER_LABEL}</b> penuh. Coba server lain."; return
     }
-    local suffix; suffix=$(tr -dc 'a-z0-9' </dev/urandom | head -c 5)
-    local username="trial${suffix}"
-    local password; password=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 8)
+    local suffix; suffix=$(tr -dc '0-9' </dev/urandom | head -c 4)
+    local username="Trial${suffix}"
+    local password="ZenXNF"
     local now_ts exp_ts exp_display exp_date
     now_ts=$(date +%s); exp_ts=$(( now_ts + 1800 ))
     exp_display=$(TZ="Asia/Jakarta" date -d "@${exp_ts}" +"%d %b %Y %H:%M WIB")
@@ -952,8 +952,9 @@ _handle_input() {
             return 0
             ;;
         await_user)
-            if ! echo "$text" | grep -qE '^[a-z0-9]{3,20}$'; then
-                _send "$chat_id" "❌ Username tidak valid. Huruf kecil dan angka, 3-20 karakter.
+            local text_lower; text_lower=$(echo "$text" | tr '[:upper:]' '[:lower:]')
+            if ! echo "$text" | grep -qE '^[a-zA-Z0-9]{3,20}$'; then
+                _send "$chat_id" "❌ Username tidak valid. Huruf (besar/kecil) dan angka, 3-20 karakter.
 
 Ketik username:"; return 0
             fi
@@ -964,7 +965,8 @@ Ketik username lain:"; return 0
             }
             _state_set "$chat_id" "USERNAME" "$text"
             _state_set "$chat_id" "STATE" "await_pass"
-            _send "$chat_id" "Ketik password (minimal 4 karakter):"
+            _send "$chat_id" "Ketik password:
+(Minimal 4 karakter, boleh huruf besar/kecil dan angka)"
             ;;
         await_pass)
             [[ ${#text} -lt 4 ]] && {
@@ -1062,12 +1064,17 @@ Saldo tidak cukup. Hubungi admin untuk top up."
             [[ $harga -gt 0 ]] && saldo_line="
 💳 Saldo kamu : Rp$(_fmt "$saldo")"
 
+            local bw_per_hari_k=$(( 10#${TG_BW_PER_HARI:-5} ))
+            local bw_total_gb_k=$(( days * bw_per_hari_k ))
+            local bw_line=""; [[ $bw_per_hari_k -gt 0 ]] && bw_line="
+📶 Bandwidth  : ${bw_total_gb_k} GB"
+
             _send "$chat_id" "📋 <b>Konfirmasi Pesanan</b>
 ━━━━━━━━━━━━━━━━━━━
 🌐 Server     : ${TG_SERVER_LABEL}
 👤 Username   : <code>${username}</code>
 🔑 Password   : <code>${password}</code>
-📅 Masa Aktif : ${days} hari
+📅 Masa Aktif : ${days} hari${bw_line}
 💰 Harga      : ${hh}
 💸 Total      : Rp$(_fmt "$total")${saldo_line}
 ━━━━━━━━━━━━━━━━━━━
@@ -1117,7 +1124,8 @@ _cb_konfirm() {
         useradd -e "$exp_date" -s /bin/false -M "$username" &>/dev/null
         echo "$username:$password" | chpasswd &>/dev/null
         mkdir -p "$ACCOUNT_DIR"
-        local bw_quota_bytes; bw_quota_bytes=$(( days * TG_BW_PER_HARI * 1024 * 1024 * 1024 ))
+        local bw_per_hari=$(( 10#${TG_BW_PER_HARI:-5} ))
+    local bw_quota_bytes; bw_quota_bytes=$(( days * bw_per_hari * 1024 * 1024 * 1024 ))
         cat > "${ACCOUNT_DIR}/${username}.conf" <<EOF
 USERNAME=$username
 PASSWORD=$password
