@@ -29,6 +29,7 @@ _load_tg() {
     TG_QUOTA="Unlimited"
     TG_LIMIT_IP="2"
     TG_MAX_AKUN="500"
+    TG_BW_PER_HARI="5"
     [[ -f "$f" ]] && source "$f"
 }
 
@@ -41,6 +42,7 @@ TG_HARGA_BULAN="${TG_HARGA_BULAN}"
 TG_QUOTA="${TG_QUOTA}"
 TG_LIMIT_IP="${TG_LIMIT_IP}"
 TG_MAX_AKUN="${TG_MAX_AKUN}"
+TG_BW_PER_HARI="${TG_BW_PER_HARI}"
 EOF
     print_ok "Setting disimpan!"
     sleep 1
@@ -62,6 +64,7 @@ _edit_server_tg() {
         echo -e "  ${BWHITE}Quota          :${NC} ${BYELLOW}${TG_QUOTA}${NC}"
         echo -e "  ${BWHITE}Limit IP/akun  :${NC} ${BYELLOW}${TG_LIMIT_IP} IP${NC}"
         echo -e "  ${BWHITE}Maks Akun      :${NC} ${BYELLOW}${TG_MAX_AKUN}${NC}"
+        echo -e "  ${BWHITE}BW / hari      :${NC} ${BYELLOW}${TG_BW_PER_HARI} GB${NC}"
         echo ""
         echo -e "${BCYAN}  ──────────────────────────────────────────────${NC}"
         echo ""
@@ -101,6 +104,10 @@ _edit_server_tg() {
             6)
                 read -rp "  Maks akun (angka) [${TG_MAX_AKUN}]: " v
                 [[ "$v" =~ ^[0-9]+$ ]] && TG_MAX_AKUN="$v"
+                ;;
+            7)
+                read -rp "  Bandwidth/hari GB (contoh: 5) [${TG_BW_PER_HARI}]: " v
+                [[ "$v" =~ ^[0-9]+$ ]] && TG_BW_PER_HARI="$v"
                 ;;
             s|S) _save_tg "$name" ;;
             0) break ;;
