@@ -133,7 +133,7 @@ _get_server_list() {
 # Keyboards
 # ============================================================
 _kb_home() {
-    echo '[[{"text":"⚡ Buat Akun","callback_data":"m_buat"}],[{"text":"🎁 Coba Gratis","callback_data":"m_trial"}]]'
+    echo '[[{"text":"⚡ Buat Akun","callback_data":"m_buat"}],[{"text":"🎁 Coba Gratis","callback_data":"m_trial"}],[{"text":"📋 Akun Saya","callback_data":"m_akun"}]]'
 }
 _kb_proto_buat() {
     echo '[[{"text":"SSH","callback_data":"p_buat_ssh"}],[{"text":"↩ Kembali","callback_data":"home"}]]'
@@ -171,6 +171,7 @@ _kb_server_list() {
     rows="${rows},[{\"text\":\"↩ Kembali\",\"callback_data\":\"home\"}]]"
     echo "$rows"
 }
+_kb_home_btn() { echo '[[{"text":"🏠 Menu Utama","callback_data":"home"}]]'; }
 _kb_confirm() {
     echo "[[{\"text\":\"✅ Konfirmasi\",\"callback_data\":\"${1}_ok\"},{\"text\":\"❌ Batal\",\"callback_data\":\"home\"}]]"
 }
@@ -255,6 +256,89 @@ WSS : <code>${domain}:443@${username}:${password}</code>
 UDP : <code>${domain}@1-65535@${username}:${password}</code>
 ━━━━━━━━━━━━━━━━━━━
 Limit : ${limit} perangkat"
+}
+
+# ============================================================
+# Akun Saya
+# ============================================================
+_cb_akun_saya() {
+    local chat_id="$1" cb_id="$2" msg_id="$3"
+    _answer "$cb_id" ""
+
+    local now_ts; now_ts=$(date +%s)
+    local now_date; now_date=$(date +"%Y-%m-%d")
+    local found=false
+    local out="📋 <b>Akun Kamu</b>\n━━━━━━━━━━━━━━━━━━━\n"
+
+    # Cari akun lokal berdasarkan TG_USER_ID
+    for conf in "$ACCOUNT_DIR"/*.conf; do
+        [[ -f "$conf" ]] || continue
+        local tg_uid; tg_uid=$(grep "^TG_USER_ID=" "$conf" | cut -d= -f2)
+        [[ "$tg_uid" != "$chat_id" ]] && continue
+
+        local uname pass exp_ts exp_date limit is_trial server domain
+        uname=$(grep    "^USERNAME="   "$conf" | cut -d= -f2)
+        pass=$(grep     "^PASSWORD="   "$conf" | cut -d= -f2)
+        exp_ts=$(grep   "^EXPIRED_TS=" "$conf" | cut -d= -f2)
+        exp_date=$(grep "^EXPIRED="    "$conf" | cut -d= -f2)
+        limit=$(grep    "^LIMIT="      "$conf" | cut -d= -f2)
+        is_trial=$(grep "^IS_TRIAL="   "$conf" | cut -d= -f2)
+        server=$(grep   "^SERVER="     "$conf" | cut -d= -f2)
+        domain=$(grep   "^DOMAIN="     "$conf" | cut -d= -f2)
+
+        [[ -z "$uname" ]] && continue
+
+        # Hitung sisa waktu
+        local status sisa_label
+        if [[ -n "$exp_ts" && "$exp_ts" =~ ^[0-9]+$ ]]; then
+            local sisa_detik=$(( exp_ts - now_ts ))
+            if [[ $sisa_detik -le 0 ]]; then
+                status="❌ Expired"
+                sisa_label="Sudah habis"
+            elif [[ $sisa_detik -lt 3600 ]]; then
+                status="⚠️ Aktif"
+                sisa_label="Kurang dari 1 jam"
+            elif [[ $sisa_detik -lt 86400 ]]; then
+                local sisa_jam=$(( sisa_detik / 3600 ))
+                status="⚠️ Aktif"
+                sisa_label="${sisa_jam} jam lagi"
+            else
+                local sisa_hari=$(( sisa_detik / 86400 ))
+                status="✅ Aktif"
+                sisa_label="${sisa_hari} hari lagi"
+            fi
+        else
+            # Fallback ke tanggal
+            if [[ "$exp_date" < "$now_date" ]]; then
+                status="❌ Expired"; sisa_label="Sudah habis"
+            else
+                status="✅ Aktif"; sisa_label="-"
+            fi
+        fi
+
+        local tipe; [[ "$is_trial" == "1" ]] && tipe="Trial" || tipe="Premium"
+        local exp_display
+        if [[ -n "$exp_ts" && "$exp_ts" =~ ^[0-9]+$ ]]; then
+            exp_display=$(TZ="Asia/Jakarta" date -d "@${exp_ts}" +"%d %b %Y %H:%M WIB" 2>/dev/null || echo "$exp_date")
+        else
+            exp_display="$exp_date"
+        fi
+
+        found=true
+        out+="
+👤 <b>${uname}</b> <i>(${tipe})</i>
+🌐 Host    : <code>${domain}</code>
+🔑 Pass    : <code>${pass}</code>
+⏳ Expired : ${exp_display}
+📊 Status  : ${status} · ${sisa_label}
+━━━━━━━━━━━━━━━━━━━"
+    done
+
+    if ! $found; then
+        out+="\nKamu belum punya akun aktif.\n\nTekan <b>Buat Akun</b> untuk membeli."
+    fi
+
+    _edit "$chat_id" "$msg_id" "$(echo -e "$out")" "$(_kb_home_btn)"
 }
 
 # ============================================================
@@ -587,6 +671,7 @@ except: pass
         case "$data" in
             home)          _cb_home           "$chat_id" "$cb_id" "$msg_id" "$fname" ;;
             m_buat)        _cb_menu_buat       "$chat_id" "$cb_id" "$msg_id" ;;
+            m_akun)        _cb_akun_saya       "$chat_id" "$cb_id" "$msg_id" ;;
             m_trial)       _cb_menu_trial      "$chat_id" "$cb_id" "$msg_id" ;;
             p_buat_ssh)    _cb_proto_buat_ssh  "$chat_id" "$cb_id" "$msg_id" ;;
             p_trial_ssh)   _cb_proto_trial_ssh "$chat_id" "$cb_id" "$msg_id" ;;
