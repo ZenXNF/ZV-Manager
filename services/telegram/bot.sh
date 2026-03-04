@@ -45,7 +45,10 @@ _state_clear() { rm -f "${STATE_DIR}/${1}"; }
 # ============================================================
 _saldo_get() {
     local f="${SALDO_DIR}/${1}.saldo" val="0"
-    [[ -f "$f" ]] && val=$(cat "$f" | tr -d '[:space:]')
+    if [[ -f "$f" ]]; then
+        val=$(cat "$f" | tr -d "[:space:]")
+        val="${val#SALDO=}"
+    fi
     [[ "$val" =~ ^[0-9]+$ ]] || val="0"
     echo "$val"
 }
@@ -225,40 +228,31 @@ _send_akun() {
     local chat_id="$1" type="$2" username="$3" password="$4" domain="$5"
     local exp_display="$6" limit="$7" server_label="$8" days="${9}" total_harga="${10}"
     local header extra=""
-    [[ "$type" == "TRIAL" ]] && header="🎁 Akun Trial SSH" || header="⭐ Akun SSH Premium"
+    [[ "$type" == "TRIAL" ]] && header="🎁 Akun Trial SSH — 30 Menit" || header="✅ Akun SSH Premium"
     [[ "$type" == "BELI" ]] && extra="
-Masa Aktif : ${days} hari
+Masa Aktif  : ${days} hari
 Total Bayar : Rp$(_fmt "$total_harga")"
 
     _send "$chat_id" "<b>${header}</b>
 ━━━━━━━━━━━━━━━━━━━
-👤 <b>Informasi Akun</b>
-
 Username : <code>${username}</code>
 Password : <code>${password}</code>
 Host     : <code>${domain}</code>
 Server   : ${server_label}${extra}
 Expired  : ${exp_display}
 ━━━━━━━━━━━━━━━━━━━
-🔌 <b>Port</b>
+<b>Port Tersedia</b>
 
 OpenSSH  : 22, 500, 40000
 Dropbear : 143, 109
 BadVPN   : 7300
-WS : 80  |  WSS : 443
-UDP : 1-65535
+WS / WSS / UDP : Lihat format bawah
 ━━━━━━━━━━━━━━━━━━━
-🌐 <b>HTTP Custom</b>
+<b>Format Koneksi</b>
 
-WS  → <code>${domain}:80@${username}:${password}</code>
-WSS → <code>${domain}:443@${username}:${password}</code>
-
-📡 <b>UDP Custom</b>
-
-Host : <code>${domain}</code>
-Port : 1-65535
-User : <code>${username}</code>
-Pass : <code>${password}</code>
+WS  : <code>${domain}:80@${username}:${password}</code>
+WSS : <code>${domain}:443@${username}:${password}</code>
+UDP : <code>${domain}@1-65535@${username}:${password}</code>
 ━━━━━━━━━━━━━━━━━━━
 ⚠️ Limit ${limit} perangkat · Dilarang share akun!"
 }
