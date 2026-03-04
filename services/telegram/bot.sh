@@ -512,14 +512,84 @@ _cb_konfirm_renew() {
 Akun kamu sudah aktif sampai ${new_exp_display}!"
 }
 
+
+# ============================================================
+# Broadcast (Admin Only)
+# ============================================================
+_is_admin() {
+    local uid; uid=$(echo "$1" | tr -d "[:space:]")
+    local admin; admin=$(echo "$TG_ADMIN_ID" | tr -d "[:space:]")
+    [[ "$uid" == "$admin" ]]
+}
+
+_cb_broadcast() {
+    local chat_id="$1" cb_id="$2" msg_id="$3"
+    _is_admin "$chat_id" || { _answer "$cb_id" "❌ Akses ditolak"; return; }
+    _answer "$cb_id" ""
+    _state_clear "$chat_id"
+    _state_set "$chat_id" "STATE" "broadcast_msg"
+    _edit "$chat_id" "$msg_id" "📢 <b>Broadcast Pesan</b>
+
+Ketik pesan yang akan dikirim ke semua user.
+Bisa pakai format HTML: <code>&lt;b&gt;bold&lt;/b&gt;</code>, <code>&lt;i&gt;italic&lt;/i&gt;</code>
+
+Ketik pesan:" '[[{"text":"❌ Batal","callback_data":"home"}]]'
+}
+
+_do_broadcast() {
+    local chat_id="$1" text="$2"
+    # Kumpulkan semua TG_USER_ID unik
+    declare -A seen
+    local uids=()
+    for conf in "$ACCOUNT_DIR"/*.conf; do
+        [[ -f "$conf" ]] || continue
+        local uid; uid=$(grep "^TG_USER_ID=" "$conf" | cut -d= -f2 | tr -d "[:space:]")
+        [[ -z "$uid" || -n "${seen[$uid]}" ]] && continue
+        seen[$uid]=1
+        uids+=("$uid")
+    done
+
+    local total=${#uids[@]}
+    [[ $total -eq 0 ]] && { _send "$chat_id" "❌ Belum ada user terdaftar."; return; }
+
+    _send "$chat_id" "⏳ Mengirim ke ${total} user..."
+
+    local ok=0 fail=0
+    for uid in "${uids[@]}"; do
+        local res
+        res=$(curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d "{"chat_id":"${uid}","text":$(_jstr "$text"),"parse_mode":"HTML"}" \
+            --max-time 10 2>/dev/null)
+        echo "$res" | grep -q '"ok":true' && ok=$(( ok + 1 )) || fail=$(( fail + 1 ))
+        sleep 0.05
+    done
+
+    _log "BROADCAST: admin=$chat_id total=$total ok=$ok fail=$fail"
+    _send "$chat_id" "📢 <b>Broadcast Selesai</b>
+━━━━━━━━━━━━━━━━━━━
+✅ Terkirim : ${ok} user
+❌ Gagal    : ${fail} user
+━━━━━━━━━━━━━━━━━━━
+<i>Gagal biasanya karena user memblokir bot.</i>"
+}
+
 # ============================================================
 # Handlers
 # ============================================================
-_handle_start() { _state_clear "$1"; _send "$1" "$(_text_home "$2" "$1")" "$(_kb_home)"; }
+_kb_for_user() {
+    local uid="$1"
+    if _is_admin "$uid"; then
+        echo '[[{"text":"⚡ Buat Akun","callback_data":"m_buat"},{"text":"🎁 Coba Gratis","callback_data":"m_trial"}],[{"text":"📋 Akun Saya","callback_data":"m_akun"},{"text":"🔄 Perpanjang","callback_data":"m_perpanjang"}],[{"text":"📢 Broadcast","callback_data":"m_broadcast"}]]'
+    else
+        echo "$(_kb_home)"
+    fi
+}
+_handle_start() { _state_clear "$1"; _send "$1" "$(_text_home "$2" "$1")" "$(_kb_for_user "$1")"; }
 
 _cb_home() {
     _answer "$2" ""; _state_clear "$1"
-    _edit "$1" "$3" "$(_text_home "$4" "$1")" "$(_kb_home)"
+    _edit "$1" "$3" "$(_text_home "$4" "$1")" "$(_kb_for_user "$1")"
 }
 
 _cb_menu_buat() {
@@ -641,6 +711,12 @@ _handle_input() {
     [[ -z "$state" ]] && return 1
 
     case "$state" in
+        broadcast_msg)
+            _is_admin "$chat_id" || { _state_clear "$chat_id"; return 0; }
+            _state_clear "$chat_id"
+            _do_broadcast "$chat_id" "$text"
+            return 0
+            ;;
         await_user)
             if ! echo "$text" | grep -qE '^[a-z0-9]{3,20}$'; then
                 _send "$chat_id" "❌ Username tidak valid. Huruf kecil dan angka, 3-20 karakter.
@@ -886,6 +962,7 @@ except: pass
             m_buat)        _cb_menu_buat       "$chat_id" "$cb_id" "$msg_id" ;;
             m_akun)        _cb_akun_saya       "$chat_id" "$cb_id" "$msg_id" ;;
             m_perpanjang)  _cb_perpanjang      "$chat_id" "$cb_id" "$msg_id" ;;
+            m_broadcast)   _cb_broadcast       "$chat_id" "$cb_id" "$msg_id" ;;
             konfirm_renew_ok) _cb_konfirm_renew "$chat_id" "$cb_id" "$msg_id" ;;
             renew_*)       _cb_renew_akun      "$chat_id" "$cb_id" "$msg_id" "${data#renew_}" ;;
             m_trial)       _cb_menu_trial      "$chat_id" "$cb_id" "$msg_id" ;;
