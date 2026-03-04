@@ -18,9 +18,9 @@ add_server() {
     echo ""
     echo -e "  ${BYELLOW}Tip: Neva (VPS ini sendiri) juga bisa ditambahkan.${NC}"
     echo ""
-    read -rp "  Nama server (contoh: neva, vps-sg)  : " name
+    read -rp "  Nama server (contoh: vps1, vps-sg)  : " name
     read -rp "  IP Address                           : " ip
-    read -rp "  Domain (contoh: neva.zenxu.my.id)   : " domain
+    read -rp "  Domain (contoh: server.zenxnf.com)   : " domain
     read -rp "  Port SSH              [default: 22]  : " port
     read -rp "  Username              [default: root]: " user
     read -rsp "  Password                             : " pass
