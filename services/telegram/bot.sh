@@ -254,7 +254,7 @@ WS  : <code>${domain}:80@${username}:${password}</code>
 WSS : <code>${domain}:443@${username}:${password}</code>
 UDP : <code>${domain}@1-65535@${username}:${password}</code>
 ━━━━━━━━━━━━━━━━━━━
-⚠️ Limit ${limit} perangkat · Dilarang share akun!"
+Limit : ${limit} perangkat"
 }
 
 # ============================================================
@@ -539,6 +539,8 @@ EOF
 
     _state_clear "$chat_id"
     _log "BELI: $chat_id server=$sname user=$username days=$days total=$total"
+    # Hapus inline keyboard dari pesan konfirmasi
+    _edit "$chat_id" "$msg_id" "✅ Akun sedang dibuat..." ""
     _send_akun "$chat_id" "BELI" "$username" "$password" "$domain" \
         "$exp_display" "${TG_LIMIT_IP}" "${TG_SERVER_LABEL}" "$days" "$total"
 }
