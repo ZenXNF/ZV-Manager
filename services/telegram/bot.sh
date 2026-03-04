@@ -38,7 +38,10 @@ _state_clear() { rm -f "${STATE_DIR}/${1}"; }
 # ============================================================
 _saldo_get() {
     local uid="$1" f="${SALDO_DIR}/${uid}.conf"
-    [[ -f "$f" ]] && grep "^SALDO=" "$f" | cut -d= -f2 || echo "0"
+    local val="0"
+    [[ -f "$f" ]] && val=$(grep "^SALDO=" "$f" | cut -d= -f2 | tr -d '[:space:]')
+    [[ -z "$val" || ! "$val" =~ ^[0-9]+$ ]] && val="0"
+    echo "$val"
 }
 _saldo_set() {
     local uid="$1" amount="$2"
@@ -289,7 +292,7 @@ Pass : <code>${password}</code>
 ━━━━━━━━━━━━━━━━━━━
 ⚠️ Limit ${limit} perangkat · Dilarang share akun!"
 
-    _send "$chat_id" "$txt" "$(_kb_home_only)"
+    _send "$chat_id" "$txt"
 }
 
 # ============================================================
@@ -362,18 +365,28 @@ _cb_trial() {
 }
 
 # Pilih server trial → langsung buat, kirim pesan baru
+# Cek trial per user+server, reset 24 jam dari waktu trial
 _already_trial() {
-    local uid="$1" f="${TRIAL_DIR}/${uid}.used"
-    [[ -f "$f" ]] && [[ "$(cat "$f")" == "$(date +"%Y-%m-%d")" ]]
+    local uid="$1" sname="$2"
+    local f="${TRIAL_DIR}/${uid}_${sname}.ts"
+    [[ ! -f "$f" ]] && return 1
+    local last_ts; last_ts=$(cat "$f" 2>/dev/null)
+    [[ -z "$last_ts" ]] && return 1
+    local now_ts; now_ts=$(date +%s)
+    [[ $(( now_ts - last_ts )) -lt 86400 ]]
+}
+_mark_trial() {
+    local uid="$1" sname="$2"
+    date +%s > "${TRIAL_DIR}/${uid}_${sname}.ts"
 }
 
 _cb_s_trial() {
     local chat_id="$1" cb_id="$2" msg_id="$3" sname="$4"
     _answer "$cb_id" ""
 
-    if _already_trial "$chat_id"; then
-        _send "$chat_id" "Kamu sudah menggunakan trial hari ini.
-Trial hanya bisa 1x per hari. Coba lagi besok!" "$(_kb_home_only)"
+    if _already_trial "$chat_id" "$sname"; then
+        _send "$chat_id" "⚠️ Kamu sudah trial di server ini dalam 24 jam terakhir.
+Coba lagi nanti atau pilih server lain." "$(_kb_home_only)"
         return
     fi
 
@@ -426,7 +439,7 @@ EOF
         fi
     fi
 
-    date +"%Y-%m-%d" > "${TRIAL_DIR}/${chat_id}.used"
+    _mark_trial "$chat_id" "$sname"
     _log "TRIAL: $chat_id server=$sname user=$username"
     _send_akun "$chat_id" "TRIAL" "$username" "$password" "$domain" \
         "$exp_display" "${TG_LIMIT_IP}" "${TG_SERVER_LABEL}" "" ""
@@ -521,21 +534,24 @@ Berapa hari masa aktif?"
 
             local saldo_info=""
             if [[ "$TG_HARGA_HARI" != "0" ]]; then
+                local saldo_int=$(( saldo + 0 ))
+                local total_int=$(( total + 0 ))
                 saldo_info="
-Saldo kamu    : Rp${saldo}"
-                if [[ "$saldo" -lt "$total" ]]; then
-                    saldo_info+="
-Kekurangan    : Rp$(( total - saldo ))
-
-Saldo tidak cukup! Hubungi admin untuk top up."
-                    _send "$chat_id" "Konfirmasi Pesanan
+💰 Saldo kamu : Rp${saldo_int}"
+                if [[ $saldo_int -lt $total_int ]]; then
+                    local kurang=$(( total_int - saldo_int ))
+                    _send "$chat_id" "📋 <b>Konfirmasi Pesanan</b>
 ━━━━━━━━━━━━━━━━━━━
-Server     : ${TG_SERVER_LABEL}
-Username   : <code>${username}</code>
-Password   : <code>${password}</code>
-Masa Aktif : ${days} hari
-Harga      : ${hh}
-Total      : Rp${total}${saldo_info}" "$(_kb_home_only)"
+🌐 Server     : ${TG_SERVER_LABEL}
+👤 Username   : <code>${username}</code>
+🔑 Password   : <code>${password}</code>
+📅 Masa Aktif : ${days} hari
+💰 Harga      : ${hh}
+💸 Total      : Rp${total_int}
+💰 Saldo kamu : Rp${saldo_int}
+❌ Kurang     : Rp${kurang}
+━━━━━━━━━━━━━━━━━━━
+Saldo tidak cukup. Hubungi admin untuk top up."
                     _state_clear "$chat_id"
                     return 0
                 fi
