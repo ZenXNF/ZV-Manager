@@ -13,6 +13,7 @@ SERVER_DIR="/etc/zv-manager/servers"
 STATE_DIR="/tmp/zv-tg-state"
 LOG="/var/log/zv-manager/telegram-bot.log"
 OFFSET_FILE="/tmp/zv-tg-offset"
+USERS_DIR="/etc/zv-manager/accounts/users"
 
 mkdir -p "$TRIAL_DIR" "$STATE_DIR" "$SALDO_DIR" "$(dirname "$LOG")"
 
@@ -750,14 +751,20 @@ _do_broadcast() {
     local chat_id="$1" text="$2"
     tg_load
 
-    # Kumpulkan UID unik ke file
+    # Kumpulkan UID: dari USERS_DIR (semua yg pernah /start) + akun yang punya ID
     local uid_file; uid_file=$(mktemp)
-    for conf in "$ACCOUNT_DIR"/*.conf; do
-        [[ -f "$conf" ]] || continue
-        local uid; uid=$(grep "^TG_USER_ID=" "$conf" | cut -d= -f2 | tr -d "[:space:]")
-        [[ -z "$uid" ]] && continue
-        echo "$uid"
-    done | sort -u > "$uid_file"
+    {
+        # User terdaftar (pernah /start)
+        for ufile in "$USERS_DIR"/*.user 2>/dev/null; do
+            [[ -f "$ufile" ]] || continue
+            grep "^UID=" "$ufile" | cut -d= -f2 | tr -d "[:space:]"
+        done
+        # Akun yang punya TG_USER_ID (backup)
+        for conf in "$ACCOUNT_DIR"/*.conf; do
+            [[ -f "$conf" ]] || continue
+            grep "^TG_USER_ID=" "$conf" | cut -d= -f2 | tr -d "[:space:]"
+        done
+    } | sort -u > "$uid_file"
 
     local total; total=$(wc -l < "$uid_file" | tr -d "[:space:]")
     if [[ $total -eq 0 ]]; then
@@ -815,8 +822,29 @@ _kb_for_user() {
     fi
 }
 
+# Simpan user saat pertama kali /start
+_register_user() {
+    local uid="$1" fname="$2"
+    mkdir -p "$USERS_DIR"
+    local ufile="${USERS_DIR}/${uid}.user"
+    # Hanya tulis kalau belum ada (first time)
+    if [[ ! -f "$ufile" ]]; then
+        cat > "$ufile" <<EOF
+UID=${uid}
+NAME=${fname}
+JOINED=$(date +"%Y-%m-%d %H:%M:%S")
+EOF
+        _log "NEW_USER: uid=$uid name=$fname"
+    else
+        # Update nama kalau berubah
+        sed -i "s/^NAME=.*/NAME=${fname}/" "$ufile"
+    fi
+}
+
+
 _handle_start() {
     _state_clear "$1"
+    _register_user "$1" "$2"
     _send "$1" "$(_text_home "$2" "$1")" "$(_kb_for_user "$1")"
 }
 
