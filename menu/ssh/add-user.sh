@@ -85,10 +85,21 @@ add_ssh_user() {
             return
         fi
 
-        local exp_date
+        local exp_date exp_ts
         exp_date=$(expired_date "$days")
+        exp_ts=$(date -d "${exp_date}" +%s 2>/dev/null || echo "")
         useradd -e "$exp_date" -s /bin/false -M "$username" &>/dev/null
         echo -e "$password\n$password" | passwd "$username" &>/dev/null
+
+        # Cari nama server lokal dari conf
+        local local_ip local_server_name
+        local_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null)
+        local_server_name=""
+        for _sc in /etc/zv-manager/servers/*.conf; do
+            [[ -f "$_sc" && "$_sc" != *.tg.conf ]] || continue
+            unset NAME IP; source "$_sc"
+            [[ "$IP" == "$local_ip" ]] && { local_server_name="$NAME"; break; }
+        done
 
         mkdir -p /etc/zv-manager/accounts/ssh
         cat > "/etc/zv-manager/accounts/ssh/${username}.conf" <<EOF
@@ -96,7 +107,11 @@ USERNAME=$username
 PASSWORD=$password
 LIMIT=$limit
 EXPIRED=$exp_date
+EXPIRED_TS=${exp_ts}
 CREATED=$(date +"%Y-%m-%d")
+IS_TRIAL=0
+SERVER=${local_server_name}
+DOMAIN=$(get_local_domain)
 EOF
         _show_account_info "$username" "$password" "$limit" "$exp_date" "$(get_local_domain)"
 
