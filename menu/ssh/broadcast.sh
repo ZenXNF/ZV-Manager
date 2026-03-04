@@ -10,16 +10,20 @@ source /etc/zv-manager/core/telegram.sh
 ACCOUNT_DIR="/etc/zv-manager/accounts/ssh"
 SALDO_DIR="/etc/zv-manager/accounts/saldo"
 
-# Kumpulkan semua TG_USER_ID unik dari akun
+USERS_DIR="/etc/zv-manager/accounts/users"
+
+# Kumpulkan semua UID unik: dari users/ (yg pernah /start) + akun
 _get_all_user_ids() {
-    local -A seen
-    for conf in "$ACCOUNT_DIR"/*.conf; do
-        [[ -f "$conf" ]] || continue
-        local uid; uid=$(grep "^TG_USER_ID=" "$conf" | cut -d= -f2 | tr -d "[:space:]")
-        [[ -z "$uid" || -n "${seen[$uid]}" ]] && continue
-        seen[$uid]=1
-        echo "$uid"
-    done
+    {
+        for ufile in "$USERS_DIR"/*.user; do
+            [[ -f "$ufile" ]] || continue
+            grep "^UID=" "$ufile" | cut -d= -f2 | tr -d "[:space:]"
+        done
+        for conf in "$ACCOUNT_DIR"/*.conf; do
+            [[ -f "$conf" ]] || continue
+            grep "^TG_USER_ID=" "$conf" | cut -d= -f2 | tr -d "[:space:]"
+        done
+    } | sort -u
 }
 
 # Kirim pesan ke satu user, return status
@@ -44,7 +48,9 @@ broadcast_menu() {
         # Hitung jumlah user unik
         local uids=()
         while IFS= read -r uid; do uids+=("$uid"); done < <(_get_all_user_ids)
-        echo -e "  ${BWHITE}Total penerima :${NC} ${BGREEN}${#uids[@]} user${NC}"
+        local reg_count=0
+        for uf in "$USERS_DIR"/*.user; do [[ -f "$uf" ]] && reg_count=$(( reg_count + 1 )); done
+        echo -e "  ${BWHITE}Total penerima :${NC} ${BGREEN}${#uids[@]} user${NC} ${BCYAN}(${reg_count} terdaftar via bot)${NC}"
         echo ""
         echo -e "  ${BGREEN}[1]${NC} Kirim ke semua user"
         echo -e "  ${BGREEN}[2]${NC} Kirim ke user tertentu"
