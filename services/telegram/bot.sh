@@ -371,22 +371,24 @@ Kamu belum punya akun premium yang bisa diperpanjang." "$(_kb_home_btn)"
         return
     fi
 
-    # Buat keyboard dari list akun
-    local rows='[' first=true
-    for uname in "${akun_list[@]}"; do
-        local btn="{"text":"${uname}","callback_data":"renew_${uname}"}"
-        if $first; then
-            rows="${rows}[${btn}]"
-            first=false
-        else
-            rows="${rows},[${btn}]"
-        fi
-    done
-    rows="${rows},[{"text":"↩ Kembali","callback_data":"home"}]]"
+    # Buat keyboard dari list akun — pakai python agar quote aman
+    local kb_json
+    kb_json=$(python3 -c "
+import json, sys
+names = sys.argv[1:]
+rows = []
+for i in range(0, len(names), 2):
+    row = [{'text': names[i], 'callback_data': 'renew_' + names[i]}]
+    if i+1 < len(names):
+        row.append({'text': names[i+1], 'callback_data': 'renew_' + names[i+1]})
+    rows.append(row)
+rows.append([{'text': '\u21a9 Kembali', 'callback_data': 'home'}])
+print(json.dumps(rows))
+" "\${akun_list[@]}")
 
-    _edit "$chat_id" "$msg_id" "🔄 <b>Perpanjang Akun</b>
+    _edit "\$chat_id" "\$msg_id" "🔄 <b>Perpanjang Akun</b>
 
-Pilih akun yang ingin diperpanjang:" "$rows"
+Pilih akun yang ingin diperpanjang:" "\$kb_json"
 }
 
 # Pilih akun → minta jumlah hari
