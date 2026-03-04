@@ -437,7 +437,7 @@ _cb_renew_akun() {
 ⏳ Expired  : ${exp_display}
 💰 Harga    : ${hh}
 ━━━━━━━━━━━━━━━━━━━
-Berapa hari ingin diperpanjang? (1-365)" "$(_kb_home_btn)"
+Berapa hari ingin diperpanjang? (1-365)" '[[{"text":"↩ Kembali","callback_data":"m_perpanjang"}]]'
 }
 
 # Konfirmasi perpanjang
