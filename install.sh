@@ -123,6 +123,11 @@ cat > /etc/cron.d/zv-trial <<'CRONEOF'
 */1 * * * * root /bin/bash /etc/zv-manager/cron/trial-cleanup.sh
 CRONEOF
 
+cat > /etc/cron.d/zv-tg-notify <<'CRONEOF'
+# ZV-Manager - Notifikasi Telegram expired (tiap jam)
+0 * * * * root /bin/bash /etc/zv-manager/cron/tg-notify.sh
+CRONEOF
+
 cat > /etc/cron.d/zv-expired <<'CRONEOF'
 # ZV-Manager - Auto Delete Expired Users
 2 0 * * * root /bin/bash /etc/zv-manager/cron/expired.sh
