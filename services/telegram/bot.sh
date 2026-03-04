@@ -135,7 +135,7 @@ _get_server_list() {
 # Keyboards
 # ============================================================
 _kb_home() {
-    echo '[[{"text":"⚡ Buat Akun","callback_data":"m_buat"},{"text":"🎁 Coba Gratis","callback_data":"m_trial"}],[{"text":"📋 Akun Saya","callback_data":"m_akun"},{"text":"🔄 Perpanjang","callback_data":"m_perpanjang"}]]'
+    echo '[[{"text":"⚡ Buat Akun","callback_data":"m_buat"},{"text":"🎁 Coba Gratis","callback_data":"m_trial"}],[{"text":"📋 Akun Saya","callback_data":"m_akun"},{"text":"🔄 Perpanjang","callback_data":"m_perpanjang"}],[{"text":"💰 Saldo & Riwayat","callback_data":"m_saldo_history"}]]'
 }
 _kb_proto_buat() {
     echo '[[{"text":"SSH","callback_data":"p_buat_ssh"},{"text":"↩ Kembali","callback_data":"home"}]]'
@@ -816,7 +816,7 @@ PYINLINE
 _kb_for_user() {
     local uid="$1"
     if _is_admin "$uid"; then
-        echo '[[{"text":"⚡ Buat Akun","callback_data":"m_buat"},{"text":"🎁 Coba Gratis","callback_data":"m_trial"}],[{"text":"📋 Akun Saya","callback_data":"m_akun"},{"text":"🔄 Perpanjang","callback_data":"m_perpanjang"}],[{"text":"📢 Broadcast","callback_data":"m_broadcast"}]]'
+        echo '[[{"text":"⚡ Buat Akun","callback_data":"m_buat"},{"text":"🎁 Coba Gratis","callback_data":"m_trial"}],[{"text":"📋 Akun Saya","callback_data":"m_akun"},{"text":"🔄 Perpanjang","callback_data":"m_perpanjang"}],[{"text":"💰 Saldo & Riwayat","callback_data":"m_saldo_history"},{"text":"📢 Broadcast","callback_data":"m_broadcast"}]]'
     else
         echo "$(_kb_home)"
     fi
@@ -842,10 +842,106 @@ EOF
 }
 
 
+# ============================================================
+# /saldo — Cek saldo
+# ============================================================
+_handle_saldo() {
+    local chat_id="$1"
+    local saldo; saldo=$(_saldo_get "$chat_id")
+    _send "$chat_id" "💰 <b>Saldo Kamu</b>
+━━━━━━━━━━━━━━━━━━━
+💳 Saldo : Rp$(_fmt "$saldo")
+━━━━━━━━━━━━━━━━━━━
+Hubungi admin untuk top up." '[[{"text":"🏠 Menu Utama","callback_data":"home"}]]'
+}
+
+# ============================================================
+# /history — Riwayat transaksi
+# ============================================================
+_handle_history() {
+    local chat_id="$1"
+    local entries=()
+
+    # Baca dari log — cari semua transaksi milik chat_id ini
+    if [[ -f "$LOG" ]]; then
+        while IFS= read -r line; do
+            # Format: [YYYY-MM-DD HH:MM:SS] TIPE: chat_id ...
+            echo "$line" | grep -qE "^\[.+\] (BELI|RENEW|BW_BELI): ${chat_id} " || continue
+            local ts; ts=$(echo "$line" | grep -oP "^\[\K[^\]]+")
+            if echo "$line" | grep -q "^\[.+\] BELI:"; then
+                local user days total
+                user=$(echo  "$line" | grep -oP "user=\K\S+")
+                days=$(echo  "$line" | grep -oP "days=\K[0-9]+")
+                total=$(echo "$line" | grep -oP "total=\K[0-9]+")
+                entries+=("${ts}|🛒 Buat Akun|${user}|${days} hari|Rp$(_fmt "$total")")
+            elif echo "$line" | grep -q "^\[.+\] RENEW:"; then
+                local user days total
+                user=$(echo  "$line" | grep -oP "user=\K\S+")
+                days=$(echo  "$line" | grep -oP "days=\K[0-9]+")
+                total=$(echo "$line" | grep -oP "total=\K[0-9]+")
+                entries+=("${ts}|🔄 Perpanjang|${user}|+${days} hari|Rp$(_fmt "$total")")
+            elif echo "$line" | grep -q "^\[.+\] BW_BELI:"; then
+                local user gb total
+                user=$(echo  "$line" | grep -oP "user=\K\S+")
+                gb=$(echo    "$line" | grep -oP "gb=\K[0-9]+")
+                total=$(echo "$line" | grep -oP "total=\K[0-9]+")
+                entries+=("${ts}|📶 Tambah BW|${user}|+${gb} GB|Rp$(_fmt "$total")")
+            fi
+        done < "$LOG"
+    fi
+
+    if [[ ${#entries[@]} -eq 0 ]]; then
+        _send "$chat_id" "📝 <b>Riwayat Transaksi</b>
+
+Belum ada transaksi." '[[{"text":"🏠 Menu Utama","callback_data":"home"}]]'
+        return
+    fi
+
+    # Ambil 10 terakhir
+    local total_entry=${#entries[@]}
+    local start=$(( total_entry > 10 ? total_entry - 10 : 0 ))
+    local msg="📝 <b>Riwayat Transaksi</b> (${total_entry} total)
+━━━━━━━━━━━━━━━━━━━
+"
+
+    local i=$start
+    while [[ $i -lt $total_entry ]]; do
+        IFS="|" read -r ts tipe user keterangan jumlah <<< "${entries[$i]}"
+        msg+="${tipe} <code>${user}</code>
+"
+        msg+="   ${keterangan} — ${jumlah}
+"
+        msg+="   <i>${ts}</i>
+"
+        [[ $i -lt $(( total_entry - 1 )) ]] && msg+="─────────────────
+"
+        i=$(( i + 1 ))
+    done
+
+    local saldo; saldo=$(_saldo_get "$chat_id")
+    msg+="━━━━━━━━━━━━━━━━━━━
+💳 Saldo saat ini: Rp$(_fmt "$saldo")"
+    _send "$chat_id" "$(echo -e "$msg")" '[[{"text":"🏠 Menu Utama","callback_data":"home"}]]'
+}
+
+
 _handle_start() {
     _state_clear "$1"
     _register_user "$1" "$2"
     _send "$1" "$(_text_home "$2" "$1")" "$(_kb_for_user "$1")"
+}
+
+
+_cb_saldo_history() {
+    local chat_id="$1" cb_id="$2" msg_id="$3"
+    _answer "$cb_id" ""
+    local saldo; saldo=$(_saldo_get "$chat_id")
+
+    _edit "$chat_id" "$msg_id" "💰 <b>Saldo & Riwayat</b>
+━━━━━━━━━━━━━━━━━━━
+💳 Saldo kamu: Rp$(_fmt "$saldo")
+━━━━━━━━━━━━━━━━━━━
+Pilih menu:" '[[{"text":"📝 Riwayat Transaksi","callback_data":"m_history"},{"text":"🏠 Menu Utama","callback_data":"home"}]]'
 }
 
 
@@ -1223,8 +1319,10 @@ except: pass
         chat_id=$(sed -n '2p' "$tmpf"); fname=$(sed -n '3p' "$tmpf"); text=$(sed -n '4p' "$tmpf")
         rm -f "$tmpf"; _log "MSG $chat_id: ${text:0:40}"
         local cmd; cmd=$(echo "$text" | awk '{print $1}' | cut -d'@' -f1 | tr '[:upper:]' '[:lower:]')
-        [[ "$cmd" == "/start" ]] && _handle_start "$chat_id" "$fname" || \
-            { _handle_input "$chat_id" "$text" || _send "$chat_id" "Ketuk /start untuk membuka menu."; }
+        if [[ "$cmd" == "/start" ]]; then _handle_start "$chat_id" "$fname"
+        elif [[ "$cmd" == "/saldo" ]]; then _handle_saldo "$chat_id"
+        elif [[ "$cmd" == "/history" ]]; then _handle_history "$chat_id"
+        else _handle_input "$chat_id" "$text" || _send "$chat_id" "Ketuk /start untuk membuka menu."; fi
 
     elif [[ "$kind" == "CB" ]]; then
         local cb_id chat_id msg_id fname data
@@ -1237,7 +1335,9 @@ except: pass
             m_buat)        _cb_menu_buat       "$chat_id" "$cb_id" "$msg_id" ;;
             m_akun)        _cb_akun_saya       "$chat_id" "$cb_id" "$msg_id" ;;
             m_perpanjang)  _cb_perpanjang      "$chat_id" "$cb_id" "$msg_id" ;;
-            m_broadcast)   _cb_broadcast       "$chat_id" "$cb_id" "$msg_id" ;;
+            m_broadcast)     _cb_broadcast       "$chat_id" "$cb_id" "$msg_id" ;;
+            m_saldo_history) _cb_saldo_history   "$chat_id" "$cb_id" "$msg_id" ;;
+            m_history)       _handle_history     "$chat_id"; _answer "$cb_id" "" ;;
             m_tambah_bw)   _cb_tambah_bw       "$chat_id" "$cb_id" "$msg_id" ;;
             bw_akun_*)     _cb_tambah_bw_akun  "$chat_id" "$cb_id" "$msg_id" "${data#bw_akun_}" ;;
             bw_beli_*)     local _bw_parts; IFS="_" read -r _ _ _bw_gb _bw_user <<< "${data}"; _cb_bw_beli "$chat_id" "$cb_id" "$msg_id" "$_bw_gb" "$_bw_user" ;;
