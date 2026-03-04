@@ -539,6 +539,9 @@ Ketik pesan:" '[[{"text":"❌ Batal","callback_data":"home"}]]'
 _do_broadcast() {
     local chat_id="$1" text="$2"
 
+    # Reload config supaya TG_TOKEN pasti tersedia
+    tg_load
+
     # Kumpulkan UID unik pakai file tmp — hindari declare -A
     local uid_file; uid_file=$(mktemp)
     for conf in "$ACCOUNT_DIR"/*.conf; do
@@ -588,6 +591,20 @@ _do_broadcast() {
 <i>Gagal biasanya karena user memblokir bot.</i>"
 }
 
+
+_kb_for_user() {
+    local uid="$1"
+    if _is_admin "$uid"; then
+        echo '[[{"text":"⚡ Buat Akun","callback_data":"m_buat"},{"text":"🎁 Coba Gratis","callback_data":"m_trial"}],[{"text":"📋 Akun Saya","callback_data":"m_akun"},{"text":"🔄 Perpanjang","callback_data":"m_perpanjang"}],[{"text":"📢 Broadcast","callback_data":"m_broadcast"}]]'
+    else
+        echo "$(_kb_home)"
+    fi
+}
+
+_handle_start() {
+    _state_clear "$1"
+    _send "$1" "$(_text_home "$2" "$1")" "$(_kb_for_user "$1")"
+}
 
 _cb_home() {
     _answer "$2" ""; _state_clear "$1"
