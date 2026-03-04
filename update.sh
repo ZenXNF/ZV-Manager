@@ -69,6 +69,18 @@ cp /etc/zv-manager/zv-agent.sh /usr/local/bin/zv-agent
 chmod +x /usr/local/bin/zv-agent
 echo " ✔  zv-agent diperbarui"
 
+# --- Update Telegram bot ---
+if [[ -f /etc/zv-manager/services/telegram/bot.sh ]]; then
+    cp /etc/zv-manager/services/telegram/bot.sh /usr/local/bin/zv-telegram-bot
+    chmod +x /usr/local/bin/zv-telegram-bot
+    if systemctl is-active --quiet zv-telegram 2>/dev/null; then
+        systemctl restart zv-telegram &>/dev/null
+        echo " ✔  Telegram bot diperbarui & di-restart"
+    else
+        echo " ✔  Telegram bot diperbarui"
+    fi
+fi
+
 # Load utils
 source /etc/zv-manager/utils/colors.sh
 source /etc/zv-manager/utils/logger.sh
