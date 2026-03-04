@@ -10,12 +10,18 @@ SALDO_DIR="/etc/zv-manager/accounts/saldo"
 mkdir -p "$SALDO_DIR"
 
 _get_saldo() {
-    local f="${SALDO_DIR}/${1}.saldo"
-    [[ -f "$f" ]] && cat "$f" | tr -d "[:space:]" || echo "0"
+    local f="${SALDO_DIR}/${1}.saldo" val="0"
+    if [[ -f "$f" ]]; then
+        val=$(cat "$f" | tr -d "[:space:]")
+        # Bersihkan kalau masih format lama "SALDO=123"
+        val="${val#SALDO=}"
+    fi
+    [[ "$val" =~ ^[0-9]+$ ]] || val="0"
+    echo "$val"
 }
 
 _set_saldo() {
-    echo "SALDO=${2}" > "${SALDO_DIR}/${1}.saldo"
+    echo "${2}" > "${SALDO_DIR}/${1}.saldo"
 }
 
 saldo_menu() {
@@ -52,7 +58,8 @@ saldo_menu() {
                 read -rp "  Telegram User ID: " uid
                 [[ -z "$uid" ]] && continue
                 local cur; cur=$(_get_saldo "$uid")
-                echo -e "  ${BWHITE}Saldo sekarang: Rp${cur}${NC}"
+                local cur_fmt; cur_fmt=$(python3 -c "print('{:,}'.format(int('$cur' or 0)).replace(',','.'))" 2>/dev/null || echo "$cur")
+                echo -e "  ${BWHITE}Saldo sekarang: Rp${cur_fmt}${NC}"
                 echo ""
                 echo -e "  ${BYELLOW}[1] Set saldo ke nominal tertentu${NC}"
                 echo -e "  ${BYELLOW}[2] Tambah ke saldo sekarang${NC}"
@@ -65,7 +72,8 @@ saldo_menu() {
                 fi
                 _set_saldo "$uid" "$amount"
                 echo -e ""
-                echo -e "  ${BGREEN}Saldo user ${uid} diset ke Rp${amount}${NC}"
+                local amt_fmt; amt_fmt=$(python3 -c "print('{:,}'.format(int('$amount' or 0)).replace(',','.'))" 2>/dev/null || echo "$amount")
+                echo -e "  ${BGREEN}Saldo user ${uid} diset ke Rp${amt_fmt}${NC}"
                 echo ""
                 press_any_key
                 ;;
@@ -89,11 +97,14 @@ saldo_menu() {
                 printf "  ${BWHITE}%-20s %-15s${NC}\n" "User ID" "Saldo"
                 echo -e "  ${BCYAN}────────────────────────────────────${NC}"
                 local found=0
-                for f in "$SALDO_DIR"/*.conf; do
+                for f in "$SALDO_DIR"/*.saldo; do
                     [[ -f "$f" ]] || continue
                     local fuid; fuid=$(basename "$f" .saldo)
                     local s; s=$(cat "$f" | tr -d "[:space:]")
-                    printf "  %-20s ${BGREEN}Rp%-15s${NC}\n" "$fuid" "$s"
+                    s="${s#SALDO=}"
+                    [[ "$s" =~ ^[0-9]+$ ]] || s="0"
+                    local s_fmt; s_fmt=$(python3 -c "print('{:,}'.format(int('$s')).replace(',','.'))" 2>/dev/null || echo "$s")
+                    printf "  %-20s ${BGREEN}Rp%-15s${NC}\n" "$fuid" "$s_fmt"
                     found=1
                 done
                 [[ $found -eq 0 ]] && echo -e "  ${BYELLOW}Belum ada data saldo.${NC}"
