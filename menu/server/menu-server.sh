@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-#   ZV-Manager - Server Management Menu
+#   ZV-Manager - Menu Server
 # ============================================================
 
 source /etc/zv-manager/utils/colors.sh
@@ -8,18 +8,15 @@ source /etc/zv-manager/utils/colors.sh
 menu_server() {
     while true; do
         clear
-        echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-        echo -e " │          ${BWHITE}MENU MANAJEMEN SERVER${NC}               │"
-        echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+        echo -e "${BCYAN}  ┌──────────────────────────────────────────────┐${NC}"
+        echo -e "  │           ${BWHITE}MANAJEMEN SERVER${NC}                  │"
+        echo -e "${BCYAN}  └──────────────────────────────────────────────┘${NC}"
         echo ""
-        echo -e "  ${BGREEN}[1]${NC} Tambah Server"
-        echo -e "  ${BGREEN}[2]${NC} List Server"
-        echo -e "  ${BGREEN}[3]${NC} Connect ke Server"
-        echo -e "  ${BGREEN}[4]${NC} Hapus Server"
-        echo -e "  ${BGREEN}[5]${NC} Deploy Agent ke Remote"
-        echo -e "  ${BGREEN}[6]${NC} Setting Telegram per Server"
+        echo -e "  ${BGREEN}[1]${NC} Tambah Server        ${BGREEN}[2]${NC} List Server"
+        echo -e "  ${BGREEN}[3]${NC} Connect ke Server    ${BGREEN}[4]${NC} Hapus Server"
+        echo -e "  ${BGREEN}[5]${NC} Deploy Agent         ${BGREEN}[6]${NC} Setting Telegram"
         echo ""
-        echo -e "  ${BRED}[0]${NC} Kembali ke Menu Utama"
+        echo -e "  ${BRED}[0]${NC} Kembali"
         echo ""
         read -rp "  Pilihan: " choice
 
