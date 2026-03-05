@@ -85,12 +85,17 @@ if [[ -f /etc/zv-manager/services/telegram/bot.py ]]; then
 [Unit]
 Description=ZV-Manager Telegram Bot (Python)
 After=network.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3 /usr/local/bin/zv-telegram-bot.py
+ExecStart=/usr/bin/python3 -u /usr/local/bin/zv-telegram-bot.py
 Restart=always
-RestartSec=5s
+RestartSec=10s
+MemoryMax=120M
+MemorySwapMax=0
+CPUQuota=60%
 StandardOutput=append:/var/log/zv-manager/telegram-bot.log
 StandardError=append:/var/log/zv-manager/telegram-bot.log
 
