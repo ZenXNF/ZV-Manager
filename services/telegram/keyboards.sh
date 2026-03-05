@@ -50,10 +50,14 @@ _kb_confirm() {
 _kb_for_user() {
     local uid="$1"
     if _is_admin "$uid"; then
-        echo '[[{"text":"⚡ Buat Akun","callback_data":"m_buat"},{"text":"🎁 Coba Gratis","callback_data":"m_trial"}],[{"text":"📋 Akun Saya","callback_data":"m_akun"},{"text":"🔄 Perpanjang","callback_data":"m_perpanjang"}],[{"text":"💰 Saldo & Riwayat","callback_data":"m_saldo_history"},{"text":"📢 Broadcast","callback_data":"m_broadcast"}]]'
+        echo '[[{"text":"⚡ Buat Akun","callback_data":"m_buat"},{"text":"🎁 Coba Gratis","callback_data":"m_trial"}],[{"text":"📋 Akun Saya","callback_data":"m_akun"},{"text":"🔄 Perpanjang","callback_data":"m_perpanjang"}],[{"text":"💰 Saldo & Riwayat","callback_data":"m_saldo_history"},{"text":"🔧 Admin","callback_data":"m_admin"}]]'
     else
         echo "$(_kb_home)"
     fi
+}
+
+_kb_admin_panel() {
+    echo '[[{"text":"💰 Top Up Saldo","callback_data":"adm_topup"},{"text":"📢 Broadcast","callback_data":"m_broadcast"}],[{"text":"👥 Daftar User","callback_data":"adm_daftar_user"},{"text":"🔍 Cek User","callback_data":"adm_cek_user"}],[{"text":"🏠 Menu Utama","callback_data":"home"}]]'
 }
 
 # ============================================================

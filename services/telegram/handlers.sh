@@ -790,6 +790,54 @@ _handle_input() {
             _do_broadcast "$chat_id" "$text"
             return 0
             ;;
+        adm_topup_uid)
+            _is_admin "$chat_id" || { _state_clear "$chat_id"; return 0; }
+            if ! [[ "$text" =~ ^[0-9]{5,15}$ ]]; then
+                _send "$chat_id" "❌ User ID tidak valid. Harus berupa angka 5-15 digit.
+
+Ketik User ID:"
+                return 0
+            fi
+            _state_set "$chat_id" "ADM_TARGET" "$text"
+            _state_set "$chat_id" "STATE" "adm_topup_amount"
+            local t_name="(belum terdaftar)"
+            [[ -f "${USERS_DIR}/${text}.user" ]] && t_name=$(grep "^NAME=" "${USERS_DIR}/${text}.user" | cut -d= -f2)
+            local t_saldo; t_saldo=$(_saldo_get "$text")
+            _send "$chat_id" "💰 <b>Top Up Saldo</b>
+━━━━━━━━━━━━━━━━━━━
+🆔 User ID : <code>${text}</code>
+👤 Nama    : ${t_name}
+💰 Saldo   : Rp$(_fmt "$t_saldo")
+━━━━━━━━━━━━━━━━━━━
+Ketik <b>jumlah</b> top up (angka, tanpa titik):
+Contoh: <code>50000</code>"
+            return 0
+            ;;
+        adm_topup_amount)
+            _is_admin "$chat_id" || { _state_clear "$chat_id"; return 0; }
+            if ! [[ "$text" =~ ^[0-9]+$ ]] || [[ "$text" -eq 0 ]]; then
+                _send "$chat_id" "❌ Jumlah tidak valid. Masukkan angka lebih dari 0.
+
+Ketik jumlah top up:"
+                return 0
+            fi
+            local target_id; target_id=$(_state_get "$chat_id" "ADM_TARGET")
+            _state_clear "$chat_id"
+            _adm_do_topup "$chat_id" "$target_id" "$text"
+            return 0
+            ;;
+        adm_cek_uid)
+            _is_admin "$chat_id" || { _state_clear "$chat_id"; return 0; }
+            if ! [[ "$text" =~ ^[0-9]{5,15}$ ]]; then
+                _send "$chat_id" "❌ User ID tidak valid.
+
+Ketik User ID:"
+                return 0
+            fi
+            _state_clear "$chat_id"
+            _adm_do_cek_user "$chat_id" "$text"
+            return 0
+            ;;
         await_user)
             if ! echo "$text" | grep -qE '^[a-zA-Z0-9]{3,20}$'; then
                 _send "$chat_id" "❌ Username tidak valid. Huruf (besar/kecil) dan angka, 3-20 karakter.
@@ -1002,4 +1050,192 @@ EOF
     _edit "$chat_id" "$msg_id" "✅ Akun sedang dibuat..." ""
     _send_akun "$chat_id" "BELI" "$username" "$password" "$domain" \
         "$exp_display" "${TG_LIMIT_IP}" "${TG_SERVER_LABEL}" "$days" "$total"
+}
+
+# ============================================================
+# Admin Panel
+# ============================================================
+_cb_admin_panel() {
+    local chat_id="$1" cb_id="$2" msg_id="$3"
+    _is_admin "$chat_id" || { _answer "$cb_id" "❌ Akses ditolak"; return; }
+    _answer "$cb_id" ""
+
+    local total_user=0
+    for ufile in "$USERS_DIR"/*.user; do [[ -f "$ufile" ]] && total_user=$(( total_user + 1 )); done
+    local total_akun=0
+    for conf in "$ACCOUNT_DIR"/*.conf; do [[ -f "$conf" ]] && total_akun=$(( total_akun + 1 )); done
+
+    _edit "$chat_id" "$msg_id" "🔧 <b>Admin Panel</b>
+━━━━━━━━━━━━━━━━━━━
+👥 User terdaftar : ${total_user} user
+🖥️ Total akun SSH : ${total_akun} akun
+━━━━━━━━━━━━━━━━━━━
+<b>Daftar Perintah Admin:</b>
+
+💰 <b>Top Up Saldo</b>
+   Tambah saldo ke user tertentu
+
+📢 <b>Broadcast</b>
+   Kirim pesan ke semua user terdaftar
+
+👥 <b>Daftar User</b>
+   Lihat semua user yang pernah /start
+
+🔍 <b>Cek User</b>
+   Cek saldo dan akun milik user tertentu
+━━━━━━━━━━━━━━━━━━━" "$(_kb_admin_panel)"
+}
+
+# ============================================================
+# Admin: Top Up Saldo (inline flow)
+# ============================================================
+_cb_adm_topup() {
+    local chat_id="$1" cb_id="$2" msg_id="$3"
+    _is_admin "$chat_id" || { _answer "$cb_id" "❌ Akses ditolak"; return; }
+    _answer "$cb_id" ""
+    _state_clear "$chat_id"
+    _state_set "$chat_id" "STATE" "adm_topup_uid"
+    _edit "$chat_id" "$msg_id" "💰 <b>Top Up Saldo</b>
+━━━━━━━━━━━━━━━━━━━
+Ketik <b>User ID</b> yang ingin di-top up.
+
+Contoh: <code>123456789</code>
+
+💡 User ID bisa dilihat saat user kirim /start ke bot." '[[{"text":"❌ Batal","callback_data":"m_admin"}]]'
+}
+
+# ============================================================
+# Admin: Daftar User Terdaftar
+# ============================================================
+_cb_adm_daftar_user() {
+    local chat_id="$1" cb_id="$2" msg_id="$3"
+    _is_admin "$chat_id" || { _answer "$cb_id" "❌ Akses ditolak"; return; }
+    _answer "$cb_id" ""
+
+    local users=()
+    for ufile in "$USERS_DIR"/*.user; do
+        [[ -f "$ufile" ]] || continue
+        local uid name joined
+        uid=$(grep    "^UID="    "$ufile" | cut -d= -f2)
+        name=$(grep   "^NAME="   "$ufile" | cut -d= -f2)
+        joined=$(grep "^JOINED=" "$ufile" | cut -d= -f2)
+        users+=("${uid}|${name}|${joined}")
+    done
+
+    local total=${#users[@]}
+    if [[ $total -eq 0 ]]; then
+        _edit "$chat_id" "$msg_id" "👥 <b>Daftar User</b>
+
+Belum ada user terdaftar." "$(_kb_admin_panel)"
+        return
+    fi
+
+    # Ambil 20 terakhir
+    local start=$(( total > 20 ? total - 20 : 0 ))
+    local msg="👥 <b>Daftar User Terdaftar</b> (${total} total)
+━━━━━━━━━━━━━━━━━━━
+"
+    local i=$start
+    while [[ $i -lt $total ]]; do
+        IFS="|" read -r uid name joined <<< "${users[$i]}"
+        local saldo; saldo=$(_saldo_get "$uid")
+        msg+="👤 <b>${name}</b> — <code>${uid}</code>
+   💰 Saldo: Rp$(_fmt "$saldo") | 📅 ${joined:0:10}
+"
+        i=$(( i + 1 ))
+    done
+    msg+="━━━━━━━━━━━━━━━━━━━"
+
+    _edit "$chat_id" "$msg_id" "$msg" '[[{"text":"↩ Kembali","callback_data":"m_admin"}]]'
+}
+
+# ============================================================
+# Admin: Cek User
+# ============================================================
+_cb_adm_cek_user() {
+    local chat_id="$1" cb_id="$2" msg_id="$3"
+    _is_admin "$chat_id" || { _answer "$cb_id" "❌ Akses ditolak"; return; }
+    _answer "$cb_id" ""
+    _state_clear "$chat_id"
+    _state_set "$chat_id" "STATE" "adm_cek_uid"
+    _edit "$chat_id" "$msg_id" "🔍 <b>Cek User</b>
+━━━━━━━━━━━━━━━━━━━
+Ketik <b>User ID</b> yang ingin dicek.
+
+Contoh: <code>123456789</code>" '[[{"text":"❌ Batal","callback_data":"m_admin"}]]'
+}
+
+# ============================================================
+# Admin handle input (topup & cek user)
+# ============================================================
+_adm_do_topup() {
+    local chat_id="$1" target_id="$2" amount="$3"
+    local cur; cur=$(( 10#$(_saldo_get "$target_id") ))
+    local new=$(( cur + amount ))
+    _saldo_set "$target_id" "$new"
+    _log "TOPUP: admin=$chat_id target=$target_id amount=$amount new=$new"
+
+    # Notif admin
+    _send "$chat_id" "✅ <b>Top Up Berhasil</b>
+━━━━━━━━━━━━━━━━━━━
+🆔 User ID  : <code>${target_id}</code>
+💳 Ditambah : Rp$(_fmt "$amount")
+💰 Saldo    : Rp$(_fmt "$cur") → Rp$(_fmt "$new")
+━━━━━━━━━━━━━━━━━━━" '[[{"text":"💰 Top Up Lagi","callback_data":"adm_topup"},{"text":"↩ Admin Panel","callback_data":"m_admin"}]]'
+
+    # Notif ke user
+    local target_name="User"
+    [[ -f "${USERS_DIR}/${target_id}.user" ]] && target_name=$(grep "^NAME=" "${USERS_DIR}/${target_id}.user" | cut -d= -f2)
+    _send "$target_id" "💰 <b>Saldo Kamu Bertambah!</b>
+━━━━━━━━━━━━━━━━━━━
+💳 Ditambah : Rp$(_fmt "$amount")
+💰 Saldo    : Rp$(_fmt "$new")
+━━━━━━━━━━━━━━━━━━━
+Terima kasih sudah top up! 🙏" '[[{"text":"🏠 Menu Utama","callback_data":"home"}]]'
+}
+
+_adm_do_cek_user() {
+    local chat_id="$1" target_id="$2"
+    local saldo; saldo=$(_saldo_get "$target_id")
+
+    # Info user
+    local name="(tidak terdaftar)" joined="-"
+    if [[ -f "${USERS_DIR}/${target_id}.user" ]]; then
+        name=$(grep   "^NAME="   "${USERS_DIR}/${target_id}.user" | cut -d= -f2)
+        joined=$(grep "^JOINED=" "${USERS_DIR}/${target_id}.user" | cut -d= -f2)
+    fi
+
+    # Akun SSH milik user ini
+    local now_ts; now_ts=$(date +%s)
+    local akun_info="" akun_count=0
+    for conf in "$ACCOUNT_DIR"/*.conf; do
+        [[ -f "$conf" ]] || continue
+        local tg_uid; tg_uid=$(grep "^TG_USER_ID=" "$conf" | cut -d= -f2 | tr -d "[:space:]")
+        [[ "$tg_uid" != "$target_id" ]] && continue
+        local uname exp_ts is_trial
+        uname=$(grep    "^USERNAME="   "$conf" | cut -d= -f2)
+        exp_ts=$(grep   "^EXPIRED_TS=" "$conf" | cut -d= -f2)
+        is_trial=$(grep "^IS_TRIAL="   "$conf" | cut -d= -f2)
+        local tipe; [[ "$is_trial" == "1" ]] && tipe="Trial" || tipe="Premium"
+        local status
+        if [[ -n "$exp_ts" && "$exp_ts" =~ ^[0-9]+$ && $exp_ts -gt $now_ts ]]; then
+            status="✅ Aktif"
+        else
+            status="❌ Expired"
+        fi
+        akun_info+="   • <code>${uname}</code> (${tipe}) ${status}
+"
+        akun_count=$(( akun_count + 1 ))
+    done
+    [[ $akun_count -eq 0 ]] && akun_info="   Tidak ada akun\n"
+
+    _send "$chat_id" "🔍 <b>Info User</b>
+━━━━━━━━━━━━━━━━━━━
+🆔 User ID  : <code>${target_id}</code>
+👤 Nama     : ${name}
+📅 Bergabung: ${joined:0:10}
+💰 Saldo    : Rp$(_fmt "$saldo")
+━━━━━━━━━━━━━━━━━━━
+🖥️ Akun SSH (${akun_count}):
+$(echo -e "$akun_info")━━━━━━━━━━━━━━━━━━━" '[[{"text":"💰 Top Up Saldo","callback_data":"adm_topup"},{"text":"↩ Admin Panel","callback_data":"m_admin"}]]'
 }
