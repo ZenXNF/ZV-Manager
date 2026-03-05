@@ -40,12 +40,19 @@ install_telegram_bot() {
 [Unit]
 Description=ZV-Manager Telegram Bot (Python)
 After=network.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3 /usr/local/bin/zv-telegram-bot.py
+ExecStart=/usr/bin/python3 -u /usr/local/bin/zv-telegram-bot.py
 Restart=always
-RestartSec=5s
+RestartSec=10s
+# Batasi memori maksimal 120MB di VPS 512MB/1GB
+MemoryMax=120M
+MemorySwapMax=0
+# Batasi CPU agar tidak monopoli di 1-core VPS
+CPUQuota=60%
 StandardOutput=append:/var/log/zv-manager/telegram-bot.log
 StandardError=append:/var/log/zv-manager/telegram-bot.log
 

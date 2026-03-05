@@ -13,7 +13,9 @@ import subprocess
 import time
 import random
 import string
+from collections import deque
 from datetime import datetime
+from functools import lru_cache
 from pathlib import Path
 
 from aiogram import Bot, Dispatcher, F
@@ -43,11 +45,18 @@ user_states: dict[int, dict] = {}
 
 # Cache jumlah akun per server IP (60 detik)
 _account_cache: dict[str, tuple[int, float]] = {}
+# Cache server conf (5 menit)
+_srv_conf_cache: dict[str, tuple[dict, float]] = {}
+_tg_conf_cache:  dict[str, tuple[dict, float]] = {}
 
-logging.basicConfig(level=logging.INFO,
+logging.basicConfig(level=logging.WARNING,
     format="[%(asctime)s] %(levelname)s %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S")
+# Matikan log verbose dari aiogram & aiohttp (hemat RAM + CPU)
+logging.getLogger("aiogram").setLevel(logging.WARNING)
+logging.getLogger("aiohttp").setLevel(logging.WARNING)
 log = logging.getLogger(__name__)
+log.setLevel(logging.INFO)
 
 # ============================================================
 # Load telegram config
@@ -77,6 +86,26 @@ def zv_log(msg: str):
     os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
     with open(LOG_FILE, "a") as f:
         f.write(f"[{ts}] {msg}\n")
+
+def tail_log(n: int = 500) -> list[str]:
+    """Baca n baris terakhir log secara efisien tanpa load seluruh file."""
+    try:
+        with open(LOG_FILE, "rb") as f:
+            f.seek(0, 2)
+            size = f.tell()
+            if size == 0:
+                return []
+            # Estimasi 150 byte/baris, ambil lebih banyak buat jaga-jaga
+            block = min(size, n * 150)
+            f.seek(-block, 2)
+            raw = f.read().decode("utf-8", errors="ignore")
+        lines = raw.splitlines()
+        # Baris pertama mungkin terpotong, buang
+        if block < size:
+            lines = lines[1:]
+        return lines[-n:]
+    except Exception:
+        return []
 
 def fmt(n) -> str:
     """Format angka: 100000 → 100.000"""
@@ -160,21 +189,36 @@ def state_clear(uid: int):
 # ============================================================
 # Server config helpers
 # ============================================================
-def load_server_conf(sname: str) -> dict:
+def _read_conf_file(path: str) -> dict:
+    """Baca file conf key=value, return dict."""
     conf = {}
-    f = f"{SERVER_DIR}/{sname}.conf"
     try:
-        with open(f) as fh:
+        with open(path) as fh:
             for line in fh:
                 line = line.strip()
-                if "=" in line and not line.startswith("#"):
+                if line and "=" in line and not line.startswith("#"):
                     k, _, v = line.partition("=")
                     conf[k.strip()] = v.strip()
     except Exception:
         pass
     return conf
 
+def load_server_conf(sname: str) -> dict:
+    now = time.time()
+    if sname in _srv_conf_cache:
+        val, ts = _srv_conf_cache[sname]
+        if now - ts < 300:
+            return val
+    conf = _read_conf_file(f"{SERVER_DIR}/{sname}.conf")
+    _srv_conf_cache[sname] = (conf, now)
+    return conf
+
 def load_tg_server_conf(sname: str) -> dict:
+    now = time.time()
+    if sname in _tg_conf_cache:
+        val, ts = _tg_conf_cache[sname]
+        if now - ts < 300:
+            return val
     defaults = {
         "TG_SERVER_LABEL": sname,
         "TG_HARGA_HARI": "0",
@@ -184,36 +228,31 @@ def load_tg_server_conf(sname: str) -> dict:
         "TG_MAX_AKUN": "500",
         "TG_BW_PER_HARI": "5",
     }
-    f = f"{SERVER_DIR}/{sname}.tg.conf"
-    try:
-        with open(f) as fh:
-            for line in fh:
-                line = line.strip()
-                if "=" in line and not line.startswith("#"):
-                    k, _, v = line.partition("=")
-                    defaults[k.strip()] = v.strip()
-    except Exception:
-        pass
+    overrides = _read_conf_file(f"{SERVER_DIR}/{sname}.tg.conf")
+    defaults.update(overrides)
+    _tg_conf_cache[sname] = (defaults, now)
     return defaults
 
+_server_list_cache: tuple[list, float] = ([], 0.0)
+
 def get_server_list() -> list[dict]:
-    servers = []
+    global _server_list_cache
+    now = time.time()
+    servers, ts = _server_list_cache
+    if now - ts < 300:
+        return servers
+    result = []
     try:
-        for f in Path(SERVER_DIR).glob("*.conf"):
+        for f in sorted(Path(SERVER_DIR).glob("*.conf")):
             if f.name.endswith(".tg.conf"):
                 continue
-            conf = {}
-            with open(f) as fh:
-                for line in fh:
-                    line = line.strip()
-                    if "=" in line and not line.startswith("#"):
-                        k, _, v = line.partition("=")
-                        conf[k.strip()] = v.strip()
+            conf = _read_conf_file(str(f))
             if conf.get("NAME"):
-                servers.append(conf)
+                result.append(conf)
     except Exception:
         pass
-    return servers
+    _server_list_cache = (result, now)
+    return result
 
 def count_accounts(srv_ip: str) -> int:
     global _account_cache
@@ -266,18 +305,7 @@ def count_accounts(srv_ip: str) -> int:
     return count
 
 def load_account_conf(username: str) -> dict:
-    f = f"{ACCOUNT_DIR}/{username}.conf"
-    conf = {}
-    try:
-        with open(f) as fh:
-            for line in fh:
-                line = line.strip()
-                if "=" in line:
-                    k, _, v = line.partition("=")
-                    conf[k.strip()] = v.strip()
-    except Exception:
-        pass
-    return conf
+    return _read_conf_file(f"{ACCOUNT_DIR}/{username}.conf")
 
 def save_account_conf(username: str, data: dict):
     f = f"{ACCOUNT_DIR}/{username}.conf"
@@ -309,17 +337,7 @@ def register_user(uid: int, fname: str):
             fh.writelines(lines)
 
 def load_user_info(uid: int) -> dict:
-    f = f"{USERS_DIR}/{uid}.user"
-    info = {}
-    try:
-        with open(f) as fh:
-            for line in fh:
-                if "=" in line:
-                    k, _, v = line.strip().partition("=")
-                    info[k] = v
-    except Exception:
-        pass
-    return info
+    return _read_conf_file(f"{USERS_DIR}/{uid}.user")
 
 # ============================================================
 # Trial helpers
@@ -538,6 +556,18 @@ def text_akun_info(tipe: str, username: str, password: str, domain: str,
 bot = Bot(token=TOKEN)
 dp  = Dispatcher()
 
+# Throttle sederhana: cegah spam klik (in-memory)
+_last_action: dict[int, float] = {}
+
+def _throttle(uid: int, seconds: float = 0.8) -> bool:
+    """Return True kalau boleh jalan, False kalau masih cooldown."""
+    now = time.time()
+    last = _last_action.get(uid, 0.0)
+    if now - last < seconds:
+        return False
+    _last_action[uid] = now
+    return True
+
 # ============================================================
 # /start
 # ============================================================
@@ -557,6 +587,8 @@ async def cmd_start(msg: Message):
 async def cb_home(cb: CallbackQuery):
     uid   = cb.from_user.id
     fname = cb.from_user.first_name or "User"
+    if not _throttle(uid):
+        await cb.answer("⏳"); return
     state_clear(uid)
     await cb.message.edit_text(text_home(fname, uid), parse_mode="HTML",
                                 reply_markup=kb_for_user(uid))
@@ -1096,21 +1128,19 @@ async def cb_saldo_history(cb: CallbackQuery):
     entries = []
     total_bulan = 0
     bulan_ini = datetime.now().strftime("%Y-%m")
+    uid_str = str(uid)
 
-    try:
-        with open(LOG_FILE) as f:
-            for line in f:
-                if f"] TOPUP:" not in line: continue
-                if f"target={uid} " not in line: continue
-                ts_m = re.search(r"^\[([^\]]+)\]", line)
-                am_m = re.search(r"amount=(\d+)", line)
-                if not ts_m or not am_m: continue
-                ts = ts_m.group(1); amount = int(am_m.group(1))
-                entries.append((ts, amount))
-                if ts[:7] == bulan_ini:
-                    total_bulan += amount
-    except Exception:
-        pass
+    # tail_log: baca dari akhir file — jauh lebih cepat
+    for line in tail_log(300):
+        if "] TOPUP:" not in line: continue
+        if f"target={uid_str} " not in line: continue
+        ts_m = re.search(r"^\[([^\]]+)\]", line)
+        am_m = re.search(r"amount=(\d+)", line)
+        if not ts_m or not am_m: continue
+        ts = ts_m.group(1); amount = int(am_m.group(1))
+        entries.append((ts, amount))
+        if ts[:7] == bulan_ini:
+            total_bulan += amount
 
     bulan_label = datetime.now().strftime("%B %Y")
     msg = (
@@ -1142,30 +1172,33 @@ async def cb_history(cb: CallbackQuery):
     uid = cb.from_user.id
     await cb.answer()
     entries = []
-    try:
-        with open(LOG_FILE) as f:
-            for line in f:
-                uid_str = str(uid)
-                if f"] BELI: {uid_str} " in line:
-                    ts = re.search(r"^\[([^\]]+)\]", line).group(1)
-                    user  = re.search(r"user=(\S+)", line).group(1)
-                    days  = re.search(r"days=(\d+)", line).group(1)
-                    total = re.search(r"total=(\d+)", line).group(1)
-                    entries.append(f"🛒 Buat Akun <code>{user}</code>\n   {days} hari — Rp{fmt(total)}\n   <i>{ts}</i>")
-                elif f"] RENEW: {uid_str} " in line:
-                    ts = re.search(r"^\[([^\]]+)\]", line).group(1)
-                    user  = re.search(r"user=(\S+)", line).group(1)
-                    days  = re.search(r"days=(\d+)", line).group(1)
-                    total = re.search(r"total=(\d+)", line).group(1)
-                    entries.append(f"🔄 Perpanjang <code>{user}</code>\n   +{days} hari — Rp{fmt(total)}\n   <i>{ts}</i>")
-                elif f"] BW_BELI: {uid_str} " in line:
-                    ts = re.search(r"^\[([^\]]+)\]", line).group(1)
-                    user  = re.search(r"user=(\S+)", line).group(1)
-                    gb    = re.search(r"gb=(\d+)", line).group(1)
-                    total = re.search(r"total=(\d+)", line).group(1)
-                    entries.append(f"📶 Tambah Kuota <code>{user}</code>\n   +{gb} GB — Rp{fmt(total)}\n   <i>{ts}</i>")
-    except Exception:
-        pass
+    uid_str = str(uid)
+
+    for line in tail_log(500):
+        if f"] BELI: {uid_str} " in line:
+            try:
+                ts    = re.search(r"^\[([^\]]+)\]", line).group(1)
+                user  = re.search(r"user=(\S+)", line).group(1)
+                days  = re.search(r"days=(\d+)", line).group(1)
+                total = re.search(r"total=(\d+)", line).group(1)
+                entries.append(f"🛒 Buat Akun <code>{user}</code>\n   {days} hari — Rp{fmt(total)}\n   <i>{ts}</i>")
+            except Exception: pass
+        elif f"] RENEW: {uid_str} " in line:
+            try:
+                ts    = re.search(r"^\[([^\]]+)\]", line).group(1)
+                user  = re.search(r"user=(\S+)", line).group(1)
+                days  = re.search(r"days=(\d+)", line).group(1)
+                total = re.search(r"total=(\d+)", line).group(1)
+                entries.append(f"🔄 Perpanjang <code>{user}</code>\n   +{days} hari — Rp{fmt(total)}\n   <i>{ts}</i>")
+            except Exception: pass
+        elif f"] BW_BELI: {uid_str} " in line:
+            try:
+                ts    = re.search(r"^\[([^\]]+)\]", line).group(1)
+                user  = re.search(r"user=(\S+)", line).group(1)
+                gb    = re.search(r"gb=(\d+)", line).group(1)
+                total = re.search(r"total=(\d+)", line).group(1)
+                entries.append(f"📶 Tambah Kuota <code>{user}</code>\n   +{gb} GB — Rp{fmt(total)}\n   <i>{ts}</i>")
+            except Exception: pass
 
     if not entries:
         await cb.message.edit_text(
@@ -1423,15 +1456,11 @@ async def cb_adm_history(cb: CallbackQuery):
     await cb.answer()
 
     entries = []
-    try:
-        with open(LOG_FILE) as f:
-            for line in f:
-                for tag in ["BELI", "RENEW", "BW_BELI", "TOPUP", "KURANGI"]:
-                    if f"] {tag}:" in line:
-                        entries.append(line.strip())
-                        break
-    except Exception:
-        pass
+    for line in tail_log(200):
+        for tag in ["BELI", "RENEW", "BW_BELI", "TOPUP", "KURANGI"]:
+            if f"] {tag}:" in line:
+                entries.append(line.strip())
+                break
 
     if not entries:
         await cb.message.edit_text("📊 <b>History Transaksi</b>\n\nBelum ada transaksi tercatat.",
@@ -1778,14 +1807,20 @@ async def handle_message(msg: Message):
 # Broadcast helper
 # ============================================================
 async def do_broadcast(msg: Message, text: str):
-    uids = set()
+    _bot    = msg.bot
+    sender  = msg.from_user.id
+    uids: set[int] = set()
+
+    # Kumpulkan dari registered users
     if Path(USERS_DIR).exists():
         for f in Path(USERS_DIR).glob("*.user"):
             try:
-                uid_str = f.stem
-                uids.add(int(uid_str))
+                uid_int = int(f.stem)
+                uids.add(uid_int)
             except Exception:
                 pass
+
+    # Kumpulkan dari akun SSH (siapa tau ada user yg punya akun tapi belum /start)
     if Path(ACCOUNT_DIR).exists():
         for f in Path(ACCOUNT_DIR).glob("*.conf"):
             ac = load_account_conf(f.stem)
@@ -1793,28 +1828,36 @@ async def do_broadcast(msg: Message, text: str):
             if tg_uid.isdigit():
                 uids.add(int(tg_uid))
 
+    # Jangan kirim ke diri sendiri (admin pengirim)
+    uids.discard(sender)
+
     if not uids:
-        await msg.answer("❌ Belum ada user terdaftar."); return
+        await msg.answer("❌ Belum ada user lain yang terdaftar."); return
 
     await msg.answer(f"⏳ Mengirim ke {len(uids)} user...")
-    ok = 0; fail = 0
+    ok = 0; fail = 0; fail_reasons: list[str] = []
+
     for target_uid in uids:
         try:
-            await bot.send_message(target_uid, text, parse_mode="HTML")
+            await _bot.send_message(target_uid, text, parse_mode="HTML")
             ok += 1
-            zv_log(f"BROADCAST OK uid={target_uid}")
         except Exception as e:
             fail += 1
+            reason = str(e)[:60]
+            fail_reasons.append(f"{target_uid}: {reason}")
             zv_log(f"BROADCAST FAIL uid={target_uid} err={e}")
         await asyncio.sleep(0.05)
 
     zv_log(f"BROADCAST DONE total={len(uids)} ok={ok} fail={fail}")
+    reason_txt = ""
+    if fail_reasons:
+        reason_txt = "\n<i>Error detail:</i>\n" + "\n".join(f"<code>{r}</code>" for r in fail_reasons[:3])
     await msg.answer(
         f"📢 <b>Broadcast Selesai</b>\n━━━━━━━━━━━━━━━━━━━\n"
         f"✅ Terkirim : {ok} user\n"
         f"❌ Gagal    : {fail} user\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
-        f"<i>Gagal biasanya karena user memblokir bot.</i>",
+        f"<i>Gagal biasanya karena user memblokir bot.</i>{reason_txt}",
         parse_mode="HTML"
     )
 
@@ -1945,7 +1988,12 @@ async def main():
 
     bot = Bot(token=TOKEN)
     log.info(f"ZV-Manager Bot starting... Admin: {ADMIN_ID}")
-    await dp.start_polling(bot, allowed_updates=["message", "callback_query"])
+    # drop_pending_updates: buang update lama saat restart (biar ga replay)
+    await dp.start_polling(
+        bot,
+        allowed_updates=["message", "callback_query"],
+        drop_pending_updates=True,
+    )
 
 if __name__ == "__main__":
     asyncio.run(main())
