@@ -57,8 +57,20 @@ get_license_display() {
     else
         txt="Habis! Segera perpanjang!"; col="$BRED"
     fi
-    echo -e "  ${BCYAN}║${NC}  ${BWHITE}Nama VPS :${NC} ${BPURPLE}${LICENSE_NAME:-?}${NC}"
+    echo -e "  ${BCYAN}║${NC}  ${BWHITE}Nama     :${NC} ${BPURPLE}${LICENSE_NAME:-?}${NC}"
     echo -e "  ${BCYAN}║${NC}  ${BWHITE}Expired  :${NC} ${col}${txt}${NC}"
+}
+
+# Baca hasil cek update dari file cache (ditulis cron, tidak blocking)
+get_update_banner() {
+    local cache="/tmp/zv-update-available"
+    [[ ! -f "$cache" ]] && return
+    local latest; latest=$(cat "$cache" 2>/dev/null | tr -d "[:space:]")
+    [[ -z "$latest" || "$latest" == "$SCRIPT_VERSION" ]] && return
+    echo -e "${BYELLOW}  ╔══════════════════════════════════════════════════╗${NC}"
+    echo -e "${BYELLOW}  ║${NC}  ${BRED}⚠  Update tersedia:${NC} ${BWHITE}v${SCRIPT_VERSION}${NC} ${BYELLOW}→${NC} ${BGREEN}v${latest}${NC}   ${BYELLOW}Pilih [6]${NC}  ${BYELLOW}║${NC}"
+    echo -e "${BYELLOW}  ╚══════════════════════════════════════════════════╝${NC}"
+    echo ""
 }
 
 show_header() {
@@ -72,6 +84,7 @@ show_header() {
     s_udp=$(svc_status zv-udp); s_ssl=$(svc_status zv-stunnel)
 
     clear
+    get_update_banner
     echo -e "${BCYAN}  ╔══════════════════════════════════════════════════╗${NC}"
     echo -e "${BCYAN}  ║${NC}  ${BWHITE}ZV-Manager${NC} ${BYELLOW}v${SCRIPT_VERSION}${NC}                                ${BCYAN}║${NC}"
     echo -e "${BCYAN}  ╠══════════════════════════════════════════════════╣${NC}"
@@ -94,7 +107,7 @@ main_menu() {
         echo ""
         echo -e "  ${BGREEN}[1]${NC} Manajemen SSH        ${BGREEN}[2]${NC} Manajemen Server"
         echo -e "  ${BGREEN}[3]${NC} Informasi Server     ${BGREEN}[4]${NC} System & Services"
-        echo -e "  ${BGREEN}[5]${NC} Statistik Penjualan"
+        echo -e "  ${BGREEN}[5]${NC} Statistik Penjualan  ${BGREEN}[6]${NC} Update Script"
         echo ""
         echo -e "  ${BYELLOW}[r]${NC} Restart Services     ${BRED}[0]${NC} Keluar"
         echo ""
@@ -106,6 +119,18 @@ main_menu() {
             3) bash /etc/zv-manager/menu/info/server-info.sh ;;
             4) bash /etc/zv-manager/menu/system/menu-system.sh ;;
             5) bash /etc/zv-manager/menu/info/statistik.sh ;;
+            6)
+                echo ""
+                echo -e "  ${BYELLOW}Menjalankan update...${NC}"
+                echo ""
+                bash /etc/zv-manager/update.sh
+                # Hapus cache update setelah update selesai
+                rm -f /tmp/zv-update-available
+                echo ""
+                read -rp "  Tekan Enter untuk kembali ke menu..." _
+                # Reload config (versi baru)
+                source /etc/zv-manager/config.conf 2>/dev/null
+                ;;
             r|R)
                 for svc in ssh dropbear nginx zv-stunnel zv-wss zv-udp; do
                     systemctl restart "$svc" &>/dev/null
