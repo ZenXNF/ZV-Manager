@@ -45,14 +45,35 @@ for conf in "$ACCOUNT_DIR"/*.conf; do
         exp_display=$(TZ="Asia/Jakarta" date -d "@${exp_ts}" +"%d %b %Y %H:%M WIB")
         local sisa=$(( (exp_ts - now_ts) / 3600 ))
 
-        tg_send "$tg_uid" "⚠️ <b>Akun Akan Expired!</b>
-
-Username : <code>${local_username}</code>
-Server   : ${server}
-Expired  : ${exp_display}
-Sisa     : ±${sisa} jam
-
-Segera perpanjang agar tidak terputus!" 2>/dev/null
+        # Kirim notif dengan inline button perpanjang
+        local tmpf; tmpf=$(mktemp)
+        python3 - "$tg_uid" "$local_username" "$server" "$exp_display" "$sisa" > "$tmpf" << 'PYEOF'
+import json, sys
+uid, uname, srv, exp, sisa = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5]
+payload = {
+    "chat_id": uid,
+    "parse_mode": "HTML",
+    "text": (
+        "⚠️ <b>Akun Akan Expired!</b>\n"
+        "━━━━━━━━━━━━━━━━━━━\n"
+        f"👤 Username : <code>{uname}</code>\n"
+        f"🌐 Server   : {srv}\n"
+        f"⏳ Expired  : {exp}\n"
+        f"⏱️ Sisa     : ±{sisa} jam\n"
+        "━━━━━━━━━━━━━━━━━━━\n"
+        "Segera perpanjang agar tidak terputus!"
+    ),
+    "reply_markup": {
+        "inline_keyboard": [
+            [{"text": "🔄 Perpanjang Sekarang", "callback_data": f"renew_{uname}"}],
+            [{"text": "🏠 Menu Utama", "callback_data": "home"}]
+        ]
+    }
+}
+print(json.dumps(payload))
+PYEOF
+        curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage"             -H "Content-Type: application/json"             -d "@${tmpf}" --max-time 10 &>/dev/null
+        rm -f "$tmpf"
 
         touch "$local_notify_file"
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] NOTIFY: $local_username → tg:$tg_uid exp:$exp_display" >> "$LOG"
