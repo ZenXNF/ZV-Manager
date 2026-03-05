@@ -1880,21 +1880,28 @@ async def do_broadcast(msg: Message, text: str):
             ok += 1
         except Exception as e:
             fail += 1
-            reason = str(e)[:60]
-            fail_reasons.append(f"{target_uid}: {reason}")
-            zv_log(f"BROADCAST FAIL uid={target_uid} err={e}")
+            # Ambil error lengkap termasuk tipe exception
+            err_type = type(e).__name__
+            err_msg  = str(e) or "(no message)"
+            reason   = f"{err_type}: {err_msg}"[:80]
+            fail_reasons.append(f"uid {target_uid} → {reason}")
+            zv_log(f"BROADCAST FAIL uid={target_uid} type={err_type} err={err_msg}")
         await asyncio.sleep(0.05)
 
     zv_log(f"BROADCAST DONE total={len(uids)} ok={ok} fail={fail}")
+
     reason_txt = ""
     if fail_reasons:
-        reason_txt = "\n<i>Error detail:</i>\n" + "\n".join(f"<code>{r}</code>" for r in fail_reasons[:3])
+        # Tampilkan semua error (max 5) supaya bisa debug
+        lines = "\n".join(f"• <code>{r}</code>" for r in fail_reasons[:5])
+        reason_txt = f"\n\n🔍 <b>Detail Error:</b>\n{lines}"
+
     await msg.answer(
         f"📢 <b>Broadcast Selesai</b>\n━━━━━━━━━━━━━━━━━━━\n"
         f"✅ Terkirim : {ok} user\n"
         f"❌ Gagal    : {fail} user\n"
-        f"━━━━━━━━━━━━━━━━━━━\n"
-        f"<i>Gagal biasanya karena user memblokir bot.</i>{reason_txt}",
+        f"━━━━━━━━━━━━━━━━━━━"
+        f"{reason_txt}",
         parse_mode="HTML"
     )
 
