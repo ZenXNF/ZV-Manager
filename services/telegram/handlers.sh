@@ -478,17 +478,23 @@ _do_broadcast() {
     local ok=0 fail=0
     while IFS= read -r uid; do
         [[ -z "$uid" ]] && continue
-        # Gunakan _jstr pure bash, tanpa python3
-        local body="{"chat_id":"${uid}","text":$(_jstr "$text"),"parse_mode":"HTML"}"
+        # Tulis JSON ke tmpfile via python3 -c (reliable, no heredoc)
+        local jfile; jfile=$(mktemp)
+        python3 -c "
+import json, sys
+d = {'chat_id': sys.argv[1], 'text': sys.argv[2], 'parse_mode': 'HTML'}
+print(json.dumps(d))
+" "$uid" "$text" > "$jfile" 2>/dev/null
         local result
         result=$(curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
-            -H "Content-Type: application/json" -d "$body" --max-time 10 2>/dev/null)
+            -H "Content-Type: application/json" -d "@${jfile}" --max-time 10 2>/dev/null)
+        rm -f "$jfile"
 
         if echo "$result" | grep -q '"ok":true'; then
             ok=$(( ok + 1 ))
             _log "BROADCAST OK uid=$uid"
         else
-            local err; err=$(echo "$result" | grep -oP '(?<="description":")[^"]+' 2>/dev/null || echo "?")
+            local err; err=$(echo "$result" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('"'"'description'"'"',''"'"'?'"'"'))" 2>/dev/null || echo "?")
             fail=$(( fail + 1 ))
             _log "BROADCAST FAIL uid=$uid err=${err}"
         fi
@@ -519,7 +525,7 @@ Hubungi admin untuk top up." '[[{"text":"🏠 Menu Utama","callback_data":"home"
 }
 
 # ============================================================
-# /history
+# /history — Riwayat transaksi
 # ============================================================
 _handle_history() {
     local chat_id="$1"
@@ -527,26 +533,27 @@ _handle_history() {
 
     if [[ -f "$LOG" ]]; then
         while IFS= read -r line; do
-            echo "$line" | grep -qE "^\[.+\] (BELI|RENEW|BW_BELI): ${chat_id} " || continue
+            # Pakai grep string biasa (lebih cepat, tidak perlu regex)
+            echo "$line" | grep -q "] BELI: ${chat_id} \|] RENEW: ${chat_id} \|] BW_BELI: ${chat_id} " || continue
             local ts; ts=$(echo "$line" | grep -oP "^\[\K[^\]]+")
-            if echo "$line" | grep -q "^\[.+\] BELI:"; then
+            if echo "$line" | grep -q "] BELI:"; then
                 local user days total
                 user=$(echo  "$line" | grep -oP "user=\K\S+")
                 days=$(echo  "$line" | grep -oP "days=\K[0-9]+")
                 total=$(echo "$line" | grep -oP "total=\K[0-9]+")
                 entries+=("${ts}|🛒 Buat Akun|${user}|${days} hari|Rp$(_fmt "$total")")
-            elif echo "$line" | grep -q "^\[.+\] RENEW:"; then
+            elif echo "$line" | grep -q "] RENEW:"; then
                 local user days total
                 user=$(echo  "$line" | grep -oP "user=\K\S+")
                 days=$(echo  "$line" | grep -oP "days=\K[0-9]+")
                 total=$(echo "$line" | grep -oP "total=\K[0-9]+")
                 entries+=("${ts}|🔄 Perpanjang|${user}|+${days} hari|Rp$(_fmt "$total")")
-            elif echo "$line" | grep -q "^\[.+\] BW_BELI:"; then
+            elif echo "$line" | grep -q "] BW_BELI:"; then
                 local user gb total
                 user=$(echo  "$line" | grep -oP "user=\K\S+")
                 gb=$(echo    "$line" | grep -oP "gb=\K[0-9]+")
                 total=$(echo "$line" | grep -oP "total=\K[0-9]+")
-                entries+=("${ts}|📶 Tambah BW|${user}|+${gb} GB|Rp$(_fmt "$total")")
+                entries+=("${ts}|📶 Tambah Kuota|${user}|+${gb} GB|Rp$(_fmt "$total")")
             fi
         done < "$LOG"
     fi
@@ -567,10 +574,8 @@ Belum ada transaksi." '[[{"text":"🏠 Menu Utama","callback_data":"home"}]]'
     while [[ $i -lt $total_entry ]]; do
         IFS="|" read -r ts tipe user keterangan jumlah <<< "${entries[$i]}"
         msg+="${tipe} <code>${user}</code>
-"
-        msg+="   ${keterangan} — ${jumlah}
-"
-        msg+="   <i>${ts}</i>
+   ${keterangan} — ${jumlah}
+   <i>${ts}</i>
 "
         [[ $i -lt $(( total_entry - 1 )) ]] && msg+="─────────────────
 "
@@ -650,11 +655,49 @@ _cb_saldo_history() {
     local chat_id="$1" cb_id="$2" msg_id="$3"
     _answer "$cb_id" ""
     local saldo; saldo=$(_saldo_get "$chat_id")
-    _edit "$chat_id" "$msg_id" "💰 <b>Saldo & Riwayat</b>
+
+    # Kumpulkan history topup dari log
+    local entries=() total_bulan=0 bulan_ini; bulan_ini=$(date +"%Y-%m")
+    if [[ -f "$LOG" ]]; then
+        while IFS= read -r line; do
+            echo "$line" | grep -q "] TOPUP:" || continue
+            echo "$line" | grep -q "target=${chat_id} " || continue
+            local ts amount
+            ts=$(echo "$line" | grep -oP "^\[\K[^\]]+")
+            amount=$(echo "$line" | grep -oP "amount=\K[0-9]+")
+            entries+=("${ts}|${amount}")
+            # Hitung total bulan ini
+            local bln; bln=$(echo "$ts" | cut -c1-7)
+            [[ "$bln" == "$bulan_ini" ]] && total_bulan=$(( total_bulan + amount ))
+        done < "$LOG"
+    fi
+
+    local bulan_label; bulan_label=$(date +"%B %Y")
+    local msg="💰 <b>Riwayat Saldo</b>
 ━━━━━━━━━━━━━━━━━━━
-💳 Saldo kamu: Rp$(_fmt "$saldo")
+💳 Saldo sekarang : Rp$(_fmt "$saldo")
+📅 Total topup ${bulan_label} : Rp$(_fmt "$total_bulan")
 ━━━━━━━━━━━━━━━━━━━
-Pilih menu:" '[[{"text":"📝 Riwayat Transaksi","callback_data":"m_history"},{"text":"🏠 Menu Utama","callback_data":"home"}]]'
+"
+    if [[ ${#entries[@]} -eq 0 ]]; then
+        msg+="Belum ada riwayat top up."
+    else
+        local total_e=${#entries[@]}
+        local start_e=$(( total_e > 10 ? total_e - 10 : 0 ))
+        local i=$start_e
+        while [[ $i -lt $total_e ]]; do
+            IFS="|" read -r ts amount <<< "${entries[$i]}"
+            msg+="💰 +Rp$(_fmt "$amount")
+   <i>${ts}</i>
+"
+            [[ $i -lt $(( total_e - 1 )) ]] && msg+="─────────────────
+"
+            i=$(( i + 1 ))
+        done
+    fi
+    msg+="━━━━━━━━━━━━━━━━━━━"
+
+    _edit "$chat_id" "$msg_id" "$(echo -e "$msg")" '[[{"text":"📝 Riwayat Transaksi","callback_data":"m_history"},{"text":"🏠 Menu Utama","callback_data":"home"}]]'
 }
 
 _cb_home() {

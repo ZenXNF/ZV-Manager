@@ -5,7 +5,7 @@
 # ============================================================
 
 _kb_home() {
-    echo '[[{"text":"⚡ Buat Akun","callback_data":"m_buat"},{"text":"🎁 Coba Gratis","callback_data":"m_trial"}],[{"text":"📋 Akun Saya","callback_data":"m_akun"},{"text":"🔄 Perpanjang","callback_data":"m_perpanjang"}],[{"text":"💰 Saldo & Riwayat","callback_data":"m_saldo_history"}]]'
+    echo '[[{"text":"⚡ Buat Akun","callback_data":"m_buat"},{"text":"🎁 Coba Gratis","callback_data":"m_trial"}],[{"text":"📋 Akun Saya","callback_data":"m_akun"},{"text":"🔄 Perpanjang","callback_data":"m_perpanjang"}],[{"text":"📋 Riwayat Saldo","callback_data":"m_saldo_history"}]]'
 }
 _kb_proto_buat() {
     echo '[[{"text":"SSH","callback_data":"p_buat_ssh"},{"text":"↩ Kembali","callback_data":"home"}]]'
@@ -50,7 +50,7 @@ _kb_confirm() {
 _kb_for_user() {
     local uid="$1"
     if _is_admin "$uid"; then
-        echo '[[{"text":"⚡ Buat Akun","callback_data":"m_buat"},{"text":"🎁 Coba Gratis","callback_data":"m_trial"}],[{"text":"📋 Akun Saya","callback_data":"m_akun"},{"text":"🔄 Perpanjang","callback_data":"m_perpanjang"}],[{"text":"💰 Saldo & Riwayat","callback_data":"m_saldo_history"},{"text":"🔧 Admin","callback_data":"m_admin"}]]'
+        echo '[[{"text":"⚡ Buat Akun","callback_data":"m_buat"},{"text":"🎁 Coba Gratis","callback_data":"m_trial"}],[{"text":"📋 Akun Saya","callback_data":"m_akun"},{"text":"🔄 Perpanjang","callback_data":"m_perpanjang"}],[{"text":"📋 Riwayat Saldo","callback_data":"m_saldo_history"},{"text":"🔧 Admin","callback_data":"m_admin"}]]'
     else
         echo "$(_kb_home)"
     fi
@@ -92,10 +92,15 @@ _text_server_list() {
         local hh hb
         [[ "$TG_HARGA_HARI" == "0" ]]  && hh="Hubungi admin" || hh="Rp$(_fmt "$TG_HARGA_HARI")"
         [[ "$TG_HARGA_BULAN" == "0" ]] && hb="Hubungi admin" || hb="Rp$(_fmt "$TG_HARGA_BULAN")"
+        # Hitung kuota harian & 30hr dari TG_BW_PER_HARI
+        local bw_hr=$(( 10#${TG_BW_PER_HARI:-5} ))
+        local bw_30=$(( bw_hr * 30 ))
+        local kuota_label
+        [[ $bw_hr -eq 0 ]] && kuota_label="Unlimited" || kuota_label="${bw_hr} GB/hari · ${bw_30} GB/30hr"
         out+="🌐 <b>${TG_SERVER_LABEL}</b>
 💰 Harga/hari  : ${hh}
 📅 Harga/30hr  : ${hb}
-📊 Quota       : ${TG_QUOTA}
+📶 Kuota       : ${kuota_label}
 🔢 Limit IP    : ${TG_LIMIT_IP} IP/akun
 👥 Total Akun  : ${count}/${TG_MAX_AKUN}
 
