@@ -758,7 +758,7 @@ _do_broadcast() {
     local uid_file; uid_file=$(mktemp)
     {
         # User terdaftar (pernah /start)
-        for ufile in "$USERS_DIR"/*.user 2>/dev/null; do
+        for ufile in "$USERS_DIR"/*.user; do
             [[ -f "$ufile" ]] || continue
             grep "^UID=" "$ufile" | cut -d= -f2 | tr -d "[:space:]"
         done
