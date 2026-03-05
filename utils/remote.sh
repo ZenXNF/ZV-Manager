@@ -63,7 +63,9 @@ remote_exec() {
     local cmd="$*"
 
     if [[ "$name" == "local" || -z "$name" ]]; then
-        eval "$cmd"
+        # Jalankan di subshell terisolasi, bukan eval langsung
+        # Mencegah variable injection ke parent shell
+        bash -c "$cmd"
         return $?
     fi
 
