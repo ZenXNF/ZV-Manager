@@ -27,13 +27,18 @@ install_websocket() {
 [Unit]
 Description=ZV-Manager WebSocket & HTTP CONNECT Proxy (Internal)
 After=network.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
 
 [Service]
 Type=simple
 User=root
-ExecStart=/usr/bin/python3 /usr/local/bin/zv-ws-proxy.py 8880
+ExecStart=/usr/bin/python3 -u /usr/local/bin/zv-ws-proxy.py 8880
 Restart=always
-RestartSec=3s
+RestartSec=5s
+# Batasi RAM — cukup untuk 200 koneksi di VPS 512MB/1GB
+MemoryMax=80M
+MemorySwapMax=0
 
 [Install]
 WantedBy=multi-user.target
@@ -83,12 +88,16 @@ STCONF
 Description=ZV-Manager SSL Tunnel (port 443 → ws-proxy)
 After=network.target zv-wss.service
 Requires=zv-wss.service
+StartLimitIntervalSec=60
+StartLimitBurst=5
 
 [Service]
 Type=simple
 ExecStart=/usr/bin/stunnel4 /etc/stunnel/zv-wss.conf
 Restart=always
-RestartSec=3s
+RestartSec=5s
+MemoryMax=40M
+MemorySwapMax=0
 
 [Install]
 WantedBy=multi-user.target
