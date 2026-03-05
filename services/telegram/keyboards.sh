@@ -57,7 +57,7 @@ _kb_for_user() {
 }
 
 _kb_admin_panel() {
-    echo '[[{"text":"💰 Top Up Saldo","callback_data":"adm_topup"},{"text":"📢 Broadcast","callback_data":"m_broadcast"}],[{"text":"👥 Daftar User","callback_data":"adm_daftar_user"},{"text":"🔍 Cek User","callback_data":"adm_cek_user"}],[{"text":"🏠 Menu Utama","callback_data":"home"}]]'
+    echo '[[{"text":"💰 Top Up Saldo","callback_data":"adm_topup"},{"text":"➖ Kurangi Saldo","callback_data":"adm_kurangi"}],[{"text":"🗑️ Hapus Akun","callback_data":"adm_hapus_akun"},{"text":"📢 Broadcast","callback_data":"m_broadcast"}],[{"text":"👥 Daftar User","callback_data":"adm_daftar_user"},{"text":"🔍 Cek User","callback_data":"adm_cek_user"}],[{"text":"📊 History Transaksi","callback_data":"adm_history"},{"text":"🏠 Menu Utama","callback_data":"home"}]]'
 }
 
 # ============================================================

@@ -74,8 +74,11 @@ except: pass
             m_admin)          _cb_admin_panel      "$chat_id" "$cb_id" "$msg_id" ;;
             m_broadcast)      _cb_broadcast        "$chat_id" "$cb_id" "$msg_id" ;;
             adm_topup)        _cb_adm_topup        "$chat_id" "$cb_id" "$msg_id" ;;
+            adm_kurangi)      _cb_adm_kurangi      "$chat_id" "$cb_id" "$msg_id" ;;
+            adm_hapus_akun)   _cb_adm_hapus_akun   "$chat_id" "$cb_id" "$msg_id" ;;
             adm_daftar_user)  _cb_adm_daftar_user  "$chat_id" "$cb_id" "$msg_id" ;;
             adm_cek_user)     _cb_adm_cek_user     "$chat_id" "$cb_id" "$msg_id" ;;
+            adm_history)      _cb_adm_history      "$chat_id" "$cb_id" "$msg_id" ;;
             m_saldo_history)  _cb_saldo_history   "$chat_id" "$cb_id" "$msg_id" ;;
             m_history)        _handle_history     "$chat_id"; _answer "$cb_id" "" ;;
             m_tambah_bw)      _cb_tambah_bw       "$chat_id" "$cb_id" "$msg_id" ;;

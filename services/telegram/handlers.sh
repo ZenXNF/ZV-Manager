@@ -838,6 +838,54 @@ Ketik User ID:"
             _adm_do_cek_user "$chat_id" "$text"
             return 0
             ;;
+        adm_kurangi_uid)
+            _is_admin "$chat_id" || { _state_clear "$chat_id"; return 0; }
+            if ! [[ "$text" =~ ^[0-9]{5,15}$ ]]; then
+                _send "$chat_id" "❌ User ID tidak valid.
+
+Ketik User ID:"
+                return 0
+            fi
+            _state_set "$chat_id" "ADM_TARGET" "$text"
+            _state_set "$chat_id" "STATE" "adm_kurangi_amount"
+            local t_name="(belum terdaftar)"
+            [[ -f "${USERS_DIR}/${text}.user" ]] && t_name=$(grep "^NAME=" "${USERS_DIR}/${text}.user" | cut -d= -f2)
+            local t_saldo; t_saldo=$(_saldo_get "$text")
+            _send "$chat_id" "➖ <b>Kurangi Saldo</b>
+━━━━━━━━━━━━━━━━━━━
+🆔 User ID : <code>${text}</code>
+👤 Nama    : ${t_name}
+💰 Saldo   : Rp$(_fmt "$t_saldo")
+━━━━━━━━━━━━━━━━━━━
+Ketik <b>jumlah</b> yang ingin dikurangi (angka):
+Contoh: <code>5000</code>"
+            return 0
+            ;;
+        adm_kurangi_amount)
+            _is_admin "$chat_id" || { _state_clear "$chat_id"; return 0; }
+            if ! [[ "$text" =~ ^[0-9]+$ ]] || [[ "$text" -eq 0 ]]; then
+                _send "$chat_id" "❌ Jumlah tidak valid. Masukkan angka lebih dari 0.
+
+Ketik jumlah yang dikurangi:"
+                return 0
+            fi
+            local target_id; target_id=$(_state_get "$chat_id" "ADM_TARGET")
+            _state_clear "$chat_id"
+            _adm_do_kurangi "$chat_id" "$target_id" "$text"
+            return 0
+            ;;
+        adm_hapus_username)
+            _is_admin "$chat_id" || { _state_clear "$chat_id"; return 0; }
+            if ! echo "$text" | grep -qE "^[a-zA-Z0-9]{3,20}$"; then
+                _send "$chat_id" "❌ Username tidak valid.
+
+Ketik username:"
+                return 0
+            fi
+            _state_clear "$chat_id"
+            _adm_do_hapus_akun "$chat_id" "$text"
+            return 0
+            ;;
         await_user)
             if ! echo "$text" | grep -qE '^[a-zA-Z0-9]{3,20}$'; then
                 _send "$chat_id" "❌ Username tidak valid. Huruf (besar/kecil) dan angka, 3-20 karakter.
@@ -1070,19 +1118,13 @@ _cb_admin_panel() {
 👥 User terdaftar : ${total_user} user
 🖥️ Total akun SSH : ${total_akun} akun
 ━━━━━━━━━━━━━━━━━━━
-<b>Daftar Perintah Admin:</b>
-
-💰 <b>Top Up Saldo</b>
-   Tambah saldo ke user tertentu
-
-📢 <b>Broadcast</b>
-   Kirim pesan ke semua user terdaftar
-
-👥 <b>Daftar User</b>
-   Lihat semua user yang pernah /start
-
-🔍 <b>Cek User</b>
-   Cek saldo dan akun milik user tertentu
+💰 <b>Top Up Saldo</b> — Tambah saldo ke user
+➖ <b>Kurangi Saldo</b> — Potong saldo dari user
+🗑️ <b>Hapus Akun</b> — Hapus akun SSH dari bot
+📢 <b>Broadcast</b> — Kirim pesan ke semua user
+👥 <b>Daftar User</b> — Lihat semua user terdaftar
+🔍 <b>Cek User</b> — Cek saldo & akun milik user
+📊 <b>History Transaksi</b> — Log semua transaksi
 ━━━━━━━━━━━━━━━━━━━" "$(_kb_admin_panel)"
 }
 
@@ -1239,3 +1281,224 @@ _adm_do_cek_user() {
 🖥️ Akun SSH (${akun_count}):
 $(echo -e "$akun_info")━━━━━━━━━━━━━━━━━━━" '[[{"text":"💰 Top Up Saldo","callback_data":"adm_topup"},{"text":"↩ Admin Panel","callback_data":"m_admin"}]]'
 }
+
+# ============================================================
+# Admin: Kurangi Saldo
+# ============================================================
+_cb_adm_kurangi() {
+    local chat_id="$1" cb_id="$2" msg_id="$3"
+    _is_admin "$chat_id" || { _answer "$cb_id" "❌ Akses ditolak"; return; }
+    _answer "$cb_id" ""
+    _state_clear "$chat_id"
+    _state_set "$chat_id" "STATE" "adm_kurangi_uid"
+    _edit "$chat_id" "$msg_id" "➖ <b>Kurangi Saldo</b>
+━━━━━━━━━━━━━━━━━━━
+Ketik <b>User ID</b> yang saldonya ingin dikurangi.
+
+Contoh: <code>123456789</code>" '[[{"text":"❌ Batal","callback_data":"m_admin"}]]'
+}
+
+_adm_do_kurangi() {
+    local chat_id="$1" target_id="$2" amount="$3"
+    local cur; cur=$(( 10#$(_saldo_get "$target_id") ))
+
+    if [[ $amount -gt $cur ]]; then
+        _send "$chat_id" "❌ Saldo user tidak cukup.
+💰 Saldo saat ini : Rp$(_fmt "$cur")
+➖ Mau dikurangi  : Rp$(_fmt "$amount")
+
+Masukkan jumlah yang lebih kecil atau sama dengan saldo." '[[{"text":"➖ Coba Lagi","callback_data":"adm_kurangi"},{"text":"↩ Admin Panel","callback_data":"m_admin"}]]'
+        return
+    fi
+
+    local new=$(( cur - amount ))
+    _saldo_set "$target_id" "$new"
+    _log "KURANGI: admin=$chat_id target=$target_id amount=$amount new=$new"
+
+    local t_name="User"
+    [[ -f "${USERS_DIR}/${target_id}.user" ]] && t_name=$(grep "^NAME=" "${USERS_DIR}/${target_id}.user" | cut -d= -f2)
+
+    _send "$chat_id" "✅ <b>Saldo Berhasil Dikurangi</b>
+━━━━━━━━━━━━━━━━━━━
+🆔 User ID  : <code>${target_id}</code>
+👤 Nama     : ${t_name}
+➖ Dikurangi : Rp$(_fmt "$amount")
+💰 Saldo    : Rp$(_fmt "$cur") → Rp$(_fmt "$new")
+━━━━━━━━━━━━━━━━━━━" '[[{"text":"➖ Kurangi Lagi","callback_data":"adm_kurangi"},{"text":"↩ Admin Panel","callback_data":"m_admin"}]]'
+
+    _send "$target_id" "⚠️ <b>Saldo Kamu Berubah</b>
+━━━━━━━━━━━━━━━━━━━
+➖ Dikurangi : Rp$(_fmt "$amount")
+💰 Saldo    : Rp$(_fmt "$new")
+━━━━━━━━━━━━━━━━━━━
+Hubungi admin jika ada pertanyaan." '[[{"text":"🏠 Menu Utama","callback_data":"home"}]]'
+}
+
+# ============================================================
+# Admin: Hapus Akun SSH
+# ============================================================
+_cb_adm_hapus_akun() {
+    local chat_id="$1" cb_id="$2" msg_id="$3"
+    _is_admin "$chat_id" || { _answer "$cb_id" "❌ Akses ditolak"; return; }
+    _answer "$cb_id" ""
+    _state_clear "$chat_id"
+    _state_set "$chat_id" "STATE" "adm_hapus_username"
+    _edit "$chat_id" "$msg_id" "🗑️ <b>Hapus Akun SSH</b>
+━━━━━━━━━━━━━━━━━━━
+Ketik <b>username</b> akun yang ingin dihapus.
+
+Contoh: <code>user123</code>
+
+⚠️ Akun akan langsung dihapus dari sistem!" '[[{"text":"❌ Batal","callback_data":"m_admin"}]]'
+}
+
+_adm_do_hapus_akun() {
+    local chat_id="$1" username="$2"
+    local conf="${ACCOUNT_DIR}/${username}.conf"
+
+    if [[ ! -f "$conf" ]]; then
+        _send "$chat_id" "❌ Akun <code>${username}</code> tidak ditemukan." '[[{"text":"🗑️ Coba Lagi","callback_data":"adm_hapus_akun"},{"text":"↩ Admin Panel","callback_data":"m_admin"}]]'
+        return
+    fi
+
+    local tg_uid server is_trial
+    tg_uid=$(grep  "^TG_USER_ID=" "$conf" | cut -d= -f2 | tr -d "[:space:]")
+    server=$(grep  "^SERVER="     "$conf" | cut -d= -f2 | tr -d "[:space:]")
+    is_trial=$(grep "^IS_TRIAL="  "$conf" | cut -d= -f2 | tr -d "[:space:]")
+
+    # Hapus dari sistem lokal
+    local local_ip; local_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null)
+    local sconf="${SERVER_DIR}/${server}.conf"
+    local srv_ip=""
+    [[ -f "$sconf" ]] && srv_ip=$(grep "^IP=" "$sconf" | cut -d= -f2 | tr -d "[:space:]")
+
+    if [[ "$srv_ip" == "$local_ip" || -z "$srv_ip" ]]; then
+        pkill -u "$username" &>/dev/null
+        userdel -r "$username" &>/dev/null
+        source /etc/zv-manager/core/bandwidth.sh
+        _bw_cleanup_user "$username" 2>/dev/null
+    else
+        # Remote server
+        local spass sport suser
+        spass=$(grep "^PASS=" "$sconf" | cut -d= -f2)
+        sport=$(grep "^PORT=" "$sconf" | cut -d= -f2)
+        suser=$(grep "^USER=" "$sconf" | cut -d= -f2)
+        sshpass -p "$spass" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
+            -o BatchMode=no -p "$sport" "${suser}@${srv_ip}" \
+            "zv-agent delete $username" &>/dev/null
+    fi
+
+    rm -f "$conf"
+    rm -f "/etc/zv-manager/accounts/notified/${username}.notified"
+    rm -f "/etc/zv-manager/accounts/notified/${username}.bw_warn"
+    _log "ADM_HAPUS: admin=$chat_id username=$username"
+
+    _send "$chat_id" "✅ <b>Akun Berhasil Dihapus</b>
+━━━━━━━━━━━━━━━━━━━
+🗑️ Username : <code>${username}</code>
+🌐 Server   : ${server}
+━━━━━━━━━━━━━━━━━━━" '[[{"text":"🗑️ Hapus Lagi","callback_data":"adm_hapus_akun"},{"text":"↩ Admin Panel","callback_data":"m_admin"}]]'
+
+    # Notif ke pemilik akun
+    if [[ -n "$tg_uid" ]]; then
+        _send "$tg_uid" "⚠️ <b>Akun Kamu Dihapus</b>
+━━━━━━━━━━━━━━━━━━━
+🗑️ Username : <code>${username}</code>
+━━━━━━━━━━━━━━━━━━━
+Hubungi admin untuk informasi lebih lanjut." '[[{"text":"🏠 Menu Utama","callback_data":"home"}]]'
+    fi
+}
+
+# ============================================================
+# Admin: History Transaksi
+# ============================================================
+_cb_adm_history() {
+    local chat_id="$1" cb_id="$2" msg_id="$3"
+    _is_admin "$chat_id" || { _answer "$cb_id" "❌ Akses ditolak"; return; }
+    _answer "$cb_id" ""
+
+    local entries=()
+    if [[ -f "$LOG" ]]; then
+        while IFS= read -r line; do
+            echo "$line" | grep -qE "^\[.+\] (BELI|RENEW|BW_BELI|TOPUP|KURANGI):" || continue
+            entries+=("$line")
+        done < "$LOG"
+    fi
+
+    local total=${#entries[@]}
+    if [[ $total -eq 0 ]]; then
+        _edit "$chat_id" "$msg_id" "📊 <b>History Transaksi</b>
+
+Belum ada transaksi tercatat." '[[{"text":"↩ Admin Panel","callback_data":"m_admin"}]]'
+        return
+    fi
+
+    # Ambil 15 terakhir
+    local start=$(( total > 15 ? total - 15 : 0 ))
+    local msg="📊 <b>History Transaksi</b> (${total} total, 15 terakhir)
+━━━━━━━━━━━━━━━━━━━
+"
+    local i=$start
+    while [[ $i -lt $total ]]; do
+        local line="${entries[$i]}"
+        local ts; ts=$(echo "$line" | grep -oP "^\[\K[^\]]+")
+
+        if echo "$line" | grep -q "\] BELI:"; then
+            local uid user days total_harga server
+            uid=$(echo "$line"         | grep -oP "(?<=BELI: )\S+")
+            user=$(echo "$line"        | grep -oP "user=\K\S+")
+            days=$(echo "$line"        | grep -oP "days=\K[0-9]+")
+            total_harga=$(echo "$line" | grep -oP "total=\K[0-9]+")
+            server=$(echo "$line"      | grep -oP "server=\K\S+")
+            msg+="🛒 <b>Beli</b> — <code>${user}</code> (${server})
+   ${days} hari · Rp$(_fmt "$total_harga") · uid:${uid}
+   <i>${ts}</i>
+"
+        elif echo "$line" | grep -q "\] RENEW:"; then
+            local uid user days total_harga
+            uid=$(echo "$line"         | grep -oP "(?<=RENEW: )\S+")
+            user=$(echo "$line"        | grep -oP "user=\K\S+")
+            days=$(echo "$line"        | grep -oP "days=\K[0-9]+")
+            total_harga=$(echo "$line" | grep -oP "total=\K[0-9]+")
+            msg+="🔄 <b>Renew</b> — <code>${user}</code>
+   +${days} hari · Rp$(_fmt "$total_harga") · uid:${uid}
+   <i>${ts}</i>
+"
+        elif echo "$line" | grep -q "\] BW_BELI:"; then
+            local uid user gb total_harga
+            uid=$(echo "$line"         | grep -oP "(?<=BW_BELI: )\S+")
+            user=$(echo "$line"        | grep -oP "user=\K\S+")
+            gb=$(echo "$line"          | grep -oP "gb=\K[0-9]+")
+            total_harga=$(echo "$line" | grep -oP "total=\K[0-9]+")
+            msg+="📶 <b>Beli BW</b> — <code>${user}</code>
+   +${gb} GB · Rp$(_fmt "$total_harga") · uid:${uid}
+   <i>${ts}</i>
+"
+        elif echo "$line" | grep -q "\] TOPUP:"; then
+            local admin target amount
+            admin=$(echo "$line"  | grep -oP "admin=\K\S+")
+            target=$(echo "$line" | grep -oP "target=\K\S+")
+            amount=$(echo "$line" | grep -oP "amount=\K[0-9]+")
+            msg+="💰 <b>Top Up</b> — uid:${target}
+   +Rp$(_fmt "$amount") oleh admin:${admin}
+   <i>${ts}</i>
+"
+        elif echo "$line" | grep -q "\] KURANGI:"; then
+            local admin target amount
+            admin=$(echo "$line"  | grep -oP "admin=\K\S+")
+            target=$(echo "$line" | grep -oP "target=\K\S+")
+            amount=$(echo "$line" | grep -oP "amount=\K[0-9]+")
+            msg+="➖ <b>Kurangi</b> — uid:${target}
+   -Rp$(_fmt "$amount") oleh admin:${admin}
+   <i>${ts}</i>
+"
+        fi
+        [[ $i -lt $(( total - 1 )) ]] && msg+="─────────────────
+"
+        i=$(( i + 1 ))
+    done
+    msg+="━━━━━━━━━━━━━━━━━━━"
+
+    _edit "$chat_id" "$msg_id" "$msg" '[[{"text":"↩ Admin Panel","callback_data":"m_admin"}]]'
+}
+
