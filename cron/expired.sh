@@ -17,25 +17,19 @@ _log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$LOG" 2>/dev/null
 }
 
+_tg_send() {
+    local chat_id="$1" text="$2"
+    [[ -z "$TG_TOKEN" || -z "$chat_id" ]] && return
+    text="${text//\\/\\\\}"; text="${text//\"/\\\"}"
+    local payload="{\"chat_id\":\"${chat_id}\",\"text\":\"${text}\",\"parse_mode\":\"HTML\"}"
+    curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+        -H "Content-Type: application/json" -d "${payload}" --max-time 10 &>/dev/null
+}
+
 # Kirim notif ke user bahwa akun dihapus
 _notify_deleted() {
     local tg_uid="$1" username="$2" server="$3"
-    [[ -z "$tg_uid" || -z "$TG_TOKEN" ]] && return
-    local jfile; jfile=$(mktemp)
-    python3 - "$tg_uid" "$username" "$server" > "$jfile" << 'PYINLINE'
-import json, sys
-uid, user, srv = sys.argv[1], sys.argv[2], sys.argv[3]
-text = (
-    "🗑️ <b>Akun Dihapus</b>\n\n"
-    f"Username : <code>{user}</code>\n"
-    f"Server   : {srv}\n\n"
-    "Akun kamu sudah expired dan telah dihapus otomatis.\n"
-    "Buat akun baru atau perpanjang lewat bot."
-)
-print(json.dumps({"chat_id": uid, "text": text, "parse_mode": "HTML"}))
-PYINLINE
-    curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage"         -H "Content-Type: application/json"         -d "@${jfile}" --max-time 10 &>/dev/null
-    rm -f "$jfile"
+    _tg_send "$tg_uid" "🗑️ <b>Akun Dihapus</b>\n\nUsername : <code>${username}</code>\nServer   : ${server}\n\nAkun kamu sudah expired dan telah dihapus otomatis.\nBuat akun baru atau perpanjang lewat bot."
 }
 
 # ============================================================

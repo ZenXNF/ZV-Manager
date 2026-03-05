@@ -11,35 +11,34 @@ tg_load 2>/dev/null || true
 
 ACCOUNT_DIR="/etc/zv-manager/accounts/ssh"
 
+
+# Kirim Telegram tanpa spawn python3 — pure printf + curl
+_tg_send() {
+    local chat_id="$1" text="$2"
+    [[ -z "$TG_TOKEN" || -z "$chat_id" ]] && return
+    # Escape karakter JSON paling penting
+    text="${text//\\/\\\\}"
+    text="${text//"/\\"}"
+    text="${text//$'\n'/\\n}"
+    local payload="{\"chat_id\":\"${chat_id}\",\"text\":\"${text}\",\"parse_mode\":\"HTML\"}"
+    curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+        -H "Content-Type: application/json" -d "${payload}" \
+        --max-time 10 &>/dev/null
+}
 _notify_bw() {
     local tg_uid="$1" user="$2" used="$3" quota="$4" action="$5"
     [[ -z "$tg_uid" || -z "$TG_TOKEN" ]] && return
-    local jfile; jfile=$(mktemp)
-    python3 - "$tg_uid" "$user" "$used" "$quota" "$action" > "$jfile" << 'PYINLINE'
-import json, sys
-uid, user, used, quota, action = sys.argv[1:6]
-used_gb  = round(int(used)/1024**3, 2)
-quota_gb = round(int(quota)/1024**3, 2)
-if action == "warning":
-    text = (
-        f"⚠️ <b>Peringatan Bandwidth</b>\n\n"
-        f"Username : <code>{user}</code>\n"
-        f"Terpakai : {used_gb} GB / {quota_gb} GB\n"
-        f"Sisa     : {round(quota_gb - used_gb, 2)} GB\n\n"
-        "Bandwidth hampir habis! Beli tambahan agar tidak terputus."
-    )
-else:
-    text = (
-        f"🚫 <b>Bandwidth Habis!</b>\n\n"
-        f"Username : <code>{user}</code>\n"
-        f"Terpakai : {used_gb} GB / {quota_gb} GB\n\n"
-        "Koneksi diputus. Beli tambahan bandwidth di bot untuk aktif kembali."
-    )
-print(json.dumps({"chat_id": uid, "text": text, "parse_mode": "HTML"}))
-PYINLINE
-    curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
-        -H "Content-Type: application/json" -d "@${jfile}" --max-time 10 &>/dev/null
-    rm -f "$jfile"
+    # Hitung GB pure bash
+    local used_gb=$(( used / 1073741824 ))
+    local quota_gb=$(( quota / 1073741824 ))
+    local sisa_gb=$(( quota_gb - used_gb ))
+    local text
+    if [[ "$action" == "warning" ]]; then
+        text="⚠️ <b>Peringatan Bandwidth</b>\n\nUsername : <code>${user}</code>\nTerpakai : ${used_gb} GB / ${quota_gb} GB\nSisa     : ${sisa_gb} GB\n\nBandwidth hampir habis! Beli tambahan agar tidak terputus."
+    else
+        text="🚫 <b>Bandwidth Habis!</b>\n\nUsername : <code>${user}</code>\nTerpakai : ${used_gb} GB / ${quota_gb} GB\n\nKoneksi diputus. Beli tambahan bandwidth di bot untuk aktif kembali."
+    fi
+    _tg_send "$tg_uid" "$text"
 }
 
 for conf in "$ACCOUNT_DIR"/*.conf; do
