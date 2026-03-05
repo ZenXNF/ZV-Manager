@@ -1369,12 +1369,48 @@ async def cb_broadcast(cb: CallbackQuery):
         await cb.answer("❌ Akses ditolak"); return
     await cb.answer()
     state_clear(uid)
+    await cb.message.edit_text(
+        "📢 <b>Broadcast</b>\n━━━━━━━━━━━━━━━━━━━\n"
+        "Pilih jenis broadcast:",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="✉️ Teks / HTML", callback_data="bc_teks")],
+            [InlineKeyboardButton(text="🎭 Stiker", callback_data="bc_stiker")],
+            [InlineKeyboardButton(text="❌ Batal", callback_data="home")],
+        ])
+    )
+
+@dp.callback_query(F.data == "bc_teks")
+async def cb_bc_teks(cb: CallbackQuery):
+    uid = cb.from_user.id
+    if uid != ADMIN_ID:
+        await cb.answer("❌ Akses ditolak"); return
+    await cb.answer()
+    state_clear(uid)
     state_set(uid, "STATE", "broadcast_msg")
     await cb.message.edit_text(
-        "📢 <b>Broadcast Pesan</b>\n\n"
+        "📢 <b>Broadcast Teks</b>\n━━━━━━━━━━━━━━━━━━━\n"
         "Ketik pesan yang akan dikirim ke semua user.\n"
         "Bisa pakai format HTML: <code>&lt;b&gt;bold&lt;/b&gt;</code>, <code>&lt;i&gt;italic&lt;/i&gt;</code>\n\n"
         "Ketik pesan:",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="❌ Batal", callback_data="home")
+        ]])
+    )
+
+@dp.callback_query(F.data == "bc_stiker")
+async def cb_bc_stiker(cb: CallbackQuery):
+    uid = cb.from_user.id
+    if uid != ADMIN_ID:
+        await cb.answer("❌ Akses ditolak"); return
+    await cb.answer()
+    state_clear(uid)
+    state_set(uid, "STATE", "broadcast_stiker")
+    await cb.message.edit_text(
+        "🎭 <b>Broadcast Stiker</b>\n━━━━━━━━━━━━━━━━━━━\n"
+        "Kirim satu stiker yang ingin di-broadcast ke semua user.\n\n"
+        "<i>Kirim stiker sekarang:</i>",
         parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
             InlineKeyboardButton(text="❌ Batal", callback_data="home")
@@ -1571,12 +1607,30 @@ async def handle_message(msg: Message):
     if not state:
         return
 
-    # ---- Broadcast ----
+    # ---- Broadcast teks ----
     if state == "broadcast_msg":
         if uid != ADMIN_ID:
             state_clear(uid); return
+        if not text:
+            await msg.answer("❌ Pesan tidak boleh kosong. Ketik pesan teks:"); return
         state_clear(uid)
         await do_broadcast(msg, text)
+        return
+
+    # ---- Broadcast stiker ----
+    if state == "broadcast_stiker":
+        if uid != ADMIN_ID:
+            state_clear(uid); return
+        sticker = msg.sticker
+        if not sticker:
+            await msg.answer(
+                "❌ Itu bukan stiker. Kirim stiker yang valid:",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                    InlineKeyboardButton(text="❌ Batal", callback_data="home")
+                ]])
+            ); return
+        state_clear(uid)
+        await do_broadcast_stiker(msg, sticker.file_id)
         return
 
     # ---- Admin: topup uid ----
@@ -1865,11 +1919,11 @@ async def do_broadcast(msg: Message, text: str):
             if tg_uid.isdigit():
                 uids.add(int(tg_uid))
 
-    # Jangan kirim ke diri sendiri kecuali admin (untuk testing)
-    # uids tetap include sender supaya broadcast tidak kosong saat testing
+    # Skip admin pengirim — dia sudah tau isi pesannya
+    uids.discard(sender)
 
     if not uids:
-        await msg.answer("❌ Belum ada user yang terdaftar."); return
+        await msg.answer("❌ Belum ada user lain yang terdaftar."); return
 
     await msg.answer(f"⏳ Mengirim ke {len(uids)} user...")
     ok = 0; fail = 0; fail_reasons: list[str] = []
@@ -1898,6 +1952,59 @@ async def do_broadcast(msg: Message, text: str):
 
     await msg.answer(
         f"📢 <b>Broadcast Selesai</b>\n━━━━━━━━━━━━━━━━━━━\n"
+        f"✅ Terkirim : {ok} user\n"
+        f"❌ Gagal    : {fail} user\n"
+        f"━━━━━━━━━━━━━━━━━━━"
+        f"{reason_txt}",
+        parse_mode="HTML"
+    )
+
+# ============================================================
+# Broadcast Stiker helper
+# ============================================================
+async def do_broadcast_stiker(msg: Message, file_id: str):
+    _bot   = msg.bot
+    sender = msg.from_user.id
+    uids: set[int] = set()
+
+    if Path(USERS_DIR).exists():
+        for f in Path(USERS_DIR).glob("*.user"):
+            try: uids.add(int(f.stem))
+            except: pass
+    if Path(ACCOUNT_DIR).exists():
+        for f in Path(ACCOUNT_DIR).glob("*.conf"):
+            ac = load_account_conf(f.stem)
+            tid = ac.get("TG_USER_ID","").strip()
+            if tid.isdigit(): uids.add(int(tid))
+
+    uids.discard(sender)
+
+    if not uids:
+        await msg.answer("❌ Belum ada user lain yang terdaftar."); return
+
+    await msg.answer(f"⏳ Mengirim stiker ke {len(uids)} user...")
+    ok = 0; fail = 0; fail_reasons: list[str] = []
+
+    for target_uid in uids:
+        try:
+            await _bot.send_sticker(target_uid, file_id)
+            ok += 1
+        except Exception as e:
+            fail += 1
+            err_type = type(e).__name__
+            err_msg  = str(e) or "(no message)"
+            fail_reasons.append(f"uid {target_uid} → {err_type}: {err_msg[:50]}")
+            zv_log(f"BROADCAST_STIKER FAIL uid={target_uid} err={e}")
+        await asyncio.sleep(0.05)
+
+    zv_log(f"BROADCAST_STIKER DONE total={len(uids)} ok={ok} fail={fail}")
+    reason_txt = ""
+    if fail_reasons:
+        lines = "\n".join(f"• <code>{r}</code>" for r in fail_reasons[:5])
+        reason_txt = f"\n\n🔍 <b>Detail Error:</b>\n{lines}"
+
+    await msg.answer(
+        f"🎭 <b>Broadcast Stiker Selesai</b>\n━━━━━━━━━━━━━━━━━━━\n"
         f"✅ Terkirim : {ok} user\n"
         f"❌ Gagal    : {fail} user\n"
         f"━━━━━━━━━━━━━━━━━━━"
