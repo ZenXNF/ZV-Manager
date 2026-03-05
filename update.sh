@@ -58,9 +58,7 @@ cp -r utils /etc/zv-manager/
 cp -r cron /etc/zv-manager/
 cp -r checker /etc/zv-manager/
 chmod +x /etc/zv-manager/checker/zv-checker
-chmod +x /etc/zv-manager/services/telegram/helpers.sh
-chmod +x /etc/zv-manager/services/telegram/keyboards.sh
-chmod +x /etc/zv-manager/services/telegram/handlers.sh
+chmod +x /etc/zv-manager/services/telegram/bot.py 2>/dev/null || true
 cp config.conf /etc/zv-manager/
 cp install.sh /etc/zv-manager/
 cp update.sh /etc/zv-manager/
@@ -72,15 +70,41 @@ cp /etc/zv-manager/zv-agent.sh /usr/local/bin/zv-agent
 chmod +x /usr/local/bin/zv-agent
 echo " ✔  zv-agent diperbarui"
 
-# --- Update Telegram bot ---
-if [[ -f /etc/zv-manager/services/telegram/bot.sh ]]; then
-    cp /etc/zv-manager/services/telegram/bot.sh /usr/local/bin/zv-telegram-bot
-    chmod +x /usr/local/bin/zv-telegram-bot
+# --- Update Telegram bot (Python) ---
+if [[ -f /etc/zv-manager/services/telegram/bot.py ]]; then
+    # Hapus file bash lama kalau ada
+    rm -f /usr/local/bin/zv-telegram-bot
+    cp /etc/zv-manager/services/telegram/bot.py /usr/local/bin/zv-telegram-bot.py
+    chmod +x /usr/local/bin/zv-telegram-bot.py
+
+    # Update aiogram kalau perlu
+    pip3 install -q aiogram==3.* --break-system-packages 2>/dev/null ||     pip3 install -q aiogram==3.* 2>/dev/null
+
+    # Update systemd service (pastikan pakai python3)
+    cat > /etc/systemd/system/zv-telegram.service <<'SVCEOF'
+[Unit]
+Description=ZV-Manager Telegram Bot (Python)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/local/bin/zv-telegram-bot.py
+Restart=always
+RestartSec=5s
+StandardOutput=append:/var/log/zv-manager/telegram-bot.log
+StandardError=append:/var/log/zv-manager/telegram-bot.log
+
+[Install]
+WantedBy=multi-user.target
+SVCEOF
+    systemctl daemon-reload
     if systemctl is-active --quiet zv-telegram 2>/dev/null; then
         systemctl restart zv-telegram &>/dev/null
-        echo " ✔  Telegram bot diperbarui & di-restart"
+        echo " ✔  Telegram bot (Python) diperbarui & di-restart"
     else
-        echo " ✔  Telegram bot diperbarui"
+        systemctl enable zv-telegram &>/dev/null
+        systemctl start zv-telegram &>/dev/null
+        echo " ✔  Telegram bot (Python) diperbarui & dijalankan"
     fi
 fi
 
