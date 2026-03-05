@@ -1010,6 +1010,7 @@ Terima kasih sudah top up! 🙏" '[[{"text":"🏠 Menu Utama","callback_data":"h
 }
 
 
+_handle_start() {
     _state_clear "$1"
     _register_user "$1" "$2"
     _send "$1" "$(_text_home "$2" "$1")" "$(_kb_for_user "$1")"
