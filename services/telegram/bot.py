@@ -1865,11 +1865,11 @@ async def do_broadcast(msg: Message, text: str):
             if tg_uid.isdigit():
                 uids.add(int(tg_uid))
 
-    # Jangan kirim ke diri sendiri (admin pengirim)
-    uids.discard(sender)
+    # Jangan kirim ke diri sendiri kecuali admin (untuk testing)
+    # uids tetap include sender supaya broadcast tidak kosong saat testing
 
     if not uids:
-        await msg.answer("❌ Belum ada user lain yang terdaftar."); return
+        await msg.answer("❌ Belum ada user yang terdaftar."); return
 
     await msg.answer(f"⏳ Mengirim ke {len(uids)} user...")
     ok = 0; fail = 0; fail_reasons: list[str] = []
