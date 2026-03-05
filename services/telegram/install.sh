@@ -1,38 +1,49 @@
 #!/bin/bash
 # ============================================================
-#   ZV-Manager - Telegram Bot Installer
+#   ZV-Manager - Telegram Bot Installer (Python/aiogram)
 # ============================================================
 
 source /etc/zv-manager/utils/colors.sh
 source /etc/zv-manager/utils/logger.sh
 
 install_telegram_bot() {
-    print_section "Install Telegram Bot"
+    print_section "Install Telegram Bot (Python)"
 
-    # Pastikan python3 ada (untuk parse JSON)
+    # python3 + pip
     if ! command -v python3 &>/dev/null; then
         print_info "Menginstall python3..."
-        apt-get install -y python3 &>/dev/null
+        apt-get install -y python3 python3-pip &>/dev/null
+    fi
+    if ! command -v pip3 &>/dev/null; then
+        apt-get install -y python3-pip &>/dev/null
     fi
 
-    # Pastikan curl ada
-    if ! command -v curl &>/dev/null; then
-        apt-get install -y curl &>/dev/null
+    # Install aiogram
+    print_info "Menginstall aiogram..."
+    pip3 install -q aiogram==3.* --break-system-packages 2>/dev/null ||     pip3 install -q aiogram==3.* 2>/dev/null
+
+    # Verifikasi
+    if ! python3 -c "import aiogram" &>/dev/null; then
+        print_error "Gagal install aiogram!"
+        return 1
     fi
 
-    # Copy bot script
-    cp /etc/zv-manager/services/telegram/bot.sh /usr/local/bin/zv-telegram-bot
-    chmod +x /usr/local/bin/zv-telegram-bot
+    # Copy bot.py ke /usr/local/bin
+    cp /etc/zv-manager/services/telegram/bot.py /usr/local/bin/zv-telegram-bot.py
+    chmod +x /usr/local/bin/zv-telegram-bot.py
+
+    # Hapus file lama kalau ada
+    rm -f /usr/local/bin/zv-telegram-bot
 
     # Systemd service
     cat > /etc/systemd/system/zv-telegram.service <<'SVCEOF'
 [Unit]
-Description=ZV-Manager Telegram Bot
+Description=ZV-Manager Telegram Bot (Python)
 After=network.target
 
 [Service]
 Type=simple
-ExecStart=/bin/bash /usr/local/bin/zv-telegram-bot
+ExecStart=/usr/bin/python3 /usr/local/bin/zv-telegram-bot.py
 Restart=always
 RestartSec=5s
 StandardOutput=append:/var/log/zv-manager/telegram-bot.log
@@ -48,8 +59,9 @@ SVCEOF
 
     sleep 2
     if systemctl is-active --quiet zv-telegram; then
-        print_success "Telegram Bot"
+        print_success "Telegram Bot (Python)"
     else
         print_error "Bot gagal start! Cek: systemctl status zv-telegram"
+        print_error "Log: tail -20 /var/log/zv-manager/telegram-bot.log"
     fi
 }
