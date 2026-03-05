@@ -12,18 +12,18 @@ _bw_log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$BW_LOG" 2>/dev/null; }
 # ── Bytes ↔ GB ──────────────────────────────────────────────
 _bw_gb_to_bytes() { echo $(( ${1} * 1024 * 1024 * 1024 )); }
 _bw_bytes_to_gb() {
-    python3 -c "print(round(${1}/1024/1024/1024,2))" 2>/dev/null || echo "0"
+    local b="${1:-0}"
+    echo "$(( b / 1073741824 ))"
 }
 _bw_fmt() {
-    # Format bytes ke string human-readable (KB/MB/GB)
-    local b="$1"
-    python3 -c "
-b=int('$b' or 0)
-if b < 1024: print(f'{b} B')
-elif b < 1024**2: print(f'{b/1024:.1f} KB')
-elif b < 1024**3: print(f'{b/1024**2:.1f} MB')
-else: print(f'{b/1024**3:.2f} GB')
-" 2>/dev/null || echo "${b}B"
+    # Pure bash — tidak spawn python3
+    local b="${1:-0}"
+    [[ "$b" =~ ^[0-9]+$ ]] || { echo "0 B"; return; }
+    if   (( b < 1024 ));       then echo "${b} B"
+    elif (( b < 1048576 ));    then echo "$(( b / 1024 )).$(( (b % 1024) * 10 / 1024 )) KB"
+    elif (( b < 1073741824 )); then echo "$(( b / 1048576 )).$(( (b % 1048576) * 10 / 1048576 )) MB"
+    else                            echo "$(( b / 1073741824 )).$(( (b % 1073741824) * 100 / 1073741824 )) GB"
+    fi
 }
 
 # ── iptables chain per user ──────────────────────────────────
@@ -149,13 +149,14 @@ _bw_accumulate() {
 
 # ── Progress bar ──────────────────────────────────────────────
 _bw_progress_bar() {
-    local used="$1" quota="$2"
-    [[ "$quota" -eq 0 ]] && { echo "∞ (Unlimited)"; return; }
-    python3 -c "
-used,quota=int('$used'),int('$quota')
-pct=min(100,int(used/quota*100)) if quota>0 else 0
-filled=int(pct/10)
-bar='█'*filled+'░'*(10-filled)
-print(f'{bar} {pct}%')
-" 2>/dev/null || echo "?"
+    local used="${1:-0}" quota="${2:-0}"
+    (( quota == 0 )) && { echo "∞ (Unlimited)"; return; }
+    local pct=$(( used * 100 / quota ))
+    (( pct > 100 )) && pct=100
+    local filled=$(( pct / 10 )) empty=$(( 10 - pct / 10 ))
+    local bar=""
+    local i
+    for (( i=0; i<filled; i++ )); do bar+="█"; done
+    for (( i=0; i<empty;  i++ )); do bar+="░"; done
+    echo "${bar} ${pct}%"
 }
