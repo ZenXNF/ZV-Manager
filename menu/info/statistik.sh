@@ -12,9 +12,14 @@ SERVER_DIR="/etc/zv-manager/servers"
 LOG="/var/log/zv-manager/install.log"
 
 _fmt() {
-    python3 -c "
-n=int('${1}'.strip() or 0)
-print('{:,}'.format(n).replace(',','.'))" 2>/dev/null || echo "$1"
+    local n="${1//[^0-9]/}" result="" len i
+    [[ -z "$n" || "$n" == "0" ]] && { echo "0"; return; }
+    n=$(( 10#$n )); len=${#n}
+    for (( i=0; i<len; i++ )); do
+        [[ $i -gt 0 && $(( (len-i) % 3 )) -eq 0 ]] && result="${result}."
+        result="${result}${n:$i:1}"
+    done
+    echo "$result"
 }
 
 _today()     { date +"%Y-%m-%d"; }
@@ -54,7 +59,7 @@ show_statistik() {
             [[ "$sv" =~ ^[0-9]+$ ]] && total_saldo=$(( total_saldo + sv ))
         done
 
-        # ── Estimasi pendapatan dari log ──────────────────────────
+        # ── Estimasi pendapatan dari log — tail 2000 baris ───────
         local pendapatan_hari=0 pendapatan_bulan=0
         if [[ -f "$LOG" ]]; then
             while IFS= read -r line; do
@@ -64,21 +69,21 @@ show_statistik() {
                 local log_date; log_date=$(echo "$line" | grep -oP '^\[\K[0-9]{4}-[0-9]{2}-[0-9]{2}')
                 [[ "$log_date" == "$today" ]]       && pendapatan_hari=$(( pendapatan_hari + nominal ))
                 [[ "$log_date" == "$this_month"* ]] && pendapatan_bulan=$(( pendapatan_bulan + nominal ))
-            done < "$LOG"
+            done < <(tail -n 2000 "$LOG")
         fi
 
-        # ── Hitung per server ─────────────────────────────────────
+        # ── Hitung per server — O(n) dengan awk ─────────────────
         local server_stats=""
+        declare -A srv_count
+        for ac in "$ACCOUNT_DIR"/*.conf; do
+            [[ -f "$ac" ]] || continue
+            local asrv; asrv=$(grep "^SERVER=" "$ac" | cut -d= -f2)
+            [[ -n "$asrv" ]] && srv_count["$asrv"]=$(( ${srv_count["$asrv"]:-0} + 1 ))
+        done
         for conf in "$SERVER_DIR"/*.conf; do
             [[ -f "$conf" && "$conf" != *.tg.conf ]] || continue
-            unset NAME IP; source "$conf"
-            local sc=0
-            for ac in "$ACCOUNT_DIR"/*.conf; do
-                [[ -f "$ac" ]] || continue
-                local asrv; asrv=$(grep "^SERVER=" "$ac" | cut -d= -f2)
-                [[ "$asrv" == "$NAME" ]] && sc=$(( sc + 1 ))
-            done
-            server_stats+="  ${BWHITE}${NAME}${NC} : ${BGREEN}${sc} akun${NC}\n"
+            local sname; sname=$(grep "^NAME=" "$conf" | cut -d= -f2)
+            [[ -n "$sname" ]] && server_stats+="  ${BWHITE}${sname}${NC} : ${BGREEN}${srv_count[$sname]:-0} akun${NC}\n"
         done
 
         # ── Tampilan ──────────────────────────────────────────────
