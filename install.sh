@@ -138,7 +138,14 @@ cat > /etc/cron.d/zv-license <<'CRONEOF'
 5 0 * * * root /bin/bash /etc/zv-manager/cron/license-check.sh
 CRONEOF
 
+cat > /etc/cron.d/zv-check-update <<'CRONEOF'
+# ZV-Manager - Cek Update sekali sehari jam 06:00
+0 6 * * * root /bin/bash /etc/zv-manager/cron/check-update.sh
+CRONEOF
+
 service cron restart &>/dev/null
+# Jalankan cek update sekali sekarang (background, tidak blocking)
+/bin/bash /etc/zv-manager/cron/check-update.sh &>/dev/null &
 print_success "Cron Jobs"
 
 # --- Setup menu command global ---

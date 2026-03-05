@@ -177,7 +177,14 @@ cat > /etc/cron.d/zv-bandwidth <<'CRONEOF'
 */5 * * * * root /bin/bash /etc/zv-manager/cron/bw-check.sh
 CRONEOF
 
+cat > /etc/cron.d/zv-check-update <<'CRONEOF'
+# ZV-Manager - Cek Update sekali sehari jam 06:00
+0 6 * * * root /bin/bash /etc/zv-manager/cron/check-update.sh
+CRONEOF
+
 service cron restart &>/dev/null
+# Jalankan cek update sekali sekarang (background, tidak blocking)
+/bin/bash /etc/zv-manager/cron/check-update.sh &>/dev/null &
 print_ok "Cron jobs diterapkan"
 
 # Pastikan menu command masih ada
