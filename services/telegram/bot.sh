@@ -48,6 +48,28 @@ except: pass
     local kind; kind=$(sed -n '1p' "$tmpf")
     [[ -z "$kind" ]] && { rm -f "$tmpf"; return; }
 
+    # Anti-double-click: lock per user selama 2 detik
+    local kind_raw; kind_raw=$(sed -n '1p' "$tmpf")
+    local lock_uid
+    if [[ "$kind_raw" == "CB" ]]; then
+        lock_uid=$(sed -n '3p' "$tmpf")
+    else
+        lock_uid=$(sed -n '2p' "$tmpf")
+    fi
+    local lock_file="${STATE_DIR}/${lock_uid}.lock"
+    if [[ -f "$lock_file" ]]; then
+        local lock_age=$(( $(date +%s) - $(stat -c %Y "$lock_file" 2>/dev/null || echo 0) ))
+        if [[ $lock_age -lt 2 ]]; then
+            # Klik terlalu cepat, abaikan
+            if [[ "$kind_raw" == "CB" ]]; then
+                local _cb_id_tmp; _cb_id_tmp=$(sed -n '2p' "$tmpf")
+                curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/answerCallbackQuery"                     -d "callback_query_id=${_cb_id_tmp}" --data-urlencode "text=⏳ Harap tunggu..."                     --max-time 5 &>/dev/null &
+            fi
+            rm -f "$tmpf"; return
+        fi
+    fi
+    touch "$lock_file"
+
     if [[ "$kind" == "MSG" ]]; then
         local chat_id fname text
         chat_id=$(sed -n '2p' "$tmpf"); fname=$(sed -n '3p' "$tmpf"); text=$(sed -n '4p' "$tmpf")
@@ -101,6 +123,7 @@ except: pass
     else
         rm -f "$tmpf"
     fi
+    rm -f "$lock_file"
 }
 
 # ============================================================

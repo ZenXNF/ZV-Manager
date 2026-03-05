@@ -250,7 +250,7 @@ Akun kamu sudah aktif sampai ${new_exp_display}!"
 }
 
 # ============================================================
-# Tambah Bandwidth
+# Tambah Kuota
 # ============================================================
 _cb_tambah_bw() {
     local chat_id="$1" cb_id="$2" msg_id="$3"
@@ -270,9 +270,9 @@ _cb_tambah_bw() {
     done
 
     if [[ ${#akun_list[@]} -eq 0 ]]; then
-        _edit "$chat_id" "$msg_id" "📶 <b>Tambah Bandwidth</b>
+        _edit "$chat_id" "$msg_id" "📶 <b>Tambah Kuota</b>
 
-Tidak ada akun yang mendukung fitur bandwidth." "$(_kb_home_btn)"
+Tidak ada akun yang mendukung fitur kuota." "$(_kb_home_btn)"
         return
     fi
 
@@ -291,7 +291,7 @@ Tidak ada akun yang mendukung fitur bandwidth." "$(_kb_home_btn)"
         [[ "$kb" == "[" ]] && kb="${kb}${row}" || kb="${kb},${row}"
     done
     kb="${kb},[{\"text\":\"\u21a9 Kembali\",\"callback_data\":\"m_akun\"}]]"
-    _edit "$chat_id" "$msg_id" "➕ <b>Tambah Bandwidth</b>
+    _edit "$chat_id" "$msg_id" "➕ <b>Tambah Kuota</b>
 
 Pilih akun:" "$kb"
 }
@@ -338,7 +338,7 @@ _cb_tambah_bw_akun() {
 
     local kb="[[{\"text\":\"➕ 1 GB — Rp$(_fmt "$p1")\",\"callback_data\":\"bw_beli_1_${username}\"},{\"text\":\"➕ 5 GB — Rp$(_fmt "$p5")\",\"callback_data\":\"bw_beli_5_${username}\"}],[{\"text\":\"➕ 10 GB — Rp$(_fmt "$p10")\",\"callback_data\":\"bw_beli_10_${username}\"}],[{\"text\":\"\u21a9 Kembali\",\"callback_data\":\"m_tambah_bw\"}]]"
 
-    _edit "$chat_id" "$msg_id" "➕ <b>Tambah Bandwidth</b>
+    _edit "$chat_id" "$msg_id" "➕ <b>Tambah Kuota</b>
 ━━━━━━━━━━━━━━━━━━━
 👤 Username : <code>${username}</code>
 📶 Terpakai : ${used_fmt} / ${quota_fmt}
@@ -381,10 +381,10 @@ Hubungi admin untuk top up." "$(_kb_home_btn)"
     _state_set "$chat_id" "BW_GB"    "$gb"
     _state_set "$chat_id" "BW_TOTAL" "$total"
 
-    _edit "$chat_id" "$msg_id" "➕ <b>Konfirmasi Tambah BW</b>
+    _edit "$chat_id" "$msg_id" "➕ <b>Konfirmasi Tambah Kuota</b>
 ━━━━━━━━━━━━━━━━━━━
 👤 Username : <code>${username}</code>
-📶 Tambah   : ${gb} GB
+📶 Tambah Kuota : ${gb} GB
 💸 Total    : Rp$(_fmt "$total")
 💰 Saldo    : Rp$(_fmt "$saldo")
 ━━━━━━━━━━━━━━━━━━━
@@ -417,16 +417,16 @@ _cb_konfirm_bw() {
     _state_clear "$chat_id"
     _log "BW_BELI: $chat_id user=$username gb=$gb total=$total"
 
-    _edit "$chat_id" "$msg_id" "✅ Bandwidth ditambahkan!" ""
+    _edit "$chat_id" "$msg_id" "✅ Kuota ditambahkan!" ""
     local new_quota; new_quota=$(_bw_get_quota "$username")
     local new_used; new_used=$(_bw_get_used "$username")
     local new_saldo; new_saldo=$(_saldo_get "$chat_id")
-    _send "$chat_id" "➕ <b>Bandwidth Berhasil Ditambahkan</b>
+    _send "$chat_id" "➕ <b>Kuota Berhasil Ditambahkan</b>
 ━━━━━━━━━━━━━━━━━━━
 👤 Username : <code>${username}</code>
 📶 Ditambah : ${gb} GB
-📊 Total BW : $(_bw_fmt "$new_quota")
-📈 Terpakai : $(_bw_fmt "$new_used")
+📊 Total Kuota : $(_bw_fmt "$new_quota")
+📈 Terpakai    : $(_bw_fmt "$new_used")
 💸 Dibayar  : Rp$(_fmt "$total")
 💰 Sisa Saldo: Rp$(_fmt "$new_saldo")
 ━━━━━━━━━━━━━━━━━━━
@@ -478,22 +478,17 @@ _do_broadcast() {
     local ok=0 fail=0
     while IFS= read -r uid; do
         [[ -z "$uid" ]] && continue
-        local jfile; jfile=$(mktemp)
-        python3 - "$uid" "$text" > "$jfile" << 'PYINLINE'
-import json, sys
-uid, text = sys.argv[1], sys.argv[2]
-print(json.dumps({"chat_id": uid, "text": text, "parse_mode": "HTML"}))
-PYINLINE
+        # Gunakan _jstr pure bash, tanpa python3
+        local body="{"chat_id":"${uid}","text":$(_jstr "$text"),"parse_mode":"HTML"}"
         local result
         result=$(curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
-            -H "Content-Type: application/json" -d "@${jfile}" --max-time 10 2>/dev/null)
-        rm -f "$jfile"
+            -H "Content-Type: application/json" -d "$body" --max-time 10 2>/dev/null)
 
         if echo "$result" | grep -q '"ok":true'; then
             ok=$(( ok + 1 ))
             _log "BROADCAST OK uid=$uid"
         else
-            local err; err=$(echo "$result" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('description','?'))" 2>/dev/null)
+            local err; err=$(echo "$result" | grep -oP '(?<="description":")[^"]+' 2>/dev/null || echo "?")
             fail=$(( fail + 1 ))
             _log "BROADCAST FAIL uid=$uid err=${err}"
         fi
@@ -696,7 +691,7 @@ _cb_proto_trial_ssh() {
 }
 
 _cb_s_buat() {
-    local chat_id="$1" cb_id="$2" fname="$3" sname="$4"
+    local chat_id="$1" cb_id="$2" msg_id="$3" fname="$4" sname="$5"
     local conf="${SERVER_DIR}/${sname}.conf"
     [[ ! -f "$conf" ]] && { _answer "$cb_id" "❌ Server tidak ditemukan"; return; }
     unset NAME IP DOMAIN; source "$conf"; _load_tg_conf "$sname"
@@ -1000,7 +995,7 @@ Saldo tidak cukup. Hubungi admin untuk top up."
             local bw_per_hari_k=$(( 10#${TG_BW_PER_HARI:-5} ))
             local bw_total_gb_k=$(( days * bw_per_hari_k ))
             local bw_line=""; [[ $bw_per_hari_k -gt 0 ]] && bw_line="
-📶 Bandwidth  : ${bw_total_gb_k} GB"
+📶 Kuota      : ${bw_total_gb_k} GB"
 
             _send "$chat_id" "📋 <b>Konfirmasi Pesanan</b>
 ━━━━━━━━━━━━━━━━━━━
