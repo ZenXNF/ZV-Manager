@@ -583,6 +583,43 @@ async def cmd_start(msg: Message):
 # ============================================================
 # Callback: home
 # ============================================================
+@dp.message(Command("testbroadcast"))
+async def cmd_testbroadcast(msg: Message):
+    """Debug: cek apakah bot bisa kirim pesan."""
+    uid = msg.from_user.id
+    if uid != ADMIN_ID:
+        await msg.answer("❌ Admin only."); return
+    try:
+        await msg.bot.send_message(uid,
+            "✅ Bot bisa kirim pesan ke kamu! Broadcast seharusnya berfungsi.",
+            parse_mode="HTML")
+        uids: set[int] = set()
+        if Path(USERS_DIR).exists():
+            for f in Path(USERS_DIR).glob("*.user"):
+                try: uids.add(int(f.stem))
+                except: pass
+        if Path(ACCOUNT_DIR).exists():
+            for f in Path(ACCOUNT_DIR).glob("*.conf"):
+                ac = load_account_conf(f.stem)
+                tid = ac.get("TG_USER_ID","").strip()
+                if tid.isdigit(): uids.add(int(tid))
+        uids.discard(uid)
+        ids_preview = str(list(uids)[:5])
+        lines = [
+            "🔍 <b>Debug Broadcast</b>",
+            "━━━━━━━━━━━━━━━━━━━",
+            "✅ Bot OK kirim ke admin",
+            f"👥 User lain: {len(uids)}",
+            f"IDs contoh: {ids_preview}",
+            f"USERS_DIR: {USERS_DIR}",
+            f"ACCOUNT_DIR: {ACCOUNT_DIR}",
+            "━━━━━━━━━━━━━━━━━━━",
+            "Kalau user 0, belum ada yang /start ke bot.",
+        ]
+        await msg.answer("\n".join(lines), parse_mode="HTML")
+    except Exception as e:
+        await msg.answer(f"❌ Error: {e}")
+
 @dp.callback_query(F.data == "home")
 async def cb_home(cb: CallbackQuery):
     uid   = cb.from_user.id
