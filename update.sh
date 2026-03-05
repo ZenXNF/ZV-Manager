@@ -58,6 +58,9 @@ cp -r utils /etc/zv-manager/
 cp -r cron /etc/zv-manager/
 cp -r checker /etc/zv-manager/
 chmod +x /etc/zv-manager/checker/zv-checker
+chmod +x /etc/zv-manager/services/telegram/helpers.sh
+chmod +x /etc/zv-manager/services/telegram/keyboards.sh
+chmod +x /etc/zv-manager/services/telegram/handlers.sh
 cp config.conf /etc/zv-manager/
 cp install.sh /etc/zv-manager/
 cp update.sh /etc/zv-manager/
