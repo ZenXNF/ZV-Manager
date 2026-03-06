@@ -16,32 +16,32 @@ source /etc/zv-manager/utils/remote.sh
 # - dropbear: username    → Dropbear connection
 # who tidak dipakai → tidak detect koneksi tanpa PTY (UDP/WS)
 # ============================================================
-# File tracking koneksi WS/UDP dari ws-proxy
-WS_ONLINE_FILE="/tmp/zv-ws-online"
+# File tracking koneksi UDP Custom dari udp-tracker
+UDP_ONLINE_FILE="/tmp/zv-udp-online"
 
 count_sessions() {
     local username="$1"
-    local n_ssh n_drop n_ws
+    local n_ssh n_drop n_udp
     n_ssh=$(ps aux | grep -E "sshd: ${username}(@|$)" | grep -v grep | grep -v '\[priv\]' | wc -l)
     n_drop=$(ps aux | grep -E "dropbear: ${username}(@|$)" | grep -v grep | wc -l)
-    # Cek koneksi WS/UDP dari ws-proxy tracking file
-    n_ws=0
-    if [[ -f "$WS_ONLINE_FILE" ]]; then
-        local ws_line
-        ws_line=$(grep -i "^${username}:" "$WS_ONLINE_FILE" 2>/dev/null | head -1)
-        if [[ -n "$ws_line" ]]; then
-            n_ws=$(echo "$ws_line" | cut -d: -f2 | tr -d '[:space:]')
-            [[ ! "$n_ws" =~ ^[0-9]+$ ]] && n_ws=1
+    # Cek koneksi UDP Custom dari tracker file
+    n_udp=0
+    if [[ -f "$UDP_ONLINE_FILE" ]]; then
+        local udp_line
+        udp_line=$(grep -i "^${username}:" "$UDP_ONLINE_FILE" 2>/dev/null | head -1)
+        if [[ -n "$udp_line" ]]; then
+            n_udp=$(echo "$udp_line" | cut -d: -f2 | tr -d '[:space:]')
+            [[ ! "$n_udp" =~ ^[0-9]+$ ]] && n_udp=1
         fi
     fi
-    echo $(( n_ssh + n_drop + n_ws ))
+    echo $(( n_ssh + n_drop + n_udp ))
 }
 
-# Tipe koneksi dari ws-proxy file
+# Tipe koneksi dari UDP tracker file
 get_ws_type() {
     local username="$1"
-    [[ ! -f "$WS_ONLINE_FILE" ]] && return
-    grep -qi "^${username}:" "$WS_ONLINE_FILE" 2>/dev/null && echo "WS/UDP"
+    [[ ! -f "$UDP_ONLINE_FILE" ]] && return
+    grep -qi "^${username}:" "$UDP_ONLINE_FILE" 2>/dev/null && echo "UDP"
 }
 
 # ============================================================

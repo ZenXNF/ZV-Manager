@@ -1,0 +1,14 @@
+[Unit]
+Description=ZV-Manager UDP Online Tracker
+After=zv-udp.service
+BindsTo=zv-udp.service
+
+[Service]
+Type=simple
+User=root
+ExecStart=/bin/bash /etc/zv-manager/services/udp/udp-tracker.sh
+Restart=always
+RestartSec=3s
+
+[Install]
+WantedBy=multi-user.target
