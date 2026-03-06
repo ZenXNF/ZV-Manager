@@ -46,7 +46,7 @@ menu_system() {
         echo -e "  ${BGREEN}[1]${NC} Restart Services     ${BGREEN}[2]${NC} Status Services"
         echo -e "  ${BGREEN}[3]${NC} Clear Cache          ${BGREEN}[4]${NC} Auto Reboot"
         echo -e "  ${BGREEN}[5]${NC} Edit Banner          ${BGREEN}[6]${NC} Manajemen SSL"
-        echo -e "  ${BGREEN}[7]${NC} Setup Telegram Bot"
+        echo -e "  ${BGREEN}[7]${NC} Setup Telegram Bot   ${BGREEN}[8]${NC} Backup & Restore"
         echo ""
         echo -e "  ${BRED}[0]${NC} Kembali"
         echo ""
@@ -60,6 +60,7 @@ menu_system() {
             5) bash /etc/zv-manager/menu/system/edit-banner.sh ;;
             6) bash /etc/zv-manager/menu/system/setup-ssl.sh ;;
             7) bash /etc/zv-manager/menu/system/setup-telegram.sh ;;
+            8) bash /etc/zv-manager/menu/system/backup.sh ;;
             0) break ;;
             *) echo -e "  ${BRED}Pilihan tidak valid!${NC}"; sleep 1 ;;
         esac
