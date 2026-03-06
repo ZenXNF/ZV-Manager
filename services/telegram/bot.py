@@ -80,14 +80,17 @@ def load_tg_conf() -> dict:
                 line = line.strip()
                 if "=" in line and not line.startswith("#"):
                     k, _, v = line.partition("=")
-                    conf[k.strip()] = v.strip()
+                    # Strip spasi dan tanda kutip (single/double)
+                    conf[k.strip()] = v.strip().strip('"').strip("'")
     except Exception:
         pass
     return conf
 
 TG = load_tg_conf()
 TOKEN    = TG.get("TG_TOKEN", "")
-ADMIN_ID = int(TG.get("TG_ADMIN_ID", "0"))
+# Safe parse ADMIN_ID — strip kutip, ambil digit saja
+_admin_raw = TG.get("TG_ADMIN_ID", "0").strip().strip('"').strip("'")
+ADMIN_ID = int(_admin_raw) if _admin_raw.isdigit() else 0
 
 # ============================================================
 # Helpers
