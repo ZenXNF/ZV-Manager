@@ -538,29 +538,38 @@ def text_server_list(title: str) -> str:
 def text_akun_info(tipe: str, username: str, password: str, domain: str,
                     exp_display: str, limit: str, server_label: str,
                     days: int = 0, total: int = 0) -> str:
-    header = "🎁 <b>Akun Trial SSH — 30 Menit</b>" if tipe == "TRIAL" else "🛒 <b>Akun SSH Berhasil Dibuat</b>"
-    harga_line = f"\n💸 Dibayar   : Rp{fmt(total)}" if tipe == "BELI" else ""
-    ports = (
-        f"\n<b>Port Tersedia</b>\n\n"
-        f"OpenSSH : 22, 500, 40000\n"
-        f"Dropbear : 143, 109\n"
-        f"BadVPN  : 7300\n"
-        f"WS / WSS / UDP : Lihat format bawah\n"
-        f"━━━━━━━━━━━━━━━━━━━\n"
-        f"WS  : {domain}:80/{username}\n"
-        f"WSS : {domain}:443/{username}\n"
-        f"UDP : {domain}:1-65535"
-    )
+    if tipe == "TRIAL":
+        header = "🎁 <b>Akun Trial SSH — 30 Menit</b>"
+    else:
+        header = "🛒 <b>Akun SSH Berhasil Dibuat</b>"
+
+    harga_line = f"\n💸 Dibayar   : <b>Rp{fmt(total)}</b>" if tipe == "BELI" else ""
+
     return (
         f"{header}\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
-        f"Username : <code>{username}</code>\n"
-        f"Password : <code>{password}</code>\n"
-        f"Host     : <code>{domain}</code>\n"
-        f"Server   : {server_label}\n"
-        f"Expired  : {exp_display}\n"
-        f"━━━━━━━━━━━━━━━━━━━"
-        f"{ports}"
+        f"👤 Username : <code>{username}</code>\n"
+        f"🔑 Password : <code>{password}</code>\n"
+        f"🌐 Host     : <code>{domain}</code>\n"
+        f"🖥 Server   : {server_label}\n"
+        f"📅 Expired  : {exp_display}\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"📡 <b>Port Tersedia</b>\n"
+        f"  OpenSSH  : <code>22, 500, 40000</code>\n"
+        f"  Dropbear : <code>109, 143</code>\n"
+        f"  BadVPN   : <code>7300</code>\n"
+        f"  WS / WSS / UDP Custom\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"🔗 <b>Format HTTP Custom</b>\n"
+        f"\n"
+        f"  <b>WS</b>\n"
+        f"  <code>{domain}:80@{username}:{password}</code>\n"
+        f"\n"
+        f"  <b>WSS</b>\n"
+        f"  <code>{domain}:443@{username}:{password}</code>\n"
+        f"\n"
+        f"  <b>UDP</b>\n"
+        f"  <code>{domain}:1-65535@{username}:{password}</code>"
         f"{harga_line}"
     )
 
