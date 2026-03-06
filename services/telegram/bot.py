@@ -204,7 +204,7 @@ def state_clear(uid: int):
 # Server config helpers
 # ============================================================
 def _read_conf_file(path: str) -> dict:
-    """Baca file conf key=value, return dict."""
+    """Baca file conf key=value, return dict. Auto strip tanda kutip."""
     conf = {}
     try:
         with open(path) as fh:
@@ -212,7 +212,7 @@ def _read_conf_file(path: str) -> dict:
                 line = line.strip()
                 if line and "=" in line and not line.startswith("#"):
                     k, _, v = line.partition("=")
-                    conf[k.strip()] = v.strip()
+                    conf[k.strip()] = v.strip().strip('"').strip("'")
     except Exception:
         pass
     return conf
