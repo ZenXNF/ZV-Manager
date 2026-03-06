@@ -212,7 +212,7 @@ bash /etc/zv-manager/uninstall.sh
 
 ## Changelog
 
-### v1.0.0
+### v1.0.4
 - Rilis perdana
 - SSH Management lengkap (tambah, hapus, edit, renew, lock, unlock)
 - Multi-server via zv-agent

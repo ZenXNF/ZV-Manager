@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-#   ZV-Manager v1.0.0
+#   ZV-Manager v1.0.4
 #   SSH Tunneling Manager for Ubuntu 24.04 LTS
 #   https://github.com/ZenXNF/ZV-Manager
 # ============================================================
