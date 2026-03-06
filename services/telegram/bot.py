@@ -58,6 +58,17 @@ logging.getLogger("aiohttp").setLevel(logging.WARNING)
 log = logging.getLogger(__name__)
 log.setLevel(logging.INFO)
 
+def backup_realtime(username: str, action: str = "update"):
+    """Panggil backup-realtime.sh di background — tidak blocking bot."""
+    import subprocess
+    script = "/etc/zv-manager/cron/backup-realtime.sh"
+    if os.path.exists(script):
+        subprocess.Popen(
+            ["/bin/bash", script, username, action],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+
 # ============================================================
 # Load telegram config
 # ============================================================
@@ -962,6 +973,7 @@ async def cb_konfirm_renew(cb: CallbackQuery):
     state_clear(uid)
     zv_log(f"RENEW: {uid} user={username} days={days} total={total}")
     await notify_admin(bot, "RENEW", fname, uid, username, tg["TG_SERVER_LABEL"], days, total)
+    backup_realtime(username, "renew")
 
     await cb.message.edit_text("✅ Akun berhasil diperpanjang!")
     await cb.message.answer(
@@ -1325,6 +1337,7 @@ async def cb_konfirm(cb: CallbackQuery):
     state_clear(uid)
     zv_log(f"BELI: {uid} server={sname} user={username} days={days} total={total}")
     await notify_admin(bot, "BELI", fname, uid, username, tg["TG_SERVER_LABEL"], days, total)
+    backup_realtime(username, "create")
     await cb.message.edit_text("✅ Akun sedang dibuat...")
     await cb.message.answer(
         text_akun_info("BELI", username, password, domain, exp_display,
@@ -2057,6 +2070,7 @@ async def do_hapus_akun(msg: Message, username: str, admin_uid: int):
         except Exception: pass
 
     zv_log(f"ADM_HAPUS: admin={admin_uid} username={username}")
+    backup_realtime(username, "delete")
     await msg.answer(
         f"✅ <b>Akun Berhasil Dihapus</b>\n━━━━━━━━━━━━━━━━━━━\n"
         f"🗑️ Username : <code>{username}</code>\n"
