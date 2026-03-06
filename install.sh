@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-#   ZV-Manager v1.0.4
+#   ZV-Manager v1.0.0
 #   SSH Tunneling Manager for Ubuntu 24.04 LTS
 #   https://github.com/ZenXNF/ZV-Manager
 # ============================================================
@@ -39,31 +39,84 @@ echo ""
 source "$SCRIPT_DIR/core/license.sh"
 check_license
 
-# --- Konfirmasi mulai ---
-echo -e "\033[1;33m  Ketik y lalu Enter untuk mulai"
-echo -e "  Ketik n lalu Enter untuk batal\033[0m"
+# --- Pilihan: Restore atau Install Baru ---
+echo -e "\033[1;36m  ┌──────────────────────────────────────┐"
+echo -e "  │        Pilih Mode Instalasi          │"
+echo -e "  └──────────────────────────────────────┘\033[0m"
 echo ""
-read -rp "  Mulai instalasi? [y/n]: " start_ans
-if [[ ! "$start_ans" =~ ^[Yy]$ ]]; then
-    echo ""
-    echo "  Instalasi dibatalkan."
-    exit 0
-fi
+echo -e "  \033[1;32m[1]\033[0m Install Baru"
+echo -e "  \033[1;32m[2]\033[0m Restore dari Backup"
+echo -e "  \033[1;31m[0]\033[0m Batal"
+echo ""
+read -rp "  Pilihan: " install_mode
+
+case "$install_mode" in
+    2)
+        echo ""
+        echo -e "  \033[1;33mMasukkan path lengkap file backup (.tar.gz):"
+        echo -e "  Contoh: /root/zv-backup-otak-2026-03-06.tar.gz\033[0m"
+        echo ""
+        read -rp "  Path file backup: " BACKUP_FILE
+
+        if [[ ! -f "$BACKUP_FILE" ]]; then
+            echo ""
+            echo -e "  \033[1;31m[ERROR] File tidak ditemukan: ${BACKUP_FILE}\033[0m"
+            echo -e "  \033[1;33m        Lanjut dengan install baru...\033[0m"
+            echo ""
+            install_mode="1"
+        else
+            echo ""
+            echo -e "  \033[1;32m[ INFO ] File backup ditemukan. Memulai restore...\033[0m"
+            echo ""
+
+            # Copy file dulu ke /etc/zv-manager
+            mkdir -p "$INSTALL_DIR"
+            cp -r "$SCRIPT_DIR"/* "$INSTALL_DIR/"
+            find "$INSTALL_DIR" -name "*.sh" -exec chmod +x {} \;
+            find "$INSTALL_DIR" -name "*.py" -exec chmod +x {} \;
+            chmod +x "$INSTALL_DIR/checker/zv-checker" 2>/dev/null
+            cp "$INSTALL_DIR/zv-agent.sh" /usr/local/bin/zv-agent
+            chmod +x /usr/local/bin/zv-agent
+
+            # Extract backup — timpa data yang ada
+            echo "[ INFO ] Merestore data dari backup..."
+            tar -xzf "$BACKUP_FILE" -C "$INSTALL_DIR/" 2>/dev/null
+            echo -e "  \033[1;32m✔ Data berhasil direstore\033[0m"
+            echo ""
+
+            # Tanya domain baru
+            echo -e "  \033[1;33mApakah domain berubah dari sebelumnya?\033[0m"
+            read -rp "  Ganti domain? [y/n]: " ganti_domain
+            if [[ "$ganti_domain" =~ ^[Yy]$ ]]; then
+                install_mode="restore_with_domain"
+            else
+                install_mode="restore_skip_domain"
+            fi
+        fi
+        ;;
+    0)
+        echo ""
+        echo "  Instalasi dibatalkan."
+        exit 0
+        ;;
+    *)
+        install_mode="1"
+        ;;
+esac
 
 echo ""
 echo "[ INFO ] Menyalin file ke ${INSTALL_DIR}..."
 
-# --- Copy semua file ke /etc/zv-manager ---
-mkdir -p "$INSTALL_DIR"
-cp -r "$SCRIPT_DIR"/* "$INSTALL_DIR/"
-
-find "$INSTALL_DIR" -name "*.sh" -exec chmod +x {} \;
-find "$INSTALL_DIR" -name "*.py" -exec chmod +x {} \;
-chmod +x "$INSTALL_DIR/checker/zv-checker" 2>/dev/null
-
-# --- Install zv-agent binary (untuk local + bisa di-deploy ke remote) ---
-cp "$INSTALL_DIR/zv-agent.sh" /usr/local/bin/zv-agent
-chmod +x /usr/local/bin/zv-agent
+# --- Copy semua file ke /etc/zv-manager (skip kalau restore sudah copy) ---
+if [[ "$install_mode" == "1" ]]; then
+    mkdir -p "$INSTALL_DIR"
+    cp -r "$SCRIPT_DIR"/* "$INSTALL_DIR/"
+    find "$INSTALL_DIR" -name "*.sh" -exec chmod +x {} \;
+    find "$INSTALL_DIR" -name "*.py" -exec chmod +x {} \;
+    chmod +x "$INSTALL_DIR/checker/zv-checker" 2>/dev/null
+    cp "$INSTALL_DIR/zv-agent.sh" /usr/local/bin/zv-agent
+    chmod +x /usr/local/bin/zv-agent
+fi
 
 echo "[ INFO ] File berhasil disalin"
 echo ""
@@ -87,10 +140,18 @@ source "$INSTALL_DIR/core/system.sh"
 run_system_setup
 
 source "$INSTALL_DIR/core/domain.sh"
-setup_domain
+if [[ "$install_mode" == "restore_skip_domain" ]]; then
+    echo "[ INFO ] Domain dipertahankan dari backup, skip setup domain."
+else
+    setup_domain
+fi
 
 source "$INSTALL_DIR/core/ssl.sh"
-setup_ssl
+if [[ "$install_mode" == "restore_skip_domain" ]]; then
+    echo "[ INFO ] SSL dipertahankan dari backup, skip setup SSL."
+else
+    setup_ssl
+fi
 
 source "$INSTALL_DIR/services/ssh/install.sh"
 install_ssh
