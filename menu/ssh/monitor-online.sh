@@ -132,22 +132,27 @@ get_connection_info() {
 
     # --- Output label tunnel ---
     if [[ "$has_tunneled" == true ]]; then
-        # Deteksi tipe dari port yang aktif
-        local udp_conns
-        udp_conns=$(ss -tnp 2>/dev/null | grep ":36712" | grep -c "ESTAB" 2>/dev/null || echo 0)
-        local ws_conns
-        ws_conns=$(ss -tnp 2>/dev/null | grep ":8880" | grep -c "ESTAB" 2>/dev/null || echo 0)
-
-        if [[ "$udp_conns" -gt 0 ]] && [[ "$ws_conns" -gt 0 ]]; then
-            echo "[UDP + WebSocket]"
-        elif [[ "$udp_conns" -gt 0 ]]; then
-            echo "[UDP Custom]"
-        elif [[ "$ws_conns" -gt 0 ]]; then
-            echo "[WebSocket]"
-        elif [[ -n "$ws_type" ]]; then
-            echo "[${ws_type}]"
+        # Cek UDP tracker file dulu (prioritas tertinggi)
+        if [[ -n "$ws_type" ]]; then
+            echo "[UDP]"
         else
-            echo "[Tunnel]"
+            # Fallback: deteksi dari port aktif
+            local udp_conns ws_conns
+            udp_conns=$(ss -unp 2>/dev/null | grep -c ":36712" || echo 0)
+            ws_conns=$(ss -tnp 2>/dev/null | grep ":8880" | grep -c "ESTAB" || echo 0)
+            # Pastikan hanya angka
+            [[ ! "$udp_conns" =~ ^[0-9]+$ ]] && udp_conns=0
+            [[ ! "$ws_conns"  =~ ^[0-9]+$ ]] && ws_conns=0
+
+            if   [[ "$udp_conns" -gt 0 ]] && [[ "$ws_conns" -gt 0 ]]; then
+                echo "[UDP + WS]"
+            elif [[ "$udp_conns" -gt 0 ]]; then
+                echo "[UDP]"
+            elif [[ "$ws_conns" -gt 0 ]]; then
+                echo "[WebSocket]"
+            else
+                echo "[Tunnel]"
+            fi
         fi
     fi
 }
