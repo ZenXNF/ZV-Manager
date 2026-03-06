@@ -561,9 +561,9 @@ def text_akun_info(tipe: str, username: str, password: str, domain: str,
         f"  WS / WSS / UDP Custom\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
         f"🔗 <b>Format HTTP Custom</b>\n"
-        f"  <code>{domain}:80@{username}:{password}</code>\n"
-        f"  <code>{domain}:443@{username}:{password}</code>\n"
-        f"  <code>{domain}:1-65535@{username}:{password}</code>"
+        f"  Port 80  : <code>{domain}:80@{username}:{password}</code>\n"
+        f"  Port 443 : <code>{domain}:443@{username}:{password}</code>\n"
+        f"  UDP      : <code>{domain}:1-65535@{username}:{password}</code>"
         f"{harga_line}"
     )
 
