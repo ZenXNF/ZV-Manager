@@ -43,7 +43,7 @@ menu_ssh() {
         echo -e "  ${BGREEN}[1]${NC} Tambah Akun          ${BGREEN}[2]${NC} Hapus Akun"
         echo -e "  ${BGREEN}[3]${NC} List Akun            ${BGREEN}[4]${NC} Perpanjang Akun"
         echo -e "  ${BGREEN}[5]${NC} Lock Akun            ${BGREEN}[6]${NC} Unlock Akun"
-        echo -e "  ${BGREEN}[7]${NC} Monitor Online       ${BGREEN}[8]${NC} Edit Akun"
+        echo -e "  ${BGREEN}[7]${NC} Edit Akun"
         echo ""
         echo -e "  ${BYELLOW}[s]${NC} Ganti Target         ${BYELLOW}[d]${NC} Saldo Telegram"
         echo -e "  ${BYELLOW}[b]${NC} Broadcast Telegram"
@@ -58,8 +58,8 @@ menu_ssh() {
             4) bash /etc/zv-manager/menu/ssh/renew-user.sh ;;
             5) bash /etc/zv-manager/menu/ssh/lock-user.sh ;;
             6) bash /etc/zv-manager/menu/ssh/unlock-user.sh ;;
-            7) bash /etc/zv-manager/menu/ssh/monitor-online.sh ;;
-            8) bash /etc/zv-manager/menu/ssh/edit-user.sh ;;
+
+            7) bash /etc/zv-manager/menu/ssh/edit-user.sh ;;
             s|S) pick_target_server ;;
             d|D) bash /etc/zv-manager/menu/ssh/saldo.sh ;;
             b|B) bash /etc/zv-manager/menu/ssh/broadcast.sh ;;

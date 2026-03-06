@@ -192,11 +192,6 @@ service cron restart &>/dev/null
 /bin/bash /etc/zv-manager/cron/check-update.sh &>/dev/null &
 print_ok "Cron jobs diterapkan"
 
-# Install/update UDP tracker service
-cp /etc/zv-manager/services/udp/zv-udp-tracker.service /etc/systemd/system/ 2>/dev/null
-systemctl daemon-reload &>/dev/null
-systemctl enable zv-udp-tracker &>/dev/null
-systemctl restart zv-udp-tracker &>/dev/null
 
 # Pastikan menu command masih ada
 ln -sf /etc/zv-manager/menu/menu.sh /usr/local/bin/menu
