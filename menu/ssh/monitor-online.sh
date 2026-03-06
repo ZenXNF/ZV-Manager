@@ -16,12 +16,32 @@ source /etc/zv-manager/utils/remote.sh
 # - dropbear: username    → Dropbear connection
 # who tidak dipakai → tidak detect koneksi tanpa PTY (UDP/WS)
 # ============================================================
+# File tracking koneksi WS/UDP dari ws-proxy
+WS_ONLINE_FILE="/tmp/zv-ws-online"
+
 count_sessions() {
     local username="$1"
-    local n_ssh n_drop
+    local n_ssh n_drop n_ws
     n_ssh=$(ps aux | grep -E "sshd: ${username}(@|$)" | grep -v grep | grep -v '\[priv\]' | wc -l)
     n_drop=$(ps aux | grep -E "dropbear: ${username}(@|$)" | grep -v grep | wc -l)
-    echo $(( n_ssh + n_drop ))
+    # Cek koneksi WS/UDP dari ws-proxy tracking file
+    n_ws=0
+    if [[ -f "$WS_ONLINE_FILE" ]]; then
+        local ws_line
+        ws_line=$(grep -i "^${username}:" "$WS_ONLINE_FILE" 2>/dev/null | head -1)
+        if [[ -n "$ws_line" ]]; then
+            n_ws=$(echo "$ws_line" | cut -d: -f2 | tr -d '[:space:]')
+            [[ ! "$n_ws" =~ ^[0-9]+$ ]] && n_ws=1
+        fi
+    fi
+    echo $(( n_ssh + n_drop + n_ws ))
+}
+
+# Tipe koneksi dari ws-proxy file
+get_ws_type() {
+    local username="$1"
+    [[ ! -f "$WS_ONLINE_FILE" ]] && return
+    grep -qi "^${username}:" "$WS_ONLINE_FILE" 2>/dev/null && echo "WS/UDP"
 }
 
 # ============================================================
@@ -94,6 +114,11 @@ get_connection_info() {
         fi
     done
 
+    # --- Cek WS/UDP dari tracking file ---
+    local ws_type
+    ws_type=$(get_ws_type "$username")
+    [[ -n "$ws_type" ]] && has_tunneled=true
+
     # --- Output IP direct (deduplikasi) ---
     local shown=()
     for ip in "${direct_ips[@]}"; do
@@ -119,6 +144,8 @@ get_connection_info() {
             echo "[UDP Custom]"
         elif [[ "$ws_conns" -gt 0 ]]; then
             echo "[WebSocket]"
+        elif [[ -n "$ws_type" ]]; then
+            echo "[${ws_type}]"
         else
             echo "[Tunnel]"
         fi
