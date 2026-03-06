@@ -26,51 +26,17 @@ count_sessions() {
     n_drop=$(ps aux | grep -E "dropbear: ${username}(@|$)" | grep -v grep | wc -l)
     # Cek koneksi UDP Custom dari tracker file
     n_udp=0
-    if [[ -f "$UDP_ONLINE_FILE" ]] && _udp_has_live_conn; then
-        local udp_line
-        udp_line=$(grep -i "^${username}:" "$UDP_ONLINE_FILE" 2>/dev/null | head -1)
-        if [[ -n "$udp_line" ]]; then
-            n_udp=$(echo "$udp_line" | cut -d: -f2 | tr -d '[:space:]')
-            [[ ! "$n_udp" =~ ^[0-9]+$ ]] && n_udp=1
-        fi
-    elif [[ -f "$UDP_ONLINE_FILE" ]] && ! _udp_has_live_conn; then
-        # Bersihkan file kalau tidak ada koneksi live
-        > "$UDP_ONLINE_FILE" 2>/dev/null
+    if [[ -f "$UDP_ONLINE_FILE" ]]; then
+        grep -qi "^${username}:1" "$UDP_ONLINE_FILE" 2>/dev/null && n_udp=1
     fi
     echo $(( n_ssh + n_drop + n_udp ))
-}
-
-# Validasi: apakah udp-custom benar-benar punya koneksi aktif sekarang?
-_udp_has_live_conn() {
-    # Cek apakah ada proses udp-custom yang punya koneksi ESTAB ke port 36712
-    local cnt
-    cnt=$(ss -unp 2>/dev/null | grep -c "36712" || echo 0)
-    [[ ! "$cnt" =~ ^[0-9]+$ ]] && cnt=0
-    # Fallback: cek via /proc apakah udp-custom punya fd terbuka ke luar
-    if [[ "$cnt" -eq 0 ]]; then
-        local pid
-        pid=$(pgrep -x udp-custom 2>/dev/null | head -1)
-        if [[ -n "$pid" ]]; then
-            cnt=$(ls /proc/"$pid"/fd 2>/dev/null | wc -l)
-            # Kalau fd > 5 berarti ada koneksi (fd 0,1,2,3,4 = standar)
-            [[ "$cnt" -gt 5 ]] && cnt=1 || cnt=0
-        fi
-    fi
-    [[ "$cnt" -gt 0 ]]
 }
 
 # Tipe koneksi dari UDP tracker file
 get_ws_type() {
     local username="$1"
     [[ ! -f "$UDP_ONLINE_FILE" ]] && return
-    # Validasi: cek file dulu, lalu pastikan udp-custom benar aktif
-    grep -qi "^${username}:" "$UDP_ONLINE_FILE" 2>/dev/null || return
-    # Kalau udp-custom tidak punya koneksi live → bersihkan file & return kosong
-    if ! _udp_has_live_conn; then
-        > "$UDP_ONLINE_FILE" 2>/dev/null
-        return
-    fi
-    echo "UDP"
+    grep -qi "^${username}:1" "$UDP_ONLINE_FILE" 2>/dev/null && echo "UDP"
 }
 
 # ============================================================
