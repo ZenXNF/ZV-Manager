@@ -28,12 +28,24 @@ install_telegram_bot() {
         return 1
     fi
 
-    # Copy bot.py ke /usr/local/bin
-    cp /etc/zv-manager/services/telegram/bot.py /usr/local/bin/zv-telegram-bot.py
-    chmod +x /usr/local/bin/zv-telegram-bot.py
+    # Deploy semua modul bot ke /opt/zv-telegram/
+    BOT_DIR="/opt/zv-telegram"
+    mkdir -p "${BOT_DIR}/handlers"
+    cp /etc/zv-manager/services/telegram/bot.py        "${BOT_DIR}/"
+    cp /etc/zv-manager/services/telegram/config.py     "${BOT_DIR}/"
+    cp /etc/zv-manager/services/telegram/utils.py      "${BOT_DIR}/"
+    cp /etc/zv-manager/services/telegram/storage.py    "${BOT_DIR}/"
+    cp /etc/zv-manager/services/telegram/keyboards.py  "${BOT_DIR}/"
+    cp /etc/zv-manager/services/telegram/texts.py      "${BOT_DIR}/"
+    cp /etc/zv-manager/services/telegram/middleware.py "${BOT_DIR}/"
+    cp /etc/zv-manager/services/telegram/handlers/__init__.py  "${BOT_DIR}/handlers/"
+    cp /etc/zv-manager/services/telegram/handlers/user.py      "${BOT_DIR}/handlers/"
+    cp /etc/zv-manager/services/telegram/handlers/admin.py     "${BOT_DIR}/handlers/"
+    cp /etc/zv-manager/services/telegram/handlers/messages.py  "${BOT_DIR}/handlers/"
+    chmod +x "${BOT_DIR}/bot.py"
 
     # Hapus file lama kalau ada
-    rm -f /usr/local/bin/zv-telegram-bot
+    rm -f /usr/local/bin/zv-telegram-bot /usr/local/bin/zv-telegram-bot.py
 
     # Systemd service
     cat > /etc/systemd/system/zv-telegram.service <<'SVCEOF'
@@ -45,7 +57,7 @@ StartLimitBurst=5
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3 -u /usr/local/bin/zv-telegram-bot.py
+ExecStart=/usr/bin/python3 -u /opt/zv-telegram/bot.py
 Restart=always
 RestartSec=10s
 # Batasi memori maksimal 120MB di VPS 512MB/1GB

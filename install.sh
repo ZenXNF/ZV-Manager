@@ -204,6 +204,11 @@ cat > /etc/cron.d/zv-check-update <<'CRONEOF'
 0 6 * * * root /bin/bash /etc/zv-manager/cron/check-update.sh
 CRONEOF
 
+cat > /etc/cron.d/zv-watchdog <<'CRONEOF'
+# ZV-Manager - Watchdog: monitor & auto-restart service tiap 5 menit
+*/5 * * * * root /bin/bash /etc/zv-manager/cron/watchdog.sh
+CRONEOF
+
 cat > /etc/cron.d/zv-backup <<'CRONEOF'
 # ZV-Manager - Backup harian jam 02:00
 0 2 * * * root /bin/bash /etc/zv-manager/cron/backup.sh
