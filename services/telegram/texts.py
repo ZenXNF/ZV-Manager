@@ -131,43 +131,35 @@ def text_vmess_info(tipe: str, username: str, uuid: str, domain: str,
                     exp_display: str, server_label: str,
                     days: int = 0, total: int = 0,
                     dashboard_url: str = "") -> str:
-    """Pesan info akun VMess — tanpa URL (dikirim terpisah via vmess_url_messages)."""
+    """Pesan info akun VMess — URL dikirim terpisah dengan tombol salin."""
     from utils import fmt
     is_trial = (tipe == "TRIAL")
-    header   = "🌟 TRIAL VMESS PREMIUM 🌟" if is_trial else "✅ AKUN VMESS PREMIUM"
-    lines = [
-        f"<b>{header}</b>",
-        "━━━━━━━━━━━━━━━━━━━",
-        f"⚡ Username : <code>{username}</code>",
-        f"🌐 Domain   : <code>{domain}</code>",
-        f"🔑 UUID     : <code>{uuid}</code>",
-        "━━━━━━━━━━━━━━━━━━━",
-        "📡 Port TLS  : 443 (WS + gRPC)",
-        "📡 Port HTTP : 80 (WS)",
-        "📎 Path WS   : /vmess",
-        "📎 Path gRPC : vmess-grpc",
-        "━━━━━━━━━━━━━━━━━━━",
-    ]
-    if is_trial:
-        lines.append("⏳ Expired : 30 menit")
-    else:
-        lines.append(f"⏳ Expired : {exp_display}")
-        if days and total:
-            lines.append(f"💸 Dibayar : {days} hari — Rp{fmt(total)}")
-    if dashboard_url:
-        lines += ["━━━━━━━━━━━━━━━━━━━",
-                  f"🖥️ Dashboard : {dashboard_url}"]
-    lines += ["━━━━━━━━━━━━━━━━━━━",
-              "⬇️ Salin URL di bawah lalu import ke app"]
-    return "\n".join(lines)
+    header   = "🌟 TRIAL VMESS" if is_trial else "✅ VMESS PREMIUM"
+    exp_line = "30 menit" if is_trial else exp_display
+    pay_line = f"\n💸 {days} hari — Rp{fmt(total)}" if (not is_trial and days and total) else ""
+    dash_line = f"\n🖥 <a href=\"{dashboard_url}\">Dashboard Akun</a>" if dashboard_url else ""
+    return (
+        f"<b>{header}</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"👤 {username}  |  🌐 {server_label}\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"🔑 <code>{uuid}</code>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"📡 TLS 443 · HTTP 80\n"
+        f"📎 WS /vmess · gRPC vmess-grpc\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"⏳ {exp_line}{pay_line}{dash_line}\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"Pilih URL di bawah 👇"
+    )
 
 def vmess_url_messages(username: str, uuid: str, domain: str) -> list:
-    """Kembalikan list (text, url) per URL VMess — untuk dikirim dengan CopyTextButton."""
+    """Kembalikan list (text, url) per URL VMess — untuk dikirim dengan tombol SALIN KODE."""
     url_tls, url_http, url_grpc = vmess_build_urls(username, uuid, domain)
     return [
-        (f"🔐 <b>URL VMESS TLS</b>\n<code>{url_tls}</code>",  url_tls),
-        (f"🔓 <b>URL VMESS HTTP</b>\n<code>{url_http}</code>", url_http),
-        (f"🔒 <b>URL VMESS gRPC</b>\n<code>{url_grpc}</code>", url_grpc),
+        (f"🔐 <b>TLS (WS) — Port 443</b>\n<code>{url_tls}</code>",  url_tls),
+        (f"🔓 <b>HTTP (WS) — Port 80</b>\n<code>{url_http}</code>", url_http),
+        (f"🔒 <b>gRPC — Port 443</b>\n<code>{url_grpc}</code>",     url_grpc),
     ]
 
 def generate_dashboard_html(username: str, uuid: str, domain: str,
