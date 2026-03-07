@@ -246,6 +246,11 @@ ln -sf /etc/zv-manager/menu/menu.sh /usr/local/bin/menu
 chmod +x /usr/local/bin/menu
 print_ok "Command 'menu' siap digunakan"
 
+# --- Simpan commit hash saat install ---
+INSTALL_HASH=$(git -C /root/ZV-Manager rev-parse --short HEAD 2>/dev/null || echo "unknown")
+sed -i "s/^COMMIT_HASH=.*/COMMIT_HASH=\"${INSTALL_HASH}\"/" /etc/zv-manager/config.conf
+print_ok "Versi: #${INSTALL_HASH}"
+
 # --- Simpan IP VPS ---
 mkdir -p /etc/zv-manager/accounts
 echo "$PUBLIC_IP" > /etc/zv-manager/accounts/ipvps

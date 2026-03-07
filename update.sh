@@ -63,7 +63,9 @@ cp config.conf /etc/zv-manager/
 cp install.sh /etc/zv-manager/
 cp update.sh /etc/zv-manager/
 cp zv-agent.sh /etc/zv-manager/
-echo " ✔  Script diperbarui"
+NEW_HASH=$(git -C /root/ZV-Manager rev-parse --short HEAD 2>/dev/null || echo "unknown")
+sed -i "s/^COMMIT_HASH=.*/COMMIT_HASH=\"${NEW_HASH}\"/" /etc/zv-manager/config.conf
+echo " ✔  Script diperbarui (#${NEW_HASH})"
 
 # --- Update zv-agent binary ---
 cp /etc/zv-manager/zv-agent.sh /usr/local/bin/zv-agent

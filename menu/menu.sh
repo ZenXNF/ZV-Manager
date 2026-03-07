@@ -66,9 +66,9 @@ get_update_banner() {
     local cache="/tmp/zv-update-available"
     [[ ! -f "$cache" ]] && return
     local latest; latest=$(cat "$cache" 2>/dev/null | tr -d "[:space:]")
-    [[ -z "$latest" || "$latest" == "$SCRIPT_VERSION" ]] && return
+    [[ -z "$latest" || "$latest" == "$COMMIT_HASH" ]] && return
     echo -e "${BYELLOW}  ╔══════════════════════════════════════════════════╗${NC}"
-    echo -e "${BYELLOW}  ║${NC}  ${BRED}⚠  Update tersedia:${NC} ${BWHITE}v${SCRIPT_VERSION}${NC} ${BYELLOW}→${NC} ${BGREEN}v${latest}${NC}   ${BYELLOW}Pilih [6]${NC}  ${BYELLOW}║${NC}"
+    echo -e "${BYELLOW}  ║${NC}  ${BRED}⚠  Update tersedia:${NC} ${BWHITE}#${COMMIT_HASH}${NC} ${BYELLOW}→${NC} ${BGREEN}#${latest}${NC}   ${BYELLOW}Pilih [6]${NC}  ${BYELLOW}║${NC}"
     echo -e "${BYELLOW}  ╚══════════════════════════════════════════════════╝${NC}"
     echo ""
 }
@@ -86,7 +86,7 @@ show_header() {
     clear
     get_update_banner
     echo -e "${BCYAN}  ╔══════════════════════════════════════════════════╗${NC}"
-    echo -e "${BCYAN}  ║${NC}  ${BWHITE}ZV-Manager${NC} ${BYELLOW}v${SCRIPT_VERSION}${NC}                                ${BCYAN}║${NC}"
+    echo -e "${BCYAN}  ║${NC}  ${BWHITE}ZV-Manager${NC} ${BYELLOW}#${COMMIT_HASH:-unknown}${NC}                                ${BCYAN}║${NC}"
     echo -e "${BCYAN}  ╠══════════════════════════════════════════════════╣${NC}"
     echo -e "${BCYAN}  ║${NC}  ${BWHITE}IP    :${NC} ${BGREEN}${ip}${NC}"
     echo -e "${BCYAN}  ║${NC}  ${BWHITE}Waktu :${NC} ${BYELLOW}${today}${NC}"
