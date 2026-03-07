@@ -77,59 +77,7 @@ TOTAL_AKUN=0
 
 CARDS_HTML=""
 
-# Selalu tampilkan otak (server lokal) sebagai server pertama
-LOCAL_IP=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null | head -1)
 LOCAL_DOMAIN=$(cat /etc/zv-manager/domain 2>/dev/null)
-LOCAL_LABEL="Brain VPS"
-
-if [[ -n "$LOCAL_IP" ]]; then
-    ms=$(_ping_ms "$LOCAL_IP")
-    port_ok=$(_check_port "$LOCAL_IP" "22")
-    akun=$(_count_active "local")
-    TOTAL_AKUN=$((TOTAL_AKUN + akun))
-
-    if [[ "$port_ok" == "1" ]]; then
-        STATUS="UP"; STATUS_CLASS="up"; TOTAL_UP=$((TOTAL_UP+1))
-        _update_uptime "local" "1"
-    else
-        STATUS="DOWN"; STATUS_CLASS="down"; TOTAL_DOWN=$((TOTAL_DOWN+1))
-        _update_uptime "local" "0"
-    fi
-
-    uptime_pct=$(_calc_uptime_pct "local")
-    [[ $(echo "$uptime_pct >= 95" | bc -l) == "1" ]] && UPT_CLASS="green" \
-        || { [[ $(echo "$uptime_pct >= 80" | bc -l) == "1" ]] && UPT_CLASS="yellow" || UPT_CLASS="red"; }
-
-    CARDS_HTML+="
-    <div class='card'>
-      <div class='card-header'>
-        <div class='card-title'>
-          <span class='dot dot-${STATUS_CLASS}'></span>
-          ${LOCAL_LABEL}
-          <span class='domain'>${LOCAL_DOMAIN}</span>
-        </div>
-        <span class='badge badge-${STATUS_CLASS}'>${STATUS}</span>
-      </div>
-      <div class='card-body'>
-        <div class='stat'>
-          <span class='stat-label'>UPTIME</span>
-          <span class='stat-val ${UPT_CLASS}'>${uptime_pct}%</span>
-        </div>
-        <div class='stat'>
-          <span class='stat-label'>RESPONSE</span>
-          <span class='stat-val'>${ms} ms</span>
-        </div>
-        <div class='stat'>
-          <span class='stat-label'>AKUN AKTIF</span>
-          <span class='stat-val'>${akun}</span>
-        </div>
-        <div class='stat'>
-          <span class='stat-label'>LAST CHECK</span>
-          <span class='stat-val small'>$(TZ=Asia/Jakarta date '+%H:%M')</span>
-        </div>
-      </div>
-    </div>"
-fi
 
 # Loop semua remote server
 for conf in "$SERVER_DIR"/*.conf; do
@@ -364,6 +312,24 @@ cat > "$OUTPUT" << HTMLEOF
   .stat-val.red    { color: #ef4444; }
   .stat-val.small  { font-size: 13px; }
 
+  /* ── Refresh button ── */
+  .refresh-btn {
+    background: #1e2535;
+    border: 1px solid #3b82f6;
+    color: #3b82f6;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 7px 16px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all .2s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .refresh-btn:hover { background: #3b82f6; color: #fff; }
+  .refresh-btn:active { transform: scale(0.95); }
+  .refresh-btn.loading { opacity: .6; pointer-events: none; }
+
   /* ── Footer ── */
   .footer {
     text-align: center; font-size: 12px; color: #334155;
@@ -377,7 +343,7 @@ cat > "$OUTPUT" << HTMLEOF
 <div class="header">
   <div class="header-icon">🖥️</div>
   <h1>${PANEL_NAME}</h1>
-  <p>Real-time service health monitoring</p>
+  <p>${LOCAL_DOMAIN}</p>
   <div class="header-time">🕐 ${NOW_WIB}</div>
 </div>
 
@@ -417,7 +383,7 @@ cat > "$OUTPUT" << HTMLEOF
 <div class="status-bar">
   <div class="status-dot ${SUMMARY_CLASS}"></div>
   <div class="status-bar-text">${SUMMARY_TEXT}</div>
-  <div class="status-bar-avg">Update tiap 5 menit</div>
+  <button class="refresh-btn" onclick="doRefresh()">🔄 Refresh</button>
 </div>
 
 <div class="section-title">STATUS SERVER</div>
@@ -430,6 +396,14 @@ ${CARDS_HTML}
   Powered by <a href="#">${PANEL_NAME}</a> &nbsp;·&nbsp; Auto-refresh setiap 5 menit
 </div>
 
+<script>
+function doRefresh() {
+  var btn = document.querySelector('.refresh-btn');
+  btn.classList.add('loading');
+  btn.textContent = '⏳ Memuat...';
+  setTimeout(function(){ location.reload(); }, 300);
+}
+</script>
 </body>
 </html>
 HTMLEOF
