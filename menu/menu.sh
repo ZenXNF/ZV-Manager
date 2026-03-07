@@ -78,10 +78,11 @@ show_header() {
     ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null || curl -s --max-time 5 ipv4.icanhazip.com)
     today=$(_waktu_indo)
 
-    local s_ssh s_db s_ng s_wss s_udp s_ssl
+    local s_ssh s_db s_ng s_wss s_udp s_ssl s_xray
     s_ssh=$(svc_status ssh); s_db=$(svc_status dropbear)
     s_ng=$(svc_status nginx); s_wss=$(svc_status zv-wss)
     s_udp=$(svc_status zv-udp); s_ssl=$(svc_status zv-stunnel)
+    s_xray=$(svc_status zv-xray)
 
     clear
     get_update_banner
@@ -93,7 +94,7 @@ show_header() {
     echo -e "${BCYAN}  ╠══════════════════════════════════════════════════╣${NC}"
     get_license_display
     echo -e "${BCYAN}  ╠══════════════════════════════════════════════════╣${NC}"
-    echo -e "${BCYAN}  ║${NC}  ${s_ssh} SSH  ${s_db} Dropbear  ${s_ng} Nginx  ${s_ssl} SSL  ${s_wss} WS  ${s_udp} UDP"
+    echo -e "${BCYAN}  ║${NC}  ${s_ssh} SSH  ${s_db} Dropbear  ${s_ng} Nginx  ${s_ssl} SSL  ${s_wss} WS  ${s_udp} UDP  ${s_xray} Xray"
     echo -e "${BCYAN}  ╚══════════════════════════════════════════════════╝${NC}"
     echo ""
 }
@@ -108,6 +109,7 @@ main_menu() {
         echo -e "  ${BGREEN}[1]${NC} Manajemen SSH        ${BGREEN}[2]${NC} Manajemen Server"
         echo -e "  ${BGREEN}[3]${NC} Informasi Server     ${BGREEN}[4]${NC} System & Services"
         echo -e "  ${BGREEN}[5]${NC} Statistik Penjualan  ${BGREEN}[6]${NC} Update Script"
+        echo -e "  ${BGREEN}[7]${NC} Manajemen VMess"
         echo ""
         echo -e "  ${BYELLOW}[r]${NC} Restart Services     ${BRED}[0]${NC} Keluar"
         echo ""
@@ -119,6 +121,7 @@ main_menu() {
             3) bash /etc/zv-manager/menu/info/server-info.sh ;;
             4) bash /etc/zv-manager/menu/system/menu-system.sh ;;
             5) bash /etc/zv-manager/menu/info/statistik.sh ;;
+            7) bash /etc/zv-manager/menu/vmess/menu-vmess.sh ;;
             6)
                 echo ""
                 echo -e "  ${BYELLOW}Menjalankan update...${NC}"
@@ -132,7 +135,7 @@ main_menu() {
                 source /etc/zv-manager/config.conf 2>/dev/null
                 ;;
             r|R)
-                for svc in ssh dropbear nginx zv-stunnel zv-wss zv-udp; do
+                for svc in ssh dropbear nginx zv-stunnel zv-wss zv-udp zv-xray; do
                     systemctl restart "$svc" &>/dev/null
                 done
                 echo -e "  ${BGREEN}Semua service di-restart!${NC}"; sleep 2 ;;

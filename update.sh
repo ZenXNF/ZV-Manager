@@ -164,6 +164,13 @@ print_info "Apply BadVPN UDPGW..."
 source /etc/zv-manager/services/badvpn/install.sh
 install_badvpn
 
+# Reload xray config jika terinstall
+if [[ -f "/usr/local/bin/xray" ]]; then
+    source /etc/zv-manager/services/xray/install.sh
+    reload_xray
+    print_ok "Xray config di-reload"
+fi
+
 # --- Cron jobs ---
 print_info "Apply cron jobs..."
 cat > /etc/cron.d/zv-autokill <<'CRONEOF'
