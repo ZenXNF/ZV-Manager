@@ -5,7 +5,7 @@
 #   1. Deteksi IP aktif per user via auth.log + ss
 #   2. Update iptables rules
 #   3. Akumulasi bytes ke conf
-#   4. Block jika quota habis, warn jika 80%
+#   4. Block jika bandwidth habis, warn jika 80%
 # ============================================================
 ACCOUNT_DIR="/etc/zv-manager/accounts/ssh"
 BW_SESSION_DIR="/tmp/zv-bw"
@@ -61,20 +61,20 @@ for conf_file in "$ACCOUNT_DIR"/*.conf; do
     # ── Akumulasi bytes ───────────────────────────────────────
     _bw_accumulate "$user"
 
-    # ── Cek quota ─────────────────────────────────────────────
+    # ── Cek bandwidth ────────────────────────────────────────
     _bw_is_blocked "$user" && continue  # sudah diblock, skip
 
     used=$(_bw_get_used "$user")
     used=${used:-0}
     quota=${quota:-0}
 
-    # Block jika quota habis (>= 100%)
+    # Block jika bandwidth habis (>= 100%)
     if (( used >= quota )); then
         _bw_block "$user"
         used_fmt=$(_bw_fmt "$used")
         quota_fmt=$(_bw_fmt "$quota")
         _tg_send "$tg_uid" "🚫 <b>Bandwidth Habis!</b>%0A━━━━━━━━━━━━━━━━━━━%0A👤 Username : <code>${user}</code>%0A📶 Terpakai : ${used_fmt} / ${quota_fmt}%0A━━━━━━━━━━━━━━━━━━━%0ASilahkan tambah bandwidth melalui bot."
-        _bw_log "QUOTA_EXCEEDED: $user used=${used} quota=${quota}"
+        _bw_log "BW_EXCEEDED: $user used=${used} quota=${quota}"
         continue
     fi
 

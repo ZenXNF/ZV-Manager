@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-#   ZV-Manager v1.0.0
+#   ZV-Manager Installer
 #   SSH Tunneling Manager for Ubuntu 24.04 LTS
 #   https://github.com/ZenXNF/ZV-Manager
 # ============================================================
@@ -28,7 +28,7 @@ clear
 echo -e "\033[1;36m"
 echo "  ╔══════════════════════════════════════╗"
 echo "  ║       Z V - M A N A G E R           ║"
-echo "  ║  SSH Tunneling Manager v1.0.0        ║"
+echo "  ║  SSH Tunneling Manager                ║"
 echo "  ║  Ubuntu 24.04 LTS                    ║"
 echo "  ╚══════════════════════════════════════╝"
 echo -e "\033[0m"

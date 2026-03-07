@@ -246,7 +246,7 @@ case "$CMD" in
     check)   cmd_check   "$@" ;;
     online)  cmd_online  ;;
     *)
-        echo "ZV-AGENT v1.0 — SSH User Management Agent"
+        echo "ZV-AGENT — SSH User Management Agent"
         echo "Usage: zv-agent <command> [args]"
         echo ""
         echo "Commands:"

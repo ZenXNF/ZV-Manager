@@ -576,14 +576,14 @@ async def cb_konfirm_bw(cb: CallbackQuery):
         capture_output=True)
     state_clear(uid)
     zv_log(f"BW_BELI: {uid} user={username} gb={gb} total={total}")
-    new_quota = int(ac["BW_QUOTA_BYTES"])
+    new_bw = int(ac["BW_QUOTA_BYTES"])
     await cb.message.edit_text("✅ Bandwidth ditambahkan!")
     await cb.message.answer(
         f"➕ <b>Bandwidth Berhasil Ditambahkan</b>\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
         f"👤 Username     : <code>{username}</code>\n"
         f"📶 Ditambah     : {gb} GB\n"
-        f"📊 Total Bandwidth  : {fmt_bytes(new_quota)}\n"
+        f"📊 Total Bandwidth  : {fmt_bytes(new_bw)}\n"
         f"📈 Terpakai     : {fmt_bytes(old_used)}\n"
         f"💸 Dibayar      : Rp{fmt(total)}\n"
         f"💰 Sisa Saldo   : Rp{fmt(saldo_get(uid))}\n"
