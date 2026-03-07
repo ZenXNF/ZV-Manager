@@ -33,11 +33,10 @@ _log() {
 _tg_msg() {
     local text="$1"
     [[ -z "$TG_TOKEN" || -z "$TG_ADMIN_ID" ]] && return
-    curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
-        -d "chat_id=${TG_ADMIN_ID}" \
-        -d "text=${text}" \
-        -d "parse_mode=HTML" \
-        --max-time 10 &>/dev/null
+    printf '%b' "$text" | curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+        -F "chat_id=${TG_ADMIN_ID}" \
+        -F "parse_mode=HTML" \
+        -F "text=<-" --max-time 10 &>/dev/null
 }
 
 # Cek apakah service ini boleh dikirim notif
