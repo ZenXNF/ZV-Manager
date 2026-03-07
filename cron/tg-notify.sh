@@ -21,14 +21,46 @@ warn_until=$(( now_ts + 20 * 3600 ))
 _tg_send_notify() {
     local chat_id="$1" uname="$2" srv="$3" exp="$4" sisa="$5"
     [[ -z "$TG_TOKEN" || -z "$chat_id" ]] && return
-    local text="⚠️ <b>Akun Akan Expired!</b>\n━━━━━━━━━━━━━━━━━━━\n👤 Username : <code>${uname}</code>\n🌐 Server   : ${srv}\n⏳ Expired  : ${exp}\n⏱️ Sisa     : ±${sisa} jam\n━━━━━━━━━━━━━━━━━━━\nSegera perpanjang agar tidak terputus!"
-    # Escape untuk JSON
-    text="${text//\\/\\\\}"; text="${text//\"/\\\"}"
-    local markup="{\"inline_keyboard\":[[{\"text\":\"🔄 Perpanjang Sekarang\",\"callback_data\":\"renew_${uname}\"},{\"text\":\"🏠 Menu Utama\",\"callback_data\":\"home\"}]]}"
-    local payload="{\"chat_id\":\"${chat_id}\",\"parse_mode\":\"HTML\",\"text\":\"${text}\",\"reply_markup\":${markup}}"
-    curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
-        -H "Content-Type: application/json" -d "${payload}" \
-        --max-time 10 &>/dev/null
+    python3 - << PYEOF
+import json, urllib.request, urllib.parse
+token  = "${TG_TOKEN}"
+text   = (
+    "⚠️ <b>Akun Akan Expired!</b>
+"
+    "━━━━━━━━━━━━━━━━━━━
+"
+    "👤 Username : <code>${uname}</code>
+"
+    "🌐 Server   : ${srv}
+"
+    "⏳ Expired  : ${exp}
+"
+    "⏱️ Sisa     : ±${sisa} jam
+"
+    "━━━━━━━━━━━━━━━━━━━
+"
+    "Segera perpanjang agar tidak terputus!"
+)
+markup = {"inline_keyboard": [[
+    {"text": "🔄 Perpanjang Sekarang", "callback_data": "renew_${uname}"},
+    {"text": "🏠 Menu Utama",          "callback_data": "home"}
+]]}
+payload = json.dumps({
+    "chat_id":      "${chat_id}",
+    "parse_mode":   "HTML",
+    "text":         text,
+    "reply_markup": markup
+}).encode()
+req = urllib.request.Request(
+    f"https://api.telegram.org/bot{token}/sendMessage",
+    data=payload,
+    headers={"Content-Type": "application/json"}
+)
+try:
+    urllib.request.urlopen(req, timeout=10)
+except Exception:
+    pass
+PYEOF
 }
 
 for conf in "$ACCOUNT_DIR"/*.conf; do

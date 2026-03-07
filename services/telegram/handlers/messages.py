@@ -26,8 +26,12 @@ router = Router()
 async def handle_message(msg: Message):
     uid   = msg.from_user.id
     text  = msg.text or ""
-    state = state_get(uid, "STATE")
 
+    # Jangan intercept command — biarkan handler Command() di router lain yang proses
+    if text.startswith("/"):
+        return
+
+    state = state_get(uid, "STATE")
     if not state:
         return
 

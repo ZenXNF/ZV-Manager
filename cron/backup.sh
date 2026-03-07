@@ -134,6 +134,8 @@ _tg_file "$OTAK_FILE" "🧠 <b>Backup Otak VPS</b>
 # ── Backup & kirim per-server SSH ─────────────────────────
 for conf in "${BASE_DIR}/servers"/*.conf; do
     [[ -f "$conf" ]] || continue
+    # Skip file .tg.conf — bukan server config
+    [[ "$conf" == *.tg.conf ]] && continue
     sname=$(basename "$conf" .conf)
 
     result=$(backup_server "$sname")

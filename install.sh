@@ -209,6 +209,11 @@ cat > /etc/cron.d/zv-watchdog <<'CRONEOF'
 */5 * * * * root /bin/bash /etc/zv-manager/cron/watchdog.sh
 CRONEOF
 
+cat > /etc/cron.d/zv-bw-check <<'CRONEOF'
+# ZV-Manager - Bandwidth Check tiap 5 menit
+*/5 * * * * root /bin/bash /etc/zv-manager/cron/bw-check.sh
+CRONEOF
+
 cat > /etc/cron.d/zv-backup <<'CRONEOF'
 # ZV-Manager - Backup harian jam 02:00
 0 2 * * * root /bin/bash /etc/zv-manager/cron/backup.sh
@@ -218,6 +223,21 @@ service cron restart &>/dev/null
 # Jalankan cek update sekali sekarang (background, tidak blocking)
 /bin/bash /etc/zv-manager/cron/check-update.sh &>/dev/null &
 print_success "Cron Jobs"
+
+# --- Setup Bandwidth Tracking (PAM) ---
+print_section "Setup Bandwidth Tracking"
+mkdir -p /tmp/zv-bw
+chmod +x /etc/zv-manager/core/bw-session.sh
+if ! grep -q "bw-session.sh" /etc/pam.d/sshd; then
+    echo "session optional pam_exec.so /etc/zv-manager/core/bw-session.sh" >> /etc/pam.d/sshd
+fi
+source /etc/zv-manager/core/bandwidth.sh
+for cf in /etc/zv-manager/accounts/ssh/*.conf; do
+    [[ -f "$cf" ]] || continue
+    uname=$(grep "^USERNAME=" "$cf" | cut -d= -f2 | tr -d '[:space:]')
+    [[ -n "$uname" ]] && _bw_init_user "$uname"
+done
+print_success "Bandwidth Tracking"
 
 # --- Setup menu command global ---
 print_section "Setup Global Command"

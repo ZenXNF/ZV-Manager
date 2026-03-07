@@ -485,9 +485,10 @@ async def cb_bw_akun(cb: CallbackQuery):
     bw_quota     = int(ac.get("BW_QUOTA_BYTES", "0") or "0")
     bw_used      = int(ac.get("BW_USED_BYTES", "0") or "0")
     bw_blocked   = ac.get("BW_BLOCKED", "0") == "1"
-    pct          = int(bw_used * 100 / bw_quota) if bw_quota > 0 else 0
-    bar          = "█" * (pct // 10) + "░" * (10 - pct // 10)
-    status_str   = "🚫 Diblokir (BW habis)" if bw_blocked else "✅ Aktif"
+    pct          = min(int(bw_used * 100 / bw_quota), 100) if bw_quota > 0 else 0
+    filled       = pct // 10
+    bar          = "▓" * filled + "░" * (10 - filled)
+    status_str   = "🚫 Diblokir (Kuota Habis)" if bw_blocked else "✅ Aktif"
     p1 = harga_per_gb * 1; p5 = harga_per_gb * 5; p10 = harga_per_gb * 10
     state_clear(uid)
     state_set(uid, "STATE",    "bw_pilih_paket")
