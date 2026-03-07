@@ -193,6 +193,7 @@ CRONEOF
 cat > /etc/cron.d/zv-license <<'CRONEOF'
 # ZV-Manager - Cek Izin Harian (jam 00:05)
 5 0 * * * root /bin/bash /etc/zv-manager/cron/license-check.sh
+0 7 * * * root /bin/bash /etc/zv-manager/cron/daily-report.sh
 CRONEOF
 
 cat > /etc/cron.d/zv-bandwidth <<'CRONEOF'

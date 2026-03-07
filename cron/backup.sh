@@ -103,7 +103,7 @@ cleanup_realtime() {
 zv_log "BACKUP: Mulai backup harian..." 2>/dev/null || true
 
 # Kirim header notif
-TOTAL_AKUN=$(ls /etc/zv-manager/accounts/ssh/*.conf 2>/dev/null | wc -l)
+TOTAL_AKUN=$(ls /etc/zv-manager/accounts/ssh accounts/vmess/*.conf 2>/dev/null | wc -l)
 TOTAL_USER=$(ls /etc/zv-manager/accounts/users/*.user 2>/dev/null | wc -l)
 TOTAL_SRV=$(ls /etc/zv-manager/servers/*.conf 2>/dev/null | wc -l)
 

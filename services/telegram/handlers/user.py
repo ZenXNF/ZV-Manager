@@ -556,35 +556,142 @@ async def cb_akun_saya(cb: CallbackQuery):
 
 
 # ── Perpanjang ────────────────────────────────────────────────
+# ── Perpanjang VMess ──────────────────────────────────────────
 @router.callback_query(F.data == "m_perpanjang")
 async def cb_perpanjang(cb: CallbackQuery):
     uid       = cb.from_user.id
     akun_list = []
+    vakun_list = []
     await cb.answer()
+    # SSH
     try:
         for f in Path(ACCOUNT_DIR).glob("*.conf"):
             ac = load_account_conf(f.stem)
-            if str(ac.get("TG_USER_ID", "")).strip() != str(uid): continue
-            if ac.get("IS_TRIAL", "0") == "1": continue
-            uname = ac.get("USERNAME", "")
-            if uname: akun_list.append(uname)
-    except Exception:
-        pass
+            if str(ac.get("TG_USER_ID","")).strip() != str(uid): continue
+            if ac.get("IS_TRIAL","0") == "1": continue
+            uname = ac.get("USERNAME","")
+            if uname: akun_list.append(("ssh", uname))
+    except Exception: pass
+    # VMess
+    try:
+        for vf in Path(VMESS_DIR).glob("*.conf"):
+            vc = load_vmess_conf(vf.stem)
+            if str(vc.get("TG_USER_ID","")).strip() != str(uid): continue
+            if vc.get("IS_TRIAL","0") == "1": continue
+            vuname = vc.get("USERNAME","")
+            if vuname: akun_list.append(("vmess", vuname))
+    except Exception: pass
+
     if not akun_list:
         await cb.message.edit_text(
             "📋 <b>Perpanjang Akun</b>\n\nKamu belum punya akun premium.",
             parse_mode="HTML", reply_markup=kb_home_btn()
         ); return
+
     b = InlineKeyboardBuilder()
-    for i in range(0, len(akun_list), 2):
-        row = [InlineKeyboardButton(text=akun_list[i], callback_data=f"renew_{akun_list[i]}")]
-        if i+1 < len(akun_list):
-            row.append(InlineKeyboardButton(text=akun_list[i+1], callback_data=f"renew_{akun_list[i+1]}"))
-        b.row(*row)
+    row = []
+    for proto, uname in akun_list:
+        label = f"⚡ {uname}" if proto == "vmess" else f"🔑 {uname}"
+        cb_data = f"vrenew_{uname}" if proto == "vmess" else f"renew_{uname}"
+        row.append(InlineKeyboardButton(text=label, callback_data=cb_data))
+        if len(row) == 2:
+            b.row(*row); row = []
+    if row: b.row(*row)
     b.row(InlineKeyboardButton(text="↩ Kembali", callback_data="home"))
     await cb.message.edit_text(
         "🔄 <b>Perpanjang Akun</b>\n\nPilih akun:",
         parse_mode="HTML", reply_markup=b.as_markup()
+    )
+
+@router.callback_query(F.data.startswith("vrenew_"))
+async def cb_vrenew_akun(cb: CallbackQuery):
+    username = cb.data[len("vrenew_"):]
+    uid      = cb.from_user.id
+    fname    = cb.from_user.first_name or "User"
+    await cb.answer()
+    vc = load_vmess_conf(username)
+    if not vc:
+        await cb.message.edit_text("❌ Akun VMess tidak ditemukan.", reply_markup=kb_home_btn()); return
+    if str(vc.get("TG_USER_ID","")).strip() != str(uid):
+        await cb.message.edit_text("❌ Akun ini bukan milikmu.", reply_markup=kb_home_btn()); return
+    sname      = vc.get("SERVER","")
+    tg         = load_tg_server_conf(sname)
+    harga      = int(tg.get("TG_HARGA_VMESS_HARI","0") or tg.get("TG_HARGA_HARI","0"))
+    hh         = f"Rp{fmt(harga)}/hari" if harga > 0 else "Gratis"
+    exp_ts_raw = vc.get("EXPIRED_TS","")
+    exp_disp   = ts_to_wib(int(exp_ts_raw)) if exp_ts_raw.isdigit() else vc.get("EXPIRED_DATE","-")
+    state_clear(uid)
+    state_set(uid, "STATE",    "vrenew_days")
+    state_set(uid, "USERNAME", username)
+    state_set(uid, "SERVER",   sname)
+    state_set(uid, "FNAME",    fname)
+    await cb.message.edit_text(
+        f"🔄 <b>Perpanjang VMess</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"⚡ Username : <code>{username}</code>\n"
+        f"🌐 Server   : {tg['TG_SERVER_LABEL']}\n"
+        f"⏳ Expired  : {exp_disp}\n"
+        f"💰 Harga    : {hh}\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"Berapa hari ingin diperpanjang? (1-365)",
+        parse_mode="HTML", reply_markup=kb_back("m_perpanjang")
+    )
+
+@router.callback_query(F.data == "konfirm_vrenew")
+async def cb_konfirm_vrenew(cb: CallbackQuery):
+    uid = cb.from_user.id
+    if state_get(uid, "STATE") != "vrenew_confirm":
+        await cb.answer("⚠️ Sesi habis, mulai ulang"); state_clear(uid); return
+    await cb.answer("⏳ Memperpanjang VMess...")
+    username = state_get(uid, "USERNAME")
+    sname    = state_get(uid, "SERVER")
+    days     = int(state_get(uid, "DAYS") or "0")
+    fname    = state_get(uid, "FNAME")
+    tg       = load_tg_server_conf(sname)
+    harga    = int(tg.get("TG_HARGA_VMESS_HARI","0") or tg.get("TG_HARGA_HARI","0"))
+    total    = harga * days
+    if harga > 0 and total > 0:
+        if not saldo_deduct(uid, total):
+            await cb.message.edit_text("❌ Saldo tidak cukup."); state_clear(uid); return
+    vc           = load_vmess_conf(username)
+    now_ts       = int(time.time())
+    old_exp      = int(vc.get("EXPIRED_TS","0") or "0")
+    base_ts      = old_exp if old_exp > now_ts else now_ts
+    new_exp_ts   = base_ts + days * 86400
+    new_exp_date = datetime.fromtimestamp(new_exp_ts).strftime("%Y-%m-%d")
+    new_exp_disp = ts_to_wib(new_exp_ts)
+    vc["EXPIRED_TS"]   = str(new_exp_ts)
+    vc["EXPIRED_DATE"] = new_exp_date
+    save_vmess_conf(username, vc)
+    # Hapus marker notified
+    try:
+        Path(f"{NOTIFY_DIR}/vmess_{username}.notified").unlink(missing_ok=True)
+    except Exception: pass
+    state_clear(uid)
+    zv_log(f"VMESS_RENEW: {uid} user={username} days={days} total={total}")
+    if ADMIN_ID and uid != ADMIN_ID:
+        try:
+            await cb.bot.send_message(ADMIN_ID,
+                f"🔄 <b>Perpanjang VMess</b>\n"
+                f"━━━━━━━━━━━━━━━━━━━\n"
+                f"👤 User   : {fname} (<code>{uid}</code>)\n"
+                f"⚡ Akun   : <code>{username}</code>\n"
+                f"📅 Durasi : {days} hari\n"
+                f"💸 Total  : Rp{fmt(total)}\n"
+                f"━━━━━━━━━━━━━━━━━━━",
+                parse_mode="HTML")
+        except Exception: pass
+    await cb.message.edit_text("✅ VMess berhasil diperpanjang!")
+    await cb.message.answer(
+        f"🔄 <b>Perpanjang VMess Berhasil</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"⚡ Username  : <code>{username}</code>\n"
+        f"📅 Tambah    : {days} hari\n"
+        f"⏳ Expired   : {new_exp_disp}\n"
+        f"💸 Dibayar   : Rp{fmt(total)}\n"
+        f"💰 Sisa Saldo: Rp{fmt(saldo_get(uid))}\n"
+        f"━━━━━━━━━━━━━━━━━━━",
+        parse_mode="HTML"
     )
 
 @router.callback_query(F.data.startswith("renew_"))

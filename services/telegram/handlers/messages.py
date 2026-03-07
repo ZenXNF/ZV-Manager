@@ -315,6 +315,51 @@ async def handle_message(msg: Message):
             ]])
         )
         return
+
+    # ── Perpanjang VMess: days ─────────────────────────────
+    if state == "vrenew_days":
+        if not text.isdigit() or not (1 <= int(text) <= 365):
+            await msg.answer("❌ Masukkan angka antara 1 sampai 365.\n\nBerapa hari perpanjang VMess?"); return
+        days     = int(text)
+        sname    = state_get(uid, "SERVER")
+        username = state_get(uid, "USERNAME")
+        tg       = load_tg_server_conf(sname)
+        harga    = int(tg.get("TG_HARGA_VMESS_HARI","0") or tg.get("TG_HARGA_HARI","0"))
+        total    = harga * days
+        saldo    = saldo_get(uid)
+        state_set(uid, "DAYS",  str(days))
+        state_set(uid, "STATE", "vrenew_confirm")
+        hh = f"Rp{fmt(harga)}/hari" if harga > 0 else "Gratis"
+        if harga > 0 and saldo < total:
+            await msg.answer(
+                f"⚡ <b>Perpanjang VMess</b>\n━━━━━━━━━━━━━━━━━━━\n"
+                f"👤 Username : <code>{username}</code>\n"
+                f"📅 Tambah   : {days} hari\n"
+                f"💸 Total    : Rp{fmt(total)}\n"
+                f"💳 Saldo    : Rp{fmt(saldo)}\n"
+                f"❌ Kurang   : Rp{fmt(total - saldo)}\n"
+                f"━━━━━━━━━━━━━━━━━━━\nSaldo tidak cukup. Hubungi admin.",
+                parse_mode="HTML"
+            )
+            state_clear(uid); return
+        saldo_line = f"\n💳 Saldo    : Rp{fmt(saldo)}" if harga > 0 else ""
+        from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+        await msg.answer(
+            f"⚡ <b>Konfirmasi Perpanjang VMess</b>\n━━━━━━━━━━━━━━━━━━━\n"
+            f"👤 Username : <code>{username}</code>\n"
+            f"🌐 Server   : {tg['TG_SERVER_LABEL']}\n"
+            f"📅 Tambah   : {days} hari\n"
+            f"💰 Harga    : {hh}\n"
+            f"💸 Total    : Rp{fmt(total)}{saldo_line}\n"
+            f"━━━━━━━━━━━━━━━━━━━\nLanjutkan?",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                InlineKeyboardButton(text="✅ Konfirmasi", callback_data="konfirm_vrenew"),
+                InlineKeyboardButton(text="❌ Batal",      callback_data="home")
+            ]])
+        )
+        return
+
     # ── Perpanjang: days ───────────────────────────────────
     if state == "renew_days":
         if not text.isdigit() or not (1 <= int(text) <= 365):
