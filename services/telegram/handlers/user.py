@@ -481,7 +481,8 @@ async def cb_bw_akun(cb: CallbackQuery):
     tg           = load_tg_server_conf(sname)
     harga_hari   = int(tg["TG_HARGA_HARI"] or "0")
     bw_per_hari  = int(tg.get("TG_BW_PER_HARI", "5") or "5")
-    harga_per_gb = (harga_hari // bw_per_hari) if bw_per_hari > 0 else 0
+    bw_harga_pct = int(tg.get("TG_BW_HARGA_PCT", "40") or "40")
+    harga_per_gb = max(1, int(harga_hari * bw_harga_pct / 100))
     bw_quota     = int(ac.get("BW_QUOTA_BYTES", "0") or "0")
     bw_used      = int(ac.get("BW_USED_BYTES", "0") or "0")
     bw_blocked   = ac.get("BW_BLOCKED", "0") == "1"
@@ -525,7 +526,8 @@ async def cb_bw_beli(cb: CallbackQuery):
     tg           = load_tg_server_conf(sname)
     harga_hari   = int(tg["TG_HARGA_HARI"] or "0")
     bw_per_hari  = int(tg.get("TG_BW_PER_HARI", "5") or "5")
-    harga_per_gb = (harga_hari // bw_per_hari) if bw_per_hari > 0 else 0
+    bw_harga_pct = int(tg.get("TG_BW_HARGA_PCT", "40") or "40")
+    harga_per_gb = max(1, int(harga_hari * bw_harga_pct / 100))
     total        = harga_per_gb * gb
     saldo        = saldo_get(uid)
     if total > 0 and saldo < total:

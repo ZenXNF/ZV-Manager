@@ -46,7 +46,6 @@ menu_ssh() {
         echo -e "  ${BGREEN}[7]${NC} Edit Akun"
         echo ""
         echo -e "  ${BYELLOW}[s]${NC} Ganti Target         ${BYELLOW}[d]${NC} Saldo Telegram"
-        echo -e "  ${BYELLOW}[b]${NC} Broadcast Telegram"
         echo -e "  ${BRED}[0]${NC} Kembali"
         echo ""
         read -rp "  Pilihan: " choice
@@ -62,7 +61,6 @@ menu_ssh() {
             7) bash /etc/zv-manager/menu/ssh/edit-user.sh ;;
             s|S) pick_target_server ;;
             d|D) bash /etc/zv-manager/menu/ssh/saldo.sh ;;
-            b|B) bash /etc/zv-manager/menu/ssh/broadcast.sh ;;
             0) break ;;
             *) echo -e "  ${BRED}Pilihan tidak valid!${NC}"; sleep 1 ;;
         esac

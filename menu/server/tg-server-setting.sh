@@ -26,10 +26,11 @@ _load_tg() {
     TG_SERVER_LABEL="$name"
     TG_HARGA_HARI="0"
     TG_HARGA_BULAN="0"
-    TG_QUOTA="Unlimited"
+    TG_BW_TOTAL="Unlimited"
     TG_LIMIT_IP="2"
     TG_MAX_AKUN="500"
     TG_BW_PER_HARI="5"
+    TG_BW_HARGA_PCT="40"
     [[ -f "$f" ]] && source "$f"
 }
 
@@ -39,10 +40,11 @@ _save_tg() {
 TG_SERVER_LABEL="${TG_SERVER_LABEL}"
 TG_HARGA_HARI="${TG_HARGA_HARI}"
 TG_HARGA_BULAN="${TG_HARGA_BULAN}"
-TG_QUOTA="${TG_QUOTA}"
+TG_BW_TOTAL="${TG_BW_TOTAL:-Unlimited}"
 TG_LIMIT_IP="${TG_LIMIT_IP}"
 TG_MAX_AKUN="${TG_MAX_AKUN}"
 TG_BW_PER_HARI="${TG_BW_PER_HARI}"
+TG_BW_HARGA_PCT="${TG_BW_HARGA_PCT}"
 EOF
     print_ok "Setting disimpan!"
     sleep 1
@@ -61,20 +63,22 @@ _edit_server_tg() {
         echo -e "  ${BWHITE}Label di Bot   :${NC} ${BYELLOW}${TG_SERVER_LABEL}${NC}"
         echo -e "  ${BWHITE}Harga / hari   :${NC} ${BYELLOW}Rp${TG_HARGA_HARI}${NC}"
         echo -e "  ${BWHITE}Harga / 30 hari:${NC} ${BYELLOW}Rp${TG_HARGA_BULAN}${NC} ${BCYAN}(otomatis × 30)${NC}"
-        echo -e "  ${BWHITE}Quota          :${NC} ${BYELLOW}${TG_QUOTA}${NC}"
+        echo -e "  ${BWHITE}Bandwidth      :${NC} ${BYELLOW}${TG_BW_TOTAL:-Unlimited}${NC}"
         echo -e "  ${BWHITE}Limit IP/akun  :${NC} ${BYELLOW}${TG_LIMIT_IP} IP${NC}"
         echo -e "  ${BWHITE}Maks Akun      :${NC} ${BYELLOW}${TG_MAX_AKUN}${NC}"
-        echo -e "  ${BWHITE}BW / hari      :${NC} ${BYELLOW}${TG_BW_PER_HARI} GB${NC}"
+        echo -e "  ${BWHITE}BW / hari      :${NC} ${BYELLOW}${TG_BW_PER_HARI} GB${NC}
+        echo -e "  ${BWHITE}Harga BW / GB  :${NC} ${BYELLOW}${TG_BW_HARGA_PCT}% dari harga/hari${NC}""
         echo ""
         echo -e "${BCYAN}  ──────────────────────────────────────────────${NC}"
         echo ""
         echo -e "  ${BGREEN}[1]${NC} Ubah Label (nama di bot)"
         echo -e "  ${BGREEN}[2]${NC} Ubah Harga / hari ${BCYAN}(harga/30hr otomatis × 30)${NC}"
         echo -e "  ${BGREEN}[3]${NC} Ubah Harga / 30 hari (manual)"
-        echo -e "  ${BGREEN}[4]${NC} Ubah Quota"
+        echo -e "  ${BGREEN}[4]${NC} Ubah Bandwidth"
         echo -e "  ${BGREEN}[5]${NC} Ubah Limit IP per akun"
         echo -e "  ${BGREEN}[6]${NC} Ubah Maksimal Akun"
-        echo -e "  ${BGREEN}[7]${NC} Ubah Bandwidth / hari (GB)"
+        echo -e "  ${BGREEN}[7]${NC} Ubah Bandwidth / hari (GB)
+        echo -e "  ${BGREEN}[8]${NC} Ubah Persentase Harga BW ${BCYAN}(default: 40%)${NC}""
         echo -e "  ${BYELLOW}[s]${NC} Simpan"
         echo ""
         echo -e "  ${BRED}[0]${NC} Kembali"
@@ -96,8 +100,8 @@ _edit_server_tg() {
                 ;;
 
             4)
-                read -rp "  Quota (contoh: 90GB / Unlimited) [${TG_QUOTA}]: " v
-                [[ -n "$v" ]] && TG_QUOTA="$v"
+                read -rp "  Bandwidth (contoh: 90GB / Unlimited) [${TG_BW_TOTAL:-Unlimited}]: " v
+                [[ -n "$v" ]] && TG_BW_TOTAL="$v"
                 ;;
             5)
                 read -rp "  Limit IP per akun (angka) [${TG_LIMIT_IP}]: " v
@@ -110,6 +114,13 @@ _edit_server_tg() {
             7)
                 read -rp "  Bandwidth/hari GB (contoh: 5) [${TG_BW_PER_HARI}]: " v
                 [[ "$v" =~ ^[0-9]+$ ]] && TG_BW_PER_HARI="$v"
+                ;;
+            8)
+                echo -e "  ${BCYAN}Contoh: 40 artinya harga/GB = 40% dari harga/hari${NC}"
+                read -rp "  Persentase harga BW (1-100) [${TG_BW_HARGA_PCT}]: " v
+                if [[ "$v" =~ ^[0-9]+$ ]] && (( v >= 1 && v <= 100 )); then
+                    TG_BW_HARGA_PCT="$v"
+                fi
                 ;;
             s|S) _save_tg "$name" ;;
             0) break ;;
