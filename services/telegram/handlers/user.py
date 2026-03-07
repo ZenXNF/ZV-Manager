@@ -257,12 +257,8 @@ async def cb_vs_trial(cb: CallbackQuery):
         parse_mode="HTML"
     )
     # Kirim semua URL dalam 1 pesan + tombol SALIN KODE per URL
-    for url_text, url_val in vmess_url_messages(username, new_uuid, domain):
-        markup = InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(text="📋 SALIN KODE", copy_text=CopyTextButton(text=url_val))
-        ]])
-        await cb.message.answer(url_text, parse_mode="HTML", reply_markup=markup)
-    await cb.message.answer("✅ Selesai, import salah satu URL ke app!", reply_markup=kb_home_btn())
+    # URL sudah include di text_vmess_info — langsung kirim dengan tombol home
+    pass
 
 # ── Pilih server VMess → Buat (input durasi) ──────────────────
 @router.callback_query(F.data.startswith("vs_buat_"))
@@ -378,15 +374,8 @@ async def cb_konfirm_vmess(cb: CallbackQuery):
     await cb.message.answer(
         text_vmess_info("BELI", username, new_uuid, domain, exp_disp,
                         tg["TG_SERVER_LABEL"], days, total, dashboard_url),
-        parse_mode="HTML"
+        parse_mode="HTML", reply_markup=kb_home_btn()
     )
-    # Kirim semua URL dalam 1 pesan + tombol SALIN KODE per URL
-    for url_text, url_val in vmess_url_messages(username, new_uuid, domain):
-        markup = InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(text="📋 SALIN KODE", copy_text=CopyTextButton(text=url_val))
-        ]])
-        await cb.message.answer(url_text, parse_mode="HTML", reply_markup=markup)
-    await cb.message.answer("✅ Selesai, import salah satu URL ke app!", reply_markup=kb_home_btn())
 
 def load_server_list_safe() -> bool:
     from storage import get_server_list
