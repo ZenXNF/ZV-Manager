@@ -20,7 +20,7 @@ install_telegram_bot() {
 
     # Install aiogram
     print_info "Menginstall aiogram..."
-    pip3 install -q aiogram==3.* --break-system-packages 2>/dev/null ||     pip3 install -q aiogram==3.* 2>/dev/null
+    pip3 install -q "aiogram>=3.6.0" --break-system-packages 2>/dev/null || pip3 install -q "aiogram>=3.6.0" 2>/dev/null
 
     # Verifikasi
     if ! python3 -c "import aiogram" &>/dev/null; then

@@ -122,6 +122,8 @@ _change_host() {
     echo ""
     echo -e "  ${BGREEN}[1]${NC} IPv4 — ${local_ip}"
     echo -e "  ${BGREEN}[2]${NC} Domain (masukkan manual)"
+    echo -e "  ${BGREEN}[3]${NC} Request Let's Encrypt SSL ${BCYAN}(HTTPS gratis)${NC}"
+    echo ""
     echo -e "  ${BRED}[0]${NC} Kembali"
     echo ""
     read -rp "  Pilihan: " ch
@@ -173,6 +175,8 @@ _open_web_info() {
     echo -e "  ${BGREEN}[1]${NC} Refresh sekarang"
     echo -e "  ${BGREEN}[2]${NC} Ganti domain/IPv4"
     echo -e "  ${BRED}[3]${NC} Uninstall"
+    echo -e "  ${BGREEN}[3]${NC} Request Let's Encrypt SSL ${BCYAN}(HTTPS gratis)${NC}"
+    echo ""
     echo -e "  ${BRED}[0]${NC} Kembali"
     echo ""
     read -rp "  Pilihan: " ch

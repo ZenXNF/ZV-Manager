@@ -141,11 +141,77 @@ EOF
     print_success "Let's Encrypt Wildcard SSL (*.${domain})"
 }
 
+
+# ============================================================
+# MODE 3: Let's Encrypt via HTTP-01 Challenge (tanpa Cloudflare)
+# Butuh: domain pointing ke IP VPS, port 80 bisa diakses
+# ============================================================
+setup_ssl_letsencrypt() {
+    local domain="${1:-$(cat /etc/zv-manager/domain 2>/dev/null)}"
+
+    if [[ -z "$domain" || "$domain" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        print_error "Domain belum diset atau masih berupa IP!"
+        print_info "Set domain dulu: echo 'namadomain.com' > /etc/zv-manager/domain"
+        return 1
+    fi
+
+    print_section "Let's Encrypt SSL (HTTP-01 Challenge)"
+    print_info "Domain: ${domain}"
+    echo ""
+
+    # Install certbot
+    print_info "Menginstall certbot..."
+    apt-get install -y certbot &>/dev/null
+    if ! command -v certbot &>/dev/null; then
+        print_error "Gagal install certbot!"
+        return 1
+    fi
+
+    # Stop nginx sementara agar port 80 bebas untuk standalone challenge
+    systemctl stop nginx &>/dev/null
+
+    print_info "Meminta certificate... (10-30 detik)"
+    certbot certonly         --standalone         --non-interactive         --agree-tos         --register-unsafely-without-email         -d "${domain}"         --quiet 2>/tmp/certbot-zv.log
+
+    local le_cert="/etc/letsencrypt/live/${domain}/fullchain.pem"
+    local le_key="/etc/letsencrypt/live/${domain}/privkey.pem"
+
+    # Start nginx lagi
+    systemctl start nginx &>/dev/null
+
+    if [[ ! -f "$le_cert" ]]; then
+        print_error "Certificate gagal! Pastikan domain pointing ke IP VPS ini."
+        print_info "Cek log: cat /tmp/certbot-zv.log"
+        print_info "Fallback ke self-signed..."
+        setup_ssl
+        return 1
+    fi
+
+    print_ok "Certificate Let's Encrypt berhasil!"
+
+    # Salin ke SSL_DIR
+    mkdir -p "$SSL_DIR"
+    cp "$le_cert" "$SSL_DIR/cert.pem"
+    cp "$le_key"  "$SSL_DIR/key.pem"
+    cat "$SSL_DIR/key.pem" "$SSL_DIR/cert.pem" > "$SSL_DIR/stunnel.pem"
+    chmod 600 "$SSL_DIR/key.pem" "$SSL_DIR/stunnel.pem"
+    chmod 644 "$SSL_DIR/cert.pem"
+
+    echo "$domain" > /etc/zv-manager/domain
+    echo "letsencrypt" > /etc/zv-manager/ssl/ssl-type
+
+    _setup_ssl_renew_cron "$domain"
+    systemctl reload nginx &>/dev/null || systemctl restart nginx &>/dev/null
+
+    print_success "Let's Encrypt SSL aktif untuk ${domain}"
+}
+
 # ============================================================
 # Cek apakah cert yang aktif adalah Let's Encrypt
 # ============================================================
 is_letsencrypt() {
-    [[ "$(cat /etc/zv-manager/ssl/ssl-type 2>/dev/null)" == "wildcard" ]]
+    local t; t=$(cat /etc/zv-manager/ssl/ssl-type 2>/dev/null)
+    [[ "$t" == "wildcard" || "$t" == "letsencrypt" ]]
 }
 
 # ============================================================
@@ -162,8 +228,14 @@ renew_ssl_wildcard() {
 
     local domain
     domain=$(cat /etc/zv-manager/domain 2>/dev/null)
+    # Coba path langsung dulu, lalu fallback ke first available
     local le_cert="/etc/letsencrypt/live/${domain}/fullchain.pem"
     local le_key="/etc/letsencrypt/live/${domain}/privkey.pem"
+    # Jika tidak ada, cari cert pertama yang tersedia
+    if [[ ! -f "$le_cert" ]]; then
+        le_cert=$(find /etc/letsencrypt/live/ -name "fullchain.pem" 2>/dev/null | head -1)
+        le_key=$(find /etc/letsencrypt/live/ -name "privkey.pem" 2>/dev/null | head -1)
+    fi
 
     if [[ -f "$le_cert" ]]; then
         cp "$le_cert" "$SSL_DIR/cert.pem"
@@ -172,8 +244,7 @@ renew_ssl_wildcard() {
         chmod 600 "$SSL_DIR/key.pem"
         chmod 600 "$SSL_DIR/stunnel.pem"
 
-        systemctl reload nginx   &>/dev/null || true
-        systemctl restart zv-stunnel &>/dev/null || true
+        systemctl reload nginx &>/dev/null || systemctl restart nginx &>/dev/null
         print_ok "Certificate berhasil diperbarui!"
     else
         print_error "Renew gagal! Cert tidak ditemukan."
@@ -203,7 +274,6 @@ regenerate_ssl() {
     fi
 
     systemctl reload nginx &>/dev/null || systemctl restart nginx &>/dev/null
-    systemctl restart zv-stunnel &>/dev/null || true
     print_ok "SSL Certificate diperbarui & service di-reload"
 }
 
@@ -214,6 +284,7 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     source /etc/zv-manager/utils/colors.sh 2>/dev/null || true
     source /etc/zv-manager/utils/logger.sh 2>/dev/null || true
     case "$1" in
-        renew) renew_ssl_wildcard ;;
+        renew)       renew_ssl_wildcard ;;
+        letsencrypt) setup_ssl_letsencrypt "$2" ;;
     esac
 fi

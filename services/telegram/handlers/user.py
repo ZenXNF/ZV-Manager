@@ -21,7 +21,6 @@ from aiogram.types import (
     InlineKeyboardMarkup, Message
 )
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.types import CopyTextButton
 
 from config import ACCOUNT_DIR, ADMIN_ID, NOTIFY_DIR, VMESS_DIR, log
 from keyboards import (
@@ -257,17 +256,14 @@ async def cb_vs_trial(cb: CallbackQuery):
                         tg["TG_SERVER_LABEL"]),
         parse_mode="HTML"
     )
-    # Kirim tiap URL dengan tombol SALIN KODE
+    # Kirim semua URL dalam 1 pesan + tombol SALIN KODE per URL
+    from aiogram.types import CopyTextButton as _CTB
     for url_text, url_val in vmess_url_messages(username, new_uuid, domain):
-        try:
-            markup = InlineKeyboardMarkup(inline_keyboard=[[
-                InlineKeyboardButton(text="📋 SALIN KODE", copy_text=CopyTextButton(text=url_val))
-            ]])
-            await cb.message.answer(url_text, parse_mode="HTML", reply_markup=markup)
-        except Exception:
-            # Fallback: kirim tanpa tombol, tap <code> untuk copy
-            await cb.message.answer(url_text, parse_mode="HTML")
-    await cb.message.answer("✅ Selesai!", reply_markup=kb_home_btn())
+        markup = InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="📋 SALIN KODE", copy_text=_CTB(text=url_val))
+        ]])
+        await cb.message.answer(url_text, parse_mode="HTML", reply_markup=markup)
+    await cb.message.answer("✅ Import salah satu URL ke app.", reply_markup=kb_home_btn())
 
 # ── Pilih server VMess → Buat (input durasi) ──────────────────
 @router.callback_query(F.data.startswith("vs_buat_"))
@@ -385,17 +381,14 @@ async def cb_konfirm_vmess(cb: CallbackQuery):
                         tg["TG_SERVER_LABEL"], days, total, dashboard_url),
         parse_mode="HTML"
     )
-    # Kirim tiap URL dengan tombol SALIN KODE
+    # Kirim semua URL dalam 1 pesan + tombol SALIN KODE per URL
+    from aiogram.types import CopyTextButton as _CTB
     for url_text, url_val in vmess_url_messages(username, new_uuid, domain):
-        try:
-            markup = InlineKeyboardMarkup(inline_keyboard=[[
-                InlineKeyboardButton(text="📋 SALIN KODE", copy_text=CopyTextButton(text=url_val))
-            ]])
-            await cb.message.answer(url_text, parse_mode="HTML", reply_markup=markup)
-        except Exception:
-            # Fallback: kirim tanpa tombol, tap <code> untuk copy
-            await cb.message.answer(url_text, parse_mode="HTML")
-    await cb.message.answer("✅ Selesai!", reply_markup=kb_home_btn())
+        markup = InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="📋 SALIN KODE", copy_text=_CTB(text=url_val))
+        ]])
+        await cb.message.answer(url_text, parse_mode="HTML", reply_markup=markup)
+    await cb.message.answer("✅ Import salah satu URL ke app.", reply_markup=kb_home_btn())
 
 def load_server_list_safe() -> bool:
     from storage import get_server_list
