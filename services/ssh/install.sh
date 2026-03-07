@@ -7,6 +7,11 @@ source /etc/zv-manager/utils/colors.sh
 source /etc/zv-manager/utils/logger.sh
 source /etc/zv-manager/config.conf
 
+# Fallback port default
+SSH_PORT=${SSH_PORT:-22}
+SSH_PORT_2=${SSH_PORT_2:-500}
+SSH_PORT_3=${SSH_PORT_3:-40000}
+
 install_ssh() {
     print_section "Konfigurasi OpenSSH"
 

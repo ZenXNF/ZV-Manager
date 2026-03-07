@@ -8,6 +8,9 @@ source /etc/zv-manager/utils/colors.sh
 source /etc/zv-manager/utils/logger.sh
 source /etc/zv-manager/config.conf
 
+# Fallback port default jika config kosong
+UDP_PORT=${UDP_PORT:-36712}
+
 install_udp_custom() {
     print_section "Install UDP Custom"
 
@@ -15,30 +18,32 @@ install_udp_custom() {
 
     local binary_path="/etc/zv-manager/udp/udp-custom"
 
-    print_info "Mengunduh UDP Custom dari GitHub..."
-    rm -rf /tmp/udp-custom-src
-
-    if ! git clone -q --depth=1 https://github.com/http-custom/udp-custom.git /tmp/udp-custom-src 2>/dev/null; then
-        print_error "Gagal clone repo UDP Custom! Cek koneksi internet."
-        return 1
-    fi
-
-    # Binary ada di bin/udp-custom-linux-amd64
-    if [[ ! -f /tmp/udp-custom-src/bin/udp-custom-linux-amd64 ]]; then
-        print_error "Binary UDP Custom tidak ditemukan!"
+    # Skip download jika binary sudah ada
+    if [[ -f "$binary_path" ]]; then
+        print_info "UDP Custom binary sudah ada, skip download..."
+    else
+        print_info "Mengunduh UDP Custom dari GitHub..."
         rm -rf /tmp/udp-custom-src
-        return 1
+
+        if ! git clone -q --depth=1 https://github.com/http-custom/udp-custom.git /tmp/udp-custom-src 2>/dev/null; then
+            print_error "Gagal clone repo UDP Custom! Cek koneksi internet."
+            return 1
+        fi
+
+        if [[ ! -f /tmp/udp-custom-src/bin/udp-custom-linux-amd64 ]]; then
+            print_error "Binary UDP Custom tidak ditemukan!"
+            rm -rf /tmp/udp-custom-src
+            return 1
+        fi
+
+        systemctl stop zv-udp &>/dev/null
+        sleep 1
+
+        cp /tmp/udp-custom-src/bin/udp-custom-linux-amd64 "$binary_path"
+        chmod +x "$binary_path"
+        rm -rf /tmp/udp-custom-src
+        print_ok "UDP Custom binary siap (ePro Dev)"
     fi
-
-    # Stop service dulu sebelum copy binary
-    # Kalau tidak, binary yang sedang berjalan akan lock file → "Text file busy"
-    systemctl stop zv-udp &>/dev/null
-    sleep 1
-
-    cp /tmp/udp-custom-src/bin/udp-custom-linux-amd64 "$binary_path"
-    chmod +x "$binary_path"
-    rm -rf /tmp/udp-custom-src
-    print_ok "UDP Custom binary siap (ePro Dev)"
 
     # Config — UDP_PORT adalah internal listener binary
     # Binary otomatis intercept semua UDP port 1-65535 via iptables TPROXY

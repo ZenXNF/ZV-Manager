@@ -7,6 +7,10 @@ source /etc/zv-manager/utils/colors.sh
 source /etc/zv-manager/utils/logger.sh
 source /etc/zv-manager/config.conf
 
+# Fallback port default
+DROPBEAR_PORT=${DROPBEAR_PORT:-109}
+DROPBEAR_PORT_2=${DROPBEAR_PORT_2:-143}
+
 install_dropbear() {
     print_section "Install Dropbear"
 

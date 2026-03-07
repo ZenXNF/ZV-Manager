@@ -7,6 +7,10 @@ source /etc/zv-manager/utils/colors.sh
 source /etc/zv-manager/utils/logger.sh
 source /etc/zv-manager/config.conf
 
+# Fallback port default
+WS_PORT=${WS_PORT:-80}
+WSS_PORT=${WSS_PORT:-443}
+
 install_websocket() {
     print_section "Install WebSocket Proxy"
 
