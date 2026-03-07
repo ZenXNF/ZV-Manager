@@ -216,10 +216,14 @@ async def cb_vs_trial(cb: CallbackQuery):
         await cb.message.answer("❌ Server tidak ditemukan."); return
 
     tg     = load_tg_server_conf(sname)
-    domain = sconf.get("DOMAIN") or sconf.get("IP", "")
     lip    = local_ip()
     if sconf.get("IP","") != lip:
         await cb.message.answer("❌ VMess hanya tersedia di server utama."); return
+    # Selalu pakai domain utama VPS untuk VMess URL
+    try:
+        domain = Path("/etc/zv-manager/domain").read_text().strip() or sconf.get("IP","")
+    except Exception:
+        domain = sconf.get("DOMAIN") or sconf.get("IP","")
 
     suffix   = "".join(random.choices(string.digits, k=4))
     username = f"VTrial{suffix}"
@@ -296,7 +300,10 @@ async def cb_konfirm_vmess(cb: CallbackQuery):
     fname  = state_get(uid, "FNAME")
     sconf  = load_server_conf(sname)
     tg     = load_tg_server_conf(sname)
-    domain = sconf.get("DOMAIN") or sconf.get("IP","")
+    try:
+        domain = Path("/etc/zv-manager/domain").read_text().strip() or sconf.get("IP","")
+    except Exception:
+        domain = sconf.get("DOMAIN") or sconf.get("IP","")
     harga  = int(tg.get("TG_HARGA_VMESS_HARI","0") or tg.get("TG_HARGA_HARI","0"))
     total  = harga * days
 
@@ -530,7 +537,7 @@ async def cb_akun_saya(cb: CallbackQuery):
                     vsisa = vexp - now_ts
                     vexp_disp = ts_to_wib(vexp)
                     if vsisa <= 0:
-                        vstatus = "❌ Expired"; vsisa_label = "Sudah habis"
+                        continue  # skip expired
                     elif vsisa < 3600:
                         vstatus = "⚠️ Aktif"; vsisa_label = "Kurang dari 1 jam"
                     else:

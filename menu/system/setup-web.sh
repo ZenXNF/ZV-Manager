@@ -26,8 +26,8 @@ _install_web() {
     echo -e "  Halaman web ini menampilkan status semua server"
     echo -e "  secara real-time dan bisa diakses oleh user."
     echo ""
-    echo -e "  ${BWHITE}Port      :${NC} ${BYELLOW}${NGINX_PORT}${NC}"
-    echo -e "  ${BWHITE}Contoh    :${NC} ${BYELLOW}http://IP-VPS:${NGINX_PORT}${NC}"
+    
+    echo -e "  ${BWHITE}Contoh    :${NC} ${BYELLOW}https://${DOMAIN}/status${NC}"
     echo -e "  ${BWHITE}Update    :${NC} ${BYELLOW}Otomatis setiap 5 menit${NC}"
     echo ""
     read -rp "  Lanjutkan install? [y/N]: " conf
@@ -40,10 +40,10 @@ _install_web() {
 
     print_info "Mengkonfigurasi nginx..."
     # Cek apakah nginx sudah ada konfigurasi port ini
-    if ! nginx -T 2>/dev/null | grep -q "listen ${NGINX_PORT}"; then
+    if ! nginx -T 2>/dev/null | grep -q "location /status"; then
         cat > /etc/nginx/sites-available/zv-status << NGINXEOF
 server {
-    listen ${NGINX_PORT};
+    
     server_name _;
     root ${WEB_DIR};
     index index.html;
@@ -75,7 +75,7 @@ CRONEOF
 
     print_ok "Halaman web berhasil diinstall!"
     echo ""
-    echo -e "  ${BWHITE}Akses di :${NC} ${BGREEN}http://${local_ip}:${NGINX_PORT}${NC}"
+    echo -e "  ${BWHITE}Akses di :${NC} ${BGREEN}https://${DOMAIN}/status${NC}"
     echo ""
     echo -e "  ${BYELLOW}Ingin menggunakan domain custom?${NC}"
     read -rp "  Ganti ke domain? [y/N]: " ganti
@@ -166,8 +166,8 @@ _open_web_info() {
     echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
     echo ""
     echo -e "  ${BWHITE}Status    :${NC} ${BGREEN}Aktif${NC}"
-    echo -e "  ${BWHITE}URL       :${NC} ${BYELLOW}http://${host}:${NGINX_PORT}${NC}"
-    echo -e "  ${BWHITE}Port      :${NC} ${BYELLOW}${NGINX_PORT}${NC}"
+    echo -e "  ${BWHITE}URL       :${NC} ${BYELLOW}https://${DOMAIN}/status${NC}"
+    
     echo -e "  ${BWHITE}Update    :${NC} ${BYELLOW}Otomatis setiap 5 menit${NC}"
     echo ""
     echo -e "  ${BGREEN}[1]${NC} Refresh sekarang"
@@ -180,7 +180,7 @@ _open_web_info() {
         1)
             print_info "Refresh halaman..."
             bash "$STATUS_SCRIPT" 2>/dev/null
-            print_ok "Selesai! Buka http://${host}:${NGINX_PORT}"
+            print_ok "Selesai! Buka https://${DOMAIN}/status"
             press_any_key
             ;;
         2) _change_host; bash "$STATUS_SCRIPT" 2>/dev/null ;;

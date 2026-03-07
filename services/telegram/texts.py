@@ -11,10 +11,11 @@ def _status_url() -> str:
     # Hanya tampilkan jika web sudah diinstall (cron ada)
     if not Path("/etc/cron.d/zv-status-page").exists():
         return ""
-    for p in ["/etc/zv-manager/web-host", "/etc/zv-manager/accounts/ipvps"]:
+    # Prioritas: domain → IP
+    for p in ["/etc/zv-manager/domain", "/etc/zv-manager/accounts/ipvps"]:
         try:
             h = Path(p).read_text().strip()
-            if h: return f"http://{h}:81"
+            if h: return f"https://{h}/status"
         except: pass
     return ""
 
@@ -115,7 +116,7 @@ def text_vmess_info(tipe: str, username: str, uuid: str, domain: str,
 
     url_tls  = _url(443,  "tls",  "ws",   "/vmess",      f"{username}-TLS")
     url_http = _url(80,   "none", "ws",   "/vmess",      f"{username}-HTTP")
-    url_grpc = _url(8443, "tls",  "grpc", "vmess-grpc",  f"{username}-gRPC")
+    url_grpc = _url(443, "tls",  "grpc", "vmess-grpc",  f"{username}-gRPC")
 
     lines = [
         f"<b>{header}</b>",

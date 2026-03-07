@@ -43,3 +43,23 @@ for conf_file in "$ACCOUNT_DIR"/*.conf; do
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] TRIAL expired & deleted: $USERNAME" >> "$LOG"
     fi
 done
+
+# ── VMess trial cleanup ──────────────────────────────────────
+VMESS_DIR="/etc/zv-manager/accounts/vmess"
+if [[ -d "$VMESS_DIR" ]]; then
+    for vconf in "$VMESS_DIR"/*.conf; do
+        [[ -f "$vconf" ]] || continue
+        unset IS_TRIAL EXPIRED_TS USERNAME TG_USER_ID
+        source "$vconf"
+        [[ "$IS_TRIAL" != "1" ]] && continue
+        [[ -z "$EXPIRED_TS" ]] && continue
+        if [[ "$now_ts" -ge "$EXPIRED_TS" ]]; then
+            [[ -n "$TG_USER_ID" ]] &&                 _tg_send "$TG_USER_ID" "⏰ <b>Trial VMess Habis</b>\n\nAkun trial VMess <code>${USERNAME}</code> kamu sudah berakhir.\n\nMau lanjut? Buat akun VMess premium lewat bot."
+            rm -f "$vconf"
+            # Reload xray setelah hapus
+            source /etc/zv-manager/services/xray/install.sh 2>/dev/null
+            reload_xray 2>/dev/null
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] VMESS TRIAL expired & deleted: $USERNAME" >> "$LOG"
+        fi
+    done
+fi

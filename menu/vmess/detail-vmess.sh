@@ -58,7 +58,7 @@ detail_vmess() {
     local url_ws_http
     url_ws_http=$(vmess_url "$UUID" "$DOMAIN" "80" "none" "ws" "/vmess" "${USERNAME}-HTTP")
     local url_grpc
-    url_grpc=$(vmess_url "$UUID" "$DOMAIN" "8443" "tls" "grpc" "vmess-grpc" "${USERNAME}-gRPC")
+    url_grpc=$(vmess_url "$UUID" "$DOMAIN" "443" "tls" "grpc" "vmess-grpc" "${USERNAME}-gRPC")
 
     clear
     echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
@@ -70,7 +70,7 @@ detail_vmess() {
     echo -e "  ${BWHITE}Domain    :${NC} ${BYELLOW}${DOMAIN}${NC}"
     echo -e "  ${BWHITE}Dibuat    :${NC} ${CREATED}"
     echo -e "  ${BWHITE}Expired   :${NC} ${BYELLOW}${EXPIRED_DATE}${NC} (sisa ${sisa} hari)"
-    echo -e "  ${BWHITE}Port TLS  :${NC} 443 · ${BWHITE}HTTP:${NC} 80 · ${BWHITE}gRPC:${NC} 8443"
+    echo -e "  ${BWHITE}Port TLS  :${NC} 443 · ${BWHITE}HTTP:${NC} 80 · ${BWHITE}gRPC:${NC} 443 (TLS)"
     echo -e "  ${BWHITE}Path WS   :${NC} /vmess · ${BWHITE}gRPC:${NC} vmess-grpc"
     echo ""
     echo -e "  ${BCYAN}── VMess TLS ──${NC}"
