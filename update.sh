@@ -171,6 +171,13 @@ cat > /etc/cron.d/zv-autokill <<'CRONEOF'
 */1 * * * * root /bin/bash /etc/zv-manager/cron/autokill.sh
 CRONEOF
 
+cat > /etc/cron.d/zv-status-page <<'CRONEOF'
+# ZV-Manager - Generate Status Page
+*/5 * * * * root /bin/bash /etc/zv-manager/cron/status-page.sh
+CRONEOF
+
+mkdir -p /var/lib/zv-manager/status
+
 cat > /etc/cron.d/zv-expired <<'CRONEOF'
 # ZV-Manager - Auto Delete Expired Users
 2 0 * * * root /bin/bash /etc/zv-manager/cron/expired.sh
