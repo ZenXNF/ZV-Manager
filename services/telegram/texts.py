@@ -8,10 +8,13 @@ from storage import get_server_list, saldo_get, load_tg_server_conf, count_accou
 from utils import fmt, fmt_bytes
 
 def _status_url() -> str:
-    domain = Path("/etc/zv-manager/domain").read_text().strip() if Path("/etc/zv-manager/domain").exists() else ""
-    ip = Path("/etc/zv-manager/accounts/ipvps").read_text().strip() if Path("/etc/zv-manager/accounts/ipvps").exists() else ""
-    host = domain or ip
-    return f"http://{host}:81" if host else ""
+    # Baca dari web-host (diset via menu Web Status), fallback ke IP
+    for p in ["/etc/zv-manager/web-host", "/etc/zv-manager/accounts/ipvps"]:
+        try:
+            h = Path(p).read_text().strip()
+            if h: return f"http://{h}:81"
+        except: pass
+    return ""
 
 
 def text_home(fname: str, uid: int) -> str:

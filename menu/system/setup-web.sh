@@ -99,22 +99,48 @@ _uninstall_web() {
     press_any_key
 }
 
-_open_web_info() {
-    local local_ip
+_change_host() {
+    local local_ip local_domain current
     local_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null)
+    local_domain=$(cat /etc/zv-manager/domain 2>/dev/null)
+    current=$(cat /etc/zv-manager/web-host 2>/dev/null || echo "$local_ip")
+
+    clear
+    echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
+    echo -e " │         ${BWHITE}PILIH ALAMAT WEB STATUS${NC}             │"
+    echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+    echo ""
+    echo -e "  Saat ini  : ${BYELLOW}${current}${NC}"
+    echo ""
+    echo -e "  ${BGREEN}[1]${NC} IPv4 — ${local_ip}"
+    [[ -n "$local_domain" ]] && echo -e "  ${BGREEN}[2]${NC} Domain — ${local_domain}"
+    echo -e "  ${BRED}[0]${NC} Kembali"
+    echo ""
+    read -rp "  Pilihan: " ch
+    case "$ch" in
+        1) echo "$local_ip" > /etc/zv-manager/web-host; print_ok "Berubah ke IPv4: ${local_ip}" ;;
+        2) [[ -n "$local_domain" ]] && { echo "$local_domain" > /etc/zv-manager/web-host; print_ok "Berubah ke domain: ${local_domain}"; } ;;
+    esac
+    sleep 1
+}
+
+_open_web_info() {
+    local local_ip host
+    local_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null)
+    host=$(cat /etc/zv-manager/web-host 2>/dev/null || echo "$local_ip")
     clear
     echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
     echo -e " │          ${BWHITE}INFO HALAMAN WEB STATUS${NC}             │"
     echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
     echo ""
     echo -e "  ${BWHITE}Status    :${NC} ${BGREEN}Aktif${NC}"
-    echo -e "  ${BWHITE}URL       :${NC} ${BYELLOW}http://${local_ip}:${NGINX_PORT}${NC}"
+    echo -e "  ${BWHITE}URL       :${NC} ${BYELLOW}http://${host}:${NGINX_PORT}${NC}"
     echo -e "  ${BWHITE}Port      :${NC} ${BYELLOW}${NGINX_PORT}${NC}"
     echo -e "  ${BWHITE}Update    :${NC} ${BYELLOW}Otomatis setiap 5 menit${NC}"
-    echo -e "  ${BWHITE}File web  :${NC} ${BYELLOW}${WEB_DIR}/index.html${NC}"
     echo ""
     echo -e "  ${BGREEN}[1]${NC} Refresh sekarang"
-    echo -e "  ${BRED}[2]${NC} Uninstall"
+    echo -e "  ${BGREEN}[2]${NC} Ganti domain/IPv4"
+    echo -e "  ${BRED}[3]${NC} Uninstall"
     echo -e "  ${BRED}[0]${NC} Kembali"
     echo ""
     read -rp "  Pilihan: " ch
@@ -122,10 +148,11 @@ _open_web_info() {
         1)
             print_info "Refresh halaman..."
             bash "$STATUS_SCRIPT" 2>/dev/null
-            print_ok "Selesai! Buka http://${local_ip}:${NGINX_PORT}"
+            print_ok "Selesai! Buka http://${host}:${NGINX_PORT}"
             press_any_key
             ;;
-        2) _uninstall_web ;;
+        2) _change_host; bash "$STATUS_SCRIPT" 2>/dev/null ;;
+        3) _uninstall_web ;;
     esac
 }
 

@@ -15,10 +15,10 @@ now_ts=$(date +%s)
 _tg_send() {
     local chat_id="$1" text="$2"
     [[ -z "$TG_TOKEN" || -z "$chat_id" ]] && return
-    text="${text//\\/\\\\}"; text="${text//\"/\\\"}"
-    local payload="{\"chat_id\":\"${chat_id}\",\"text\":\"${text}\",\"parse_mode\":\"HTML\"}"
-    curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
-        -H "Content-Type: application/json" -d "${payload}" --max-time 10 &>/dev/null
+    printf '%b' "$text" | curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+        -F "chat_id=${chat_id}" \
+        -F "parse_mode=HTML" \
+        -F "text=<-" --max-time 10 &>/dev/null
 }
 
 _notify_trial_expired() {
