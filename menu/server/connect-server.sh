@@ -17,14 +17,14 @@ connect_server() {
     echo ""
 
     local count=0
-    declare -A server_map
+    local server_confs=()
     for conf in "${SERVER_DIR}"/*.conf; do
         [[ -f "$conf" ]] || continue
         [[ "$conf" == *.tg.conf ]] && continue
         unset NAME IP DOMAIN PORT USER
         source "$conf"
         count=$((count + 1))
-        server_map[$count]="$conf"
+        server_confs+=("$conf")
         local disp_domain="${DOMAIN:-$IP}"
         echo -e "  ${BGREEN}[${count}]${NC} ${BWHITE}${NAME}${NC} — ${USER}@${disp_domain}:${PORT}"
     done
@@ -38,7 +38,7 @@ connect_server() {
     echo ""
     read -rp "  Pilih nomor server: " choice
 
-    local chosen_conf="${server_map[$choice]}"
+    local chosen_conf="${server_confs[$((choice-1))]}"
     if [[ -z "$chosen_conf" || ! -f "$chosen_conf" ]]; then
         print_error "Pilihan tidak valid!"
         press_any_key

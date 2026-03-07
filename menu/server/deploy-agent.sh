@@ -25,7 +25,7 @@ deploy_agent_menu() {
     local_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null)
 
     local count=0
-    declare -A smap
+    local snames=()
     for conf in "${SERVER_DIR}"/*.conf; do
         [[ -f "$conf" ]] || continue
         [[ "$conf" == *.tg.conf ]] && continue
@@ -33,7 +33,7 @@ deploy_agent_menu() {
         source "$conf"
         [[ "$IP" == "$local_ip" ]] && continue
         count=$((count + 1))
-        smap[$count]="$NAME"
+        snames+=("$NAME")
         echo -e "  ${BGREEN}[${count}]${NC} ${BWHITE}${NAME}${NC} — ${USER}@${IP}:${PORT}"
     done
 
@@ -50,7 +50,7 @@ deploy_agent_menu() {
 
     [[ "$choice" == "0" ]] && return
 
-    local chosen="${smap[$choice]}"
+    local chosen="${snames[$((choice-1))]}"
     if [[ -z "$chosen" ]]; then
         print_error "Pilihan tidak valid!"
         press_any_key

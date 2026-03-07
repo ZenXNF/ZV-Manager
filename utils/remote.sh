@@ -173,17 +173,17 @@ pick_target_server() {
     echo -e "  ${BGREEN}[1]${NC} ${BWHITE}Local${NC} — VPS ini sendiri${local_ip:+ (${local_ip})}"
 
     local count=1
-    declare -A _picker_map
-    _picker_map[1]="local"
+    local _picker_keys=("" "local")
 
     for conf in "${SERVER_DIR}"/*.conf; do
         [[ -f "$conf" ]] || continue
+        [[ "$conf" == *.tg.conf ]] && continue
         unset NAME IP PORT USER
         source "$conf"
         # Skip jika IP sama dengan lokal
         [[ "$IP" == "$local_ip" ]] && continue
         count=$((count + 1))
-        _picker_map[$count]="$NAME"
+        _picker_keys+=("$NAME")
         echo -e "  ${BGREEN}[${count}]${NC} ${BWHITE}${NAME}${NC} — ${USER}@${IP}:${PORT}"
     done
 
@@ -194,7 +194,7 @@ pick_target_server() {
 
     [[ "$choice" == "0" ]] && return 1
 
-    local chosen="${_picker_map[$choice]}"
+    local chosen="${_picker_keys[$choice]}"
     if [[ -z "$chosen" ]]; then
         echo -e "  ${BRED}Pilihan tidak valid!${NC}"
         sleep 1

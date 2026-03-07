@@ -14,6 +14,7 @@ _load_servers() {
     local list=()
     for conf in "$SERVER_DIR"/*.conf; do
         [[ -f "$conf" ]] || continue
+        [[ "$conf" == *.tg.conf ]] && continue
         unset NAME; source "$conf"
         [[ -n "$NAME" ]] && list+=("$NAME")
     done
