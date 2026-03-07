@@ -1,81 +1,99 @@
 #!/bin/bash
 # ============================================================
-#   ZV-Manager - Bandwidth Checker
-#   Cron tiap 5 menit: akumulasi usage, block yang habis,
-#   kirim notif Telegram
+#   ZV-Manager - Bandwidth Check (IP-based)
+#   Cron: setiap 5 menit
+#   1. Deteksi IP aktif per user via auth.log + ss
+#   2. Update iptables rules
+#   3. Akumulasi bytes ke conf
+#   4. Block jika quota habis, warn jika 80%
 # ============================================================
+ACCOUNT_DIR="/etc/zv-manager/accounts/ssh"
+BW_SESSION_DIR="/tmp/zv-bw"
+TG_CONF="/etc/zv-manager/telegram.conf"
 
 source /etc/zv-manager/core/bandwidth.sh
-source /etc/zv-manager/core/telegram.sh
-tg_load 2>/dev/null || true
 
-ACCOUNT_DIR="/etc/zv-manager/accounts/ssh"
+mkdir -p "$BW_SESSION_DIR"
 
+# Load Telegram config
+TOKEN=$(grep "^TG_TOKEN=" "$TG_CONF" 2>/dev/null | cut -d= -f2 | tr -d '"'"'"' ')
+ADMIN=$(grep "^TG_ADMIN_ID=" "$TG_CONF" 2>/dev/null | cut -d= -f2 | tr -d '"'"'"' ')
 
-# Kirim Telegram tanpa spawn python3 — pure printf + curl
 _tg_send() {
-    local chat_id="$1" text="$2"
-    [[ -z "$TG_TOKEN" || -z "$chat_id" ]] && return
-    # Escape karakter JSON paling penting
-    text="${text//\\/\\\\}"
-    text="${text//"/\\"}"
-    text="${text//$'\n'/\\n}"
-    local payload="{\"chat_id\":\"${chat_id}\",\"text\":\"${text}\",\"parse_mode\":\"HTML\"}"
-    curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
-        -H "Content-Type: application/json" -d "${payload}" \
-        --max-time 10 &>/dev/null
+    local chat="$1" text="$2"
+    [[ -z "$TOKEN" || -z "$chat" ]] && return
+    curl -s -X POST "https://api.telegram.org/bot${TOKEN}/sendMessage" \
+        -d "chat_id=${chat}&text=${text}&parse_mode=HTML" > /dev/null 2>&1
 }
-_notify_bw() {
-    local tg_uid="$1" user="$2" used="$3" quota="$4" action="$5"
-    [[ -z "$tg_uid" || -z "$TG_TOKEN" ]] && return
-    # Hitung GB pure bash
-    local used_gb=$(( used / 1073741824 ))
-    local quota_gb=$(( quota / 1073741824 ))
-    local sisa_gb=$(( quota_gb - used_gb ))
-    local text
-    if [[ "$action" == "warning" ]]; then
-        text="⚠️ <b>Peringatan Bandwidth</b>\n\nUsername : <code>${user}</code>\nTerpakai : ${used_gb} GB / ${quota_gb} GB\nSisa     : ${sisa_gb} GB\n\nBandwidth hampir habis! Beli tambahan agar tidak terputus."
-    else
-        text="🚫 <b>Bandwidth Habis!</b>\n\nUsername : <code>${user}</code>\nTerpakai : ${used_gb} GB / ${quota_gb} GB\n\nKoneksi diputus. Beli tambahan bandwidth di bot untuk aktif kembali."
+
+# Ambil semua client IP yang sedang konek ke SSH port
+estab_ips=$(ss -tn state established 2>/dev/null | \
+    awk '$4 ~ /:22$|:500$|:40000$|:109$|:143$/ {print $5}' | \
+    cut -d: -f1 | grep -v '^$' | sort -u)
+
+for conf_file in "$ACCOUNT_DIR"/*.conf; do
+    [[ -f "$conf_file" ]] || continue
+
+    user=$(grep "^USERNAME=" "$conf_file" | cut -d= -f2 | tr -d '[:space:]')
+    quota=$(grep "^BW_QUOTA_BYTES=" "$conf_file" | cut -d= -f2 | tr -d '[:space:]')
+    tg_uid=$(grep "^TG_USER_ID=" "$conf_file" | cut -d= -f2 | tr -d '[:space:]')
+
+    [[ -z "$user" || "${quota:-0}" == "0" ]] && continue
+
+    # ── Update IP rules untuk user yang sedang konek ─────────
+    if [[ -n "$estab_ips" ]]; then
+        user_ips=$(grep "Accepted.*for ${user} from" /var/log/auth.log 2>/dev/null | \
+            grep -oP 'from \K[\d.]+' | sort -u | \
+            while IFS= read -r ip; do
+                echo "$estab_ips" | grep -qx "$ip" && echo "$ip"
+            done)
+
+        if [[ -n "$user_ips" ]]; then
+            # Simpan IP aktif ke session file
+            echo "$user_ips" > "${BW_SESSION_DIR}/${user}.ips"
+            # Tambah iptables rule untuk tiap IP
+            while IFS= read -r ip; do
+                _bw_add_ip_rule "$user" "$ip"
+            done <<< "$user_ips"
+        fi
     fi
-    _tg_send "$tg_uid" "$text"
-}
 
-for conf in "$ACCOUNT_DIR"/*.conf; do
-    [[ -f "$conf" ]] || continue
-    unset USERNAME BW_QUOTA_BYTES BW_USED_BYTES BW_BLOCKED IS_TRIAL TG_USER_ID
-    source "$conf"
+    # ── Akumulasi bytes ───────────────────────────────────────
+    _bw_accumulate "$user"
 
-    [[ -z "$USERNAME" ]] && continue
-    # Skip kalau tidak ada quota (fitur BW belum diaktifkan untuk akun ini)
-    [[ -z "$BW_QUOTA_BYTES" || "$BW_QUOTA_BYTES" -eq 0 ]] && continue
-    # Pastikan chain iptables ada
-    _bw_init_user "$USERNAME" 2>/dev/null
-    # Akumulasi delta
-    local_used=$(_bw_accumulate "$USERNAME")
-    [[ -z "$local_used" ]] && local_used="$BW_USED_BYTES"
-    local_used="${local_used:-0}"
+    # ── Cek quota ─────────────────────────────────────────────
+    _bw_is_blocked "$user" && continue  # sudah diblock, skip
 
-    quota="$BW_QUOTA_BYTES"
-    tg_uid=$(grep "^TG_USER_ID=" "$conf" | cut -d= -f2 | tr -d "[:space:]")
-    warn_dir="/etc/zv-manager/accounts/notified"
-    mkdir -p "$warn_dir"
-    warn_file="${warn_dir}/${USERNAME}.bw_warn"
+    used=$(_bw_get_used "$user")
+    used=${used:-0}
+    quota=${quota:-0}
 
-    # Sudah blocked — skip
-    [[ "$BW_BLOCKED" == "1" ]] && continue
+    # Block jika quota habis (>= 100%)
+    if (( used >= quota )); then
+        _bw_block "$user"
+        used_fmt=$(_bw_fmt "$used")
+        quota_fmt=$(_bw_fmt "$quota")
+        _tg_send "$tg_uid" "🚫 <b>Kuota Habis!</b>%0A━━━━━━━━━━━━━━━━━━━%0A👤 Username : <code>${user}</code>%0A📶 Terpakai : ${used_fmt} / ${quota_fmt}%0A━━━━━━━━━━━━━━━━━━━%0ASilahkan tambah kuota melalui bot."
+        _bw_log "QUOTA_EXCEEDED: $user used=${used} quota=${quota}"
+        continue
+    fi
 
-    # Habis → block
-    if [[ "$local_used" -ge "$quota" ]]; then
-        _bw_block "$USERNAME"
-        rm -f "$warn_file"  # reset warning flag
-        _notify_bw "$tg_uid" "$USERNAME" "$local_used" "$quota" "blocked"
-        _bw_log "QUOTA_EXCEEDED: $USERNAME used=${local_used} quota=${quota}"
+    # Warn jika >= 80%
+    pct=$(( used * 100 / quota ))
+    warn_file="${BW_SESSION_DIR}/${user}.warned"
 
-    # 80% terpakai → warning (kirim sekali)
-    elif [[ $(( local_used * 100 / quota )) -ge 80 && ! -f "$warn_file" ]]; then
-        touch "$warn_file"
-        _notify_bw "$tg_uid" "$USERNAME" "$local_used" "$quota" "warning"
-        _bw_log "QUOTA_WARNING: $USERNAME used=${local_used} quota=${quota}"
+    if (( pct >= 80 )); then
+        if [[ ! -f "$warn_file" ]]; then
+            touch "$warn_file"
+            sisa=$(( quota - used ))
+            sisa_fmt=$(_bw_fmt "$sisa")
+            used_fmt=$(_bw_fmt "$used")
+            quota_fmt=$(_bw_fmt "$quota")
+            _tg_send "$tg_uid" "⚠️ <b>Kuota Hampir Habis!</b>%0A━━━━━━━━━━━━━━━━━━━%0A👤 Username : <code>${user}</code>%0A📶 Terpakai : ${used_fmt} / ${quota_fmt}%0A📊 Persentase: ${pct}%%25%0A💾 Sisa      : ${sisa_fmt}%0A━━━━━━━━━━━━━━━━━━━%0ASilahkan tambah kuota sebelum habis!"
+            _bw_log "WARN_80: $user pct=${pct}% used=${used}"
+        fi
+    else
+        # Reset warning flag jika sudah turun di bawah 80% (setelah tambah kuota)
+        rm -f "$warn_file" 2>/dev/null
     fi
 done
