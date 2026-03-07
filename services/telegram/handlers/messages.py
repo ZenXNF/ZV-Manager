@@ -9,9 +9,10 @@ import subprocess
 from aiogram import Router
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 
-from config import ADMIN_ID
+from config import ADMIN_ID, VMESS_DIR
 from keyboards import kb_confirm, kb_home_btn
 from storage import (
+    load_vmess_conf, save_vmess_conf,
     load_tg_server_conf, load_user_info,
     saldo_add, saldo_get, saldo_set,
     state_clear, state_get, state_set, zv_log as _zv_log
@@ -272,6 +273,48 @@ async def handle_message(msg: Message):
         )
         return
 
+
+    # ── VMess: input durasi ────────────────────────────────
+    if state == "vmess_await_days":
+        if not text.isdigit() or not (1 <= int(text) <= 365):
+            await msg.answer("❌ Masukkan angka antara 1 sampai 365."); return
+        days  = int(text)
+        sname = state_get(uid, "SERVER")
+        tg    = load_tg_server_conf(sname)
+        harga = int(tg.get("TG_HARGA_VMESS_HARI","0") or tg.get("TG_HARGA_HARI","0"))
+        total = harga * days
+        saldo = saldo_get(uid)
+        state_set(uid, "DAYS",  str(days))
+        state_set(uid, "STATE", "vmess_confirm")
+        hh = f"Rp{fmt(harga)}/hari" if harga > 0 else "Gratis"
+        if harga > 0 and saldo < total:
+            await msg.answer(
+                f"⚡ <b>Konfirmasi VMess</b>\n━━━━━━━━━━━━━━━━━━━\n"
+                f"🌐 Server  : {tg['TG_SERVER_LABEL']}\n"
+                f"📅 Durasi  : {days} hari\n"
+                f"💰 Harga   : {hh}\n"
+                f"💸 Total   : Rp{fmt(total)}\n"
+                f"💳 Saldo   : Rp{fmt(saldo)}\n"
+                f"❌ Kurang  : Rp{fmt(total - saldo)}\n"
+                f"━━━━━━━━━━━━━━━━━━━\nSaldo tidak cukup. Hubungi admin.",
+                parse_mode="HTML"
+            )
+            state_clear(uid); return
+        saldo_line = f"\n💳 Saldo   : Rp{fmt(saldo)}" if harga > 0 else ""
+        await msg.answer(
+            f"⚡ <b>Konfirmasi Buat VMess</b>\n━━━━━━━━━━━━━━━━━━━\n"
+            f"🌐 Server  : {tg['TG_SERVER_LABEL']}\n"
+            f"📅 Durasi  : {days} hari\n"
+            f"💰 Harga   : {hh}\n"
+            f"💸 Total   : Rp{fmt(total)}{saldo_line}\n"
+            f"━━━━━━━━━━━━━━━━━━━\nLanjutkan?",
+            parse_mode="HTML",
+            reply_markup=__import__('aiogram').types.InlineKeyboardMarkup(inline_keyboard=[[
+                __import__('aiogram').types.InlineKeyboardButton(text="✅ Konfirmasi", callback_data="konfirm_vmess"),
+                __import__('aiogram').types.InlineKeyboardButton(text="❌ Batal",      callback_data="home")
+            ]])
+        )
+        return
     # ── Perpanjang: days ───────────────────────────────────
     if state == "renew_days":
         if not text.isdigit() or not (1 <= int(text) <= 365):

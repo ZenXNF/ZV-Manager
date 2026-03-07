@@ -97,3 +97,60 @@ def text_akun_info(tipe: str, username: str, password: str, domain: str,
         f"  UDP      : <code>{domain}:1-65535@{username}:{password}</code>"
         f"{harga_line}"
     )
+
+def text_vmess_info(tipe: str, username: str, uuid: str, domain: str,
+                    exp_display: str, server_label: str,
+                    days: int = 0, total: int = 0) -> str:
+    """Pesan info akun VMess setelah beli/trial."""
+    import base64, json
+    is_trial = (tipe == "TRIAL")
+    header = "🌟 TRIAL VMESS PREMIUM 🌟" if is_trial else "✅ AKUN VMESS PREMIUM"
+
+    def _url(port, tls, net, path, label):
+        obj = {"v":"2","ps":label,"add":domain,"port":str(port),
+               "id":uuid,"aid":"0","net":net,"type":"none",
+               "host":domain if net=="ws" else "","path":path,
+               "tls":tls}
+        return "vmess://" + base64.b64encode(json.dumps(obj).encode()).decode()
+
+    url_tls  = _url(443,  "tls",  "ws",   "/vmess",      f"{username}-TLS")
+    url_http = _url(80,   "none", "ws",   "/vmess",      f"{username}-HTTP")
+    url_grpc = _url(8443, "tls",  "grpc", "vmess-grpc",  f"{username}-gRPC")
+
+    lines = [
+        f"<b>{header}</b>",
+        "",
+        "🔹 <b>Informasi Akun</b>",
+        "┌─────────────────────",
+        f"│ Username : <code>{username}</code>",
+        f"│ Domain   : <code>{domain}</code>",
+        f"│ UUID     : <code>{uuid}</code>",
+        "│ Port TLS : 443",
+        "│ Port HTTP: 80",
+        "│ Alter ID : 0",
+        "│ Network  : Websocket / gRPC",
+        "│ Path WS  : /vmess",
+        "│ Path gRPC: vmess-grpc",
+        "└─────────────────────",
+        "",
+        "🔐 <b>URL VMESS TLS (WS)</b>",
+        f"<code>{url_tls}</code>",
+        "",
+        "🔓 <b>URL VMESS HTTP (WS)</b>",
+        f"<code>{url_http}</code>",
+        "",
+        "🔒 <b>URL VMESS gRPC</b>",
+        f"<code>{url_grpc}</code>",
+        "",
+        "┌─────────────────────",
+    ]
+    if is_trial:
+        lines.append("│ Expired : 30 menit")
+    else:
+        lines.append(f"│ Expired : {exp_display}")
+        if days and total:
+            from utils import fmt
+            lines.append(f"│ Durasi  : {days} hari — Rp{fmt(total)}")
+    lines += ["└─────────────────────", "", "✨ Selamat menikmati layanan! ✨"]
+    return "\n".join(lines)
+

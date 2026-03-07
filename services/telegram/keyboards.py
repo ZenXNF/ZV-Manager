@@ -102,3 +102,26 @@ def kb_admin_panel() -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="🏠 Menu Utama",        callback_data="home")
     )
     return b.as_markup()
+
+def kb_vmess_server_list(prefix: str, page: int = 0) -> InlineKeyboardMarkup:
+    """Server list untuk VMess — hanya server lokal (IP sama)."""
+    from storage import get_server_list, local_ip
+    lip     = local_ip()
+    servers = [s for s in get_server_list() if s.get("IP", "") == lip]
+    per_page = 6
+    start    = page * per_page
+    chunk    = servers[start:start + per_page]
+    b        = InlineKeyboardBuilder()
+    for s in chunk:
+        name = s.get("NAME", "")
+        b.button(text=name, callback_data=f"{prefix}_{name}")
+    b.adjust(2)
+    nav = []
+    if page > 0:
+        nav.append(InlineKeyboardButton(text="◀ Sebelumnya", callback_data=f"vpage_{prefix}_{page-1}"))
+    if start + per_page < len(servers):
+        nav.append(InlineKeyboardButton(text="Berikutnya ▶", callback_data=f"vpage_{prefix}_{page+1}"))
+    if nav:
+        b.row(*nav)
+    b.row(InlineKeyboardButton(text="↩ Kembali", callback_data="home"))
+    return b.as_markup()

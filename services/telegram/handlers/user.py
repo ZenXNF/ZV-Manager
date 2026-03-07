@@ -22,18 +22,20 @@ from aiogram.types import (
 )
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from config import ACCOUNT_DIR, ADMIN_ID, NOTIFY_DIR, log
+from config import ACCOUNT_DIR, ADMIN_ID, NOTIFY_DIR, VMESS_DIR, log
 from keyboards import (
-    kb_back, kb_confirm, kb_for_user, kb_home_btn, kb_server_list
+    kb_back, kb_confirm, kb_for_user, kb_home_btn,
+    kb_server_list, kb_vmess_server_list
 )
 from middleware import _throttle
 from storage import (
-    already_trial, count_accounts, load_account_conf,
-    load_server_conf, load_tg_server_conf, local_ip, mark_trial,
-    register_user, saldo_deduct, saldo_get, save_account_conf,
+    already_trial, already_trial_vmess, count_accounts, load_account_conf,
+    load_server_conf, load_tg_server_conf, load_vmess_conf, local_ip,
+    mark_trial, mark_trial_vmess, register_user,
+    saldo_deduct, saldo_get, save_account_conf, save_vmess_conf,
     state_clear, state_get, state_set
 )
-from texts import text_akun_info, text_home, text_server_list
+from texts import text_akun_info, text_home, text_server_list, text_vmess_info
 from utils import backup_realtime, fmt, fmt_bytes, tail_log, ts_to_wib, zv_log
 
 router = Router()
@@ -122,20 +124,22 @@ async def cb_home(cb: CallbackQuery):
 async def cb_menu_buat(cb: CallbackQuery):
     await cb.message.edit_text(
         "⚡ <b>Buat Akun</b>\n\nPilih protokol:", parse_mode="HTML",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(text="SSH", callback_data="proto_buat_ssh"),
-            InlineKeyboardButton(text="↩ Kembali", callback_data="home")
-        ]]))
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🔑 SSH Tunnel", callback_data="proto_buat_ssh"),
+             InlineKeyboardButton(text="⚡ VMess",      callback_data="proto_buat_vmess")],
+            [InlineKeyboardButton(text="↩ Kembali",    callback_data="home")]
+        ]))
     await cb.answer()
 
 @router.callback_query(F.data == "m_trial")
 async def cb_menu_trial(cb: CallbackQuery):
     await cb.message.edit_text(
         "🎁 <b>Coba Gratis</b>\n\nPilih protokol:", parse_mode="HTML",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(text="SSH", callback_data="proto_trial_ssh"),
-            InlineKeyboardButton(text="↩ Kembali", callback_data="home")
-        ]]))
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🔑 SSH Tunnel", callback_data="proto_trial_ssh"),
+             InlineKeyboardButton(text="⚡ VMess",      callback_data="proto_trial_vmess")],
+            [InlineKeyboardButton(text="↩ Kembali",    callback_data="home")]
+        ]))
     await cb.answer()
 
 @router.callback_query(F.data == "proto_buat_ssh")
@@ -155,6 +159,196 @@ async def cb_proto_trial_ssh(cb: CallbackQuery):
     await cb.message.edit_text(text_server_list("Trial SSH Gratis"), parse_mode="HTML",
                                 reply_markup=kb_server_list("s_trial"))
     await cb.answer()
+
+# ── VMess — pilih server ──────────────────────────────────────
+@router.callback_query(F.data == "proto_buat_vmess")
+async def cb_proto_buat_vmess(cb: CallbackQuery):
+    from storage import get_server_list, local_ip
+    lip = local_ip()
+    servers = [s for s in get_server_list() if s.get("IP","") == lip]
+    if not servers:
+        await cb.message.edit_text("❌ Belum ada server VMess tersedia.", reply_markup=kb_back())
+        await cb.answer(); return
+    await cb.message.edit_text(text_server_list("Buat Akun VMess"), parse_mode="HTML",
+                                reply_markup=kb_vmess_server_list("vs_buat"))
+    await cb.answer()
+
+@router.callback_query(F.data == "proto_trial_vmess")
+async def cb_proto_trial_vmess(cb: CallbackQuery):
+    from storage import get_server_list, local_ip
+    lip = local_ip()
+    servers = [s for s in get_server_list() if s.get("IP","") == lip]
+    if not servers:
+        await cb.message.edit_text("❌ Belum ada server VMess tersedia.", reply_markup=kb_back())
+        await cb.answer(); return
+    await cb.message.edit_text(text_server_list("Trial VMess Gratis"), parse_mode="HTML",
+                                reply_markup=kb_vmess_server_list("vs_trial"))
+    await cb.answer()
+
+# Pagination VMess
+@router.callback_query(F.data.startswith("vpage_"))
+async def cb_vpage(cb: CallbackQuery):
+    parts  = cb.data.split("_")
+    page   = int(parts[-1])
+    prefix = "_".join(parts[1:-1])
+    title  = "Buat Akun VMess" if prefix == "vs_buat" else "Trial VMess Gratis"
+    await cb.message.edit_text(text_server_list(title), parse_mode="HTML",
+                                reply_markup=kb_vmess_server_list(prefix, page))
+    await cb.answer()
+
+# ── Pilih server VMess → Trial ────────────────────────────────
+@router.callback_query(F.data.startswith("vs_trial_"))
+async def cb_vs_trial(cb: CallbackQuery):
+    sname = cb.data[len("vs_trial_"):]
+    uid   = cb.from_user.id
+    await cb.answer()
+
+    if already_trial_vmess(uid, sname):
+        await cb.message.answer(
+            "⚠️ Kamu sudah trial VMess di server ini dalam 24 jam terakhir.\n"
+            "Coba server lain atau tunggu 24 jam."
+        ); return
+
+    from pathlib import Path as P
+    import uuid as _uuid, subprocess as _sp
+    sconf = load_server_conf(sname)
+    if not sconf:
+        await cb.message.answer("❌ Server tidak ditemukan."); return
+
+    tg     = load_tg_server_conf(sname)
+    domain = sconf.get("DOMAIN") or sconf.get("IP", "")
+    lip    = local_ip()
+    if sconf.get("IP","") != lip:
+        await cb.message.answer("❌ VMess hanya tersedia di server utama."); return
+
+    suffix   = "".join(random.choices(string.digits, k=4))
+    username = f"VTrial{suffix}"
+    new_uuid = str(_uuid.uuid4())
+    now_ts   = int(time.time())
+    exp_ts   = now_ts + 1800  # 30 menit
+    exp_date = datetime.fromtimestamp(exp_ts).strftime("%Y-%m-%d")
+    exp_disp = ts_to_wib(exp_ts)
+
+    save_vmess_conf(username, {
+        "USERNAME":     username,
+        "UUID":         new_uuid,
+        "DOMAIN":       domain,
+        "EXPIRED_TS":   str(exp_ts),
+        "EXPIRED_DATE": exp_date,
+        "CREATED":      datetime.now().strftime("%Y-%m-%d"),
+        "IS_TRIAL":     "1",
+        "TG_USER_ID":   str(uid),
+        "SERVER":       sname,
+    })
+    # Reload xray
+    _sp.run(["/bin/bash", "-c",
+        "source /etc/zv-manager/services/xray/install.sh && reload_xray"],
+        capture_output=True)
+
+    mark_trial_vmess(uid, sname)
+    zv_log(f"VMESS_TRIAL: {uid} server={sname} user={username}")
+    await cb.message.answer(
+        text_vmess_info("TRIAL", username, new_uuid, domain, exp_disp,
+                        tg["TG_SERVER_LABEL"]),
+        parse_mode="HTML", reply_markup=kb_home_btn()
+    )
+
+# ── Pilih server VMess → Buat (input durasi) ──────────────────
+@router.callback_query(F.data.startswith("vs_buat_"))
+async def cb_vs_buat(cb: CallbackQuery):
+    sname = cb.data[len("vs_buat_"):]
+    uid   = cb.from_user.id
+    fname = cb.from_user.first_name or "User"
+    sconf = load_server_conf(sname)
+    if not sconf:
+        await cb.answer("❌ Server tidak ditemukan"); return
+    if sconf.get("IP","") != local_ip():
+        await cb.answer("❌ VMess hanya tersedia di server utama"); return
+    tg    = load_tg_server_conf(sname)
+    harga = int(tg.get("TG_HARGA_VMESS_HARI","0") or tg.get("TG_HARGA_HARI","0"))
+    hh    = f"Rp{fmt(harga)}/hari" if harga > 0 else "Gratis"
+    await cb.answer()
+    state_clear(uid)
+    state_set(uid, "STATE",    "vmess_await_days")
+    state_set(uid, "SERVER",   sname)
+    state_set(uid, "FNAME",    fname)
+    await cb.message.answer(
+        f"⚡ <b>Buat Akun VMess</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"🌐 Server  : <b>{tg['TG_SERVER_LABEL']}</b>\n"
+        f"💰 Harga   : {hh}\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"Berapa hari? (1–365)",
+        parse_mode="HTML", reply_markup=kb_back("home")
+    )
+
+# ── Konfirmasi buat akun VMess ────────────────────────────────
+@router.callback_query(F.data == "konfirm_vmess")
+async def cb_konfirm_vmess(cb: CallbackQuery):
+    uid = cb.from_user.id
+    if state_get(uid, "STATE") != "vmess_confirm":
+        await cb.answer("⚠️ Sesi habis, mulai ulang"); state_clear(uid); return
+    await cb.answer("⏳ Membuat akun VMess...")
+
+    import uuid as _uuid, subprocess as _sp
+    sname  = state_get(uid, "SERVER")
+    days   = int(state_get(uid, "DAYS") or "1")
+    fname  = state_get(uid, "FNAME")
+    sconf  = load_server_conf(sname)
+    tg     = load_tg_server_conf(sname)
+    domain = sconf.get("DOMAIN") or sconf.get("IP","")
+    harga  = int(tg.get("TG_HARGA_VMESS_HARI","0") or tg.get("TG_HARGA_HARI","0"))
+    total  = harga * days
+
+    if harga > 0 and total > 0:
+        if not saldo_deduct(uid, total):
+            await cb.message.edit_text("❌ Saldo tidak cukup."); state_clear(uid); return
+
+    suffix   = "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
+    username = f"vmess-{suffix}"
+    new_uuid = str(_uuid.uuid4())
+    now_ts   = int(time.time())
+    exp_ts   = now_ts + days * 86400
+    exp_date = datetime.fromtimestamp(exp_ts).strftime("%Y-%m-%d")
+    exp_disp = ts_to_wib(exp_ts)
+
+    save_vmess_conf(username, {
+        "USERNAME":     username,
+        "UUID":         new_uuid,
+        "DOMAIN":       domain,
+        "EXPIRED_TS":   str(exp_ts),
+        "EXPIRED_DATE": exp_date,
+        "CREATED":      datetime.now().strftime("%Y-%m-%d"),
+        "IS_TRIAL":     "0",
+        "TG_USER_ID":   str(uid),
+        "SERVER":       sname,
+    })
+    _sp.run(["/bin/bash", "-c",
+        "source /etc/zv-manager/services/xray/install.sh && reload_xray"],
+        capture_output=True)
+
+    state_clear(uid)
+    zv_log(f"VMESS_BELI: {uid} server={sname} user={username} days={days} total={total}")
+    if ADMIN_ID and uid != ADMIN_ID:
+        try:
+            await cb.bot.send_message(ADMIN_ID,
+                f"⚡ <b>Pembelian VMess</b>\n"
+                f"━━━━━━━━━━━━━━━━━━━\n"
+                f"👤 User   : {fname} (<code>{uid}</code>)\n"
+                f"🖥️ Akun   : <code>{username}</code>\n"
+                f"🌐 Server : {tg['TG_SERVER_LABEL']}\n"
+                f"📅 Durasi : {days} hari\n"
+                f"💸 Total  : Rp{fmt(total)}\n"
+                f"━━━━━━━━━━━━━━━━━━━",
+                parse_mode="HTML")
+        except Exception: pass
+
+    await cb.message.edit_text("✅ Akun VMess sedang dibuat...")
+    await cb.message.answer(
+        text_vmess_info("BELI", username, new_uuid, domain, exp_disp,
+                        tg["TG_SERVER_LABEL"], days, total),
+        parse_mode="HTML", reply_markup=kb_home_btn()
+    )
 
 def load_server_list_safe() -> bool:
     from storage import get_server_list
@@ -317,6 +511,45 @@ async def cb_akun_saya(cb: CallbackQuery):
             )
     except Exception as e:
         log.error(f"akun_saya error: {e}")
+    # Cek akun VMess juga
+    try:
+        from pathlib import Path as PV
+        vmess_dir_path = PV(VMESS_DIR)
+        if vmess_dir_path.exists():
+            for vf in vmess_dir_path.glob("*.conf"):
+                vc = load_vmess_conf(vf.stem)
+                if str(vc.get("TG_USER_ID","")).strip() != str(uid): continue
+                vuname  = vc.get("USERNAME","")
+                vuuid   = vc.get("UUID","")
+                vdomain = vc.get("DOMAIN","")
+                vexp_ts = vc.get("EXPIRED_TS","")
+                is_vtrial = vc.get("IS_TRIAL","0") == "1"
+                if not vuname: continue
+                if vexp_ts and vexp_ts.isdigit():
+                    vexp = int(vexp_ts)
+                    vsisa = vexp - now_ts
+                    vexp_disp = ts_to_wib(vexp)
+                    if vsisa <= 0:
+                        vstatus = "❌ Expired"; vsisa_label = "Sudah habis"
+                    elif vsisa < 3600:
+                        vstatus = "⚠️ Aktif"; vsisa_label = "Kurang dari 1 jam"
+                    else:
+                        vstatus = "✅ Aktif"; vsisa_label = f"{vsisa//86400} hari lagi" if vsisa >= 86400 else f"{vsisa//3600} jam lagi"
+                else:
+                    vexp_disp = "-"; vstatus = "✅ Aktif"; vsisa_label = "-"
+                vtipe = "Trial VMess" if is_vtrial else "VMess Premium"
+                found = True
+                out += (
+                    f"\n⚡ <b>{vuname}</b> <i>({vtipe})</i>\n"
+                    f"🌐 Domain : <code>{vdomain}</code>\n"
+                    f"🔑 UUID   : <code>{vuuid[:18]}...</code>\n"
+                    f"⏳ Expired: {vexp_disp}\n"
+                    f"📊 Status : {vstatus} · {vsisa_label}\n"
+                    f"━━━━━━━━━━━━━━━━━━━"
+                )
+    except Exception as ve:
+        log.error(f"akun_saya vmess error: {ve}")
+
     if not found:
         out += "\nKamu belum punya akun aktif.\n\nTekan <b>Buat Akun</b> untuk membeli."
     await cb.message.edit_text(out, parse_mode="HTML", reply_markup=kb_home_btn())

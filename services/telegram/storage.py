@@ -104,6 +104,7 @@ def load_tg_server_conf(sname: str) -> dict:
         "TG_LIMIT_IP":     "2",
         "TG_MAX_AKUN":     "500",
         "TG_BW_PER_HARI":  "5",
+        "TG_HARGA_VMESS_HARI": "0",
     }
     defaults.update(_read_conf_file(f"{SERVER_DIR}/{sname}.tg.conf"))
     _tg_conf_cache[sname] = (defaults, now)
@@ -214,3 +215,29 @@ def mark_trial(uid: int, sname: str):
     os.makedirs(TRIAL_DIR, exist_ok=True)
     with open(f"{TRIAL_DIR}/{uid}_{sname}.ts", "w") as f:
         f.write(str(int(time.time())))
+
+
+# ── VMess helpers ────────────────────────────────────────────────────────
+def load_vmess_conf(username: str) -> dict:
+    from config import VMESS_DIR
+    return _read_conf_file(f"{VMESS_DIR}/{username}.conf")
+
+def save_vmess_conf(username: str, data: dict) -> None:
+    from config import VMESS_DIR
+    import os
+    os.makedirs(VMESS_DIR, exist_ok=True)
+    path = f"{VMESS_DIR}/{username}.conf"
+    with open(path, "w") as f:
+        for k, v in data.items():
+            f.write(f'{k}="{v}"\n')
+
+def already_trial_vmess(uid: int, sname: str) -> bool:
+    """Cek apakah user sudah trial VMess di server ini dalam 24 jam."""
+    marker = Path(TRIAL_DIR) / f"vmess_{uid}_{sname}"
+    if not marker.exists():
+        return False
+    return (time.time() - marker.stat().st_mtime) < 86400
+
+def mark_trial_vmess(uid: int, sname: str) -> None:
+    Path(TRIAL_DIR).mkdir(parents=True, exist_ok=True)
+    (Path(TRIAL_DIR) / f"vmess_{uid}_{sname}").touch()

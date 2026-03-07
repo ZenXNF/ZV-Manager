@@ -8,7 +8,8 @@ from pathlib import Path
 
 # ── Directory paths ─────────────────────────────────────────
 BASE_DIR    = "/etc/zv-manager"
-ACCOUNT_DIR = f"{BASE_DIR}/accounts/ssh"
+ACCOUNT_DIR  = f"{BASE_DIR}/accounts/ssh"
+VMESS_DIR    = f"{BASE_DIR}/accounts/vmess"
 SALDO_DIR   = f"{BASE_DIR}/accounts/saldo"
 USERS_DIR   = f"{BASE_DIR}/accounts/users"
 TRIAL_DIR   = f"{BASE_DIR}/accounts/trial"
