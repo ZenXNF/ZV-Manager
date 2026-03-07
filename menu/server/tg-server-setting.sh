@@ -63,7 +63,7 @@ _edit_server_tg() {
         echo ""
         echo -e "  ${BWHITE}Label di Bot   :${NC} ${BYELLOW}${TG_SERVER_LABEL}${NC}"
         echo -e "  ${BWHITE}Harga / hari   :${NC} ${BYELLOW}Rp${TG_HARGA_HARI}${NC}"
-        echo -e "  ${BWHITE}Harga / 30 hari:${NC} ${BYELLOW}Rp${TG_HARGA_BULAN}${NC} ${BCYAN}(otomatis × 30)${NC}"
+        echo -e "  ${BWHITE}Harga / 30 hari:${NC} ${BYELLOW}Rp${TG_HARGA_BULAN}${NC} ${BCYAN}otomatis × 30${NC}"
         echo -e "  ${BWHITE}Bandwidth      :${NC} ${BYELLOW}${TG_BW_TOTAL:-Unlimited}${NC}"
         echo -e "  ${BWHITE}Limit IP/akun  :${NC} ${BYELLOW}${TG_LIMIT_IP} IP${NC}"
         echo -e "  ${BWHITE}Maks Akun      :${NC} ${BYELLOW}${TG_MAX_AKUN}${NC}"
@@ -72,14 +72,14 @@ _edit_server_tg() {
         echo ""
         echo -e "${BCYAN}  ──────────────────────────────────────────────${NC}"
         echo ""
-        echo -e "  ${BGREEN}[1]${NC} Ubah Label (nama di bot)"
-        echo -e "  ${BGREEN}[2]${NC} Ubah Harga / hari ${BCYAN}(harga/30hr otomatis × 30)${NC}"
-        echo -e "  ${BGREEN}[3]${NC} Ubah Harga / 30 hari (manual)"
+        echo -e "  ${BGREEN}[1]${NC} Ubah Label — nama di bot"
+        echo -e "  ${BGREEN}[2]${NC} Ubah Harga / hari ${BCYAN}harga/30hr otomatis × 30${NC}"
+        echo -e "  ${BGREEN}[3]${NC} Ubah Harga / 30 hari manual"
         echo -e "  ${BGREEN}[4]${NC} Ubah Bandwidth"
         echo -e "  ${BGREEN}[5]${NC} Ubah Limit IP per akun"
         echo -e "  ${BGREEN}[6]${NC} Ubah Maksimal Akun"
-        echo -e "  ${BGREEN}[7]${NC} Ubah Bandwidth / hari (GB)
-        echo -e "  ${BGREEN}[8]${NC} Ubah Persentase Harga BW ${BCYAN}(default: 40%)${NC}""
+        echo -e "  ${BGREEN}[7]${NC} Ubah Bandwidth / hari GB
+        echo -e "  ${BGREEN}[8]${NC} Ubah Persentase Harga BW ${BCYAN}default: 40%${NC}""
         echo -e "  ${BYELLOW}[s]${NC} Simpan"
         echo ""
         echo -e "  ${BRED}[0]${NC} Kembali"
@@ -151,7 +151,7 @@ tg_server_setting_menu() {
             local tgf="${SERVER_DIR}/${NAME}.tg.conf"
             local label="$NAME"
             [[ -f "$tgf" ]] && { source "$tgf"; label="${TG_SERVER_LABEL}"; }
-            echo -e "  ${BGREEN}[${i}]${NC} ${NAME} ${BYELLOW}(${label})${NC}"
+            echo -e "  ${BGREEN}[${i}]${NC} ${NAME} ${BYELLOW}${label}${NC}"
             i=$((i+1))
         done
 
