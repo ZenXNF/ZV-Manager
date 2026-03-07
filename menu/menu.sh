@@ -81,7 +81,9 @@ show_header() {
     local s_ssh s_db s_ng s_wss s_udp s_ssl s_xray
     s_ssh=$(svc_status ssh); s_db=$(svc_status dropbear)
     s_ng=$(svc_status nginx); s_wss=$(svc_status zv-wss)
-    s_udp=$(svc_status zv-udp); s_ssl=$(svc_status zv-stunnel)
+    s_udp=$(svc_status zv-udp)
+    # SSL sekarang dihandle nginx port 443, bukan stunnel
+    ss -tlnp 2>/dev/null | grep -q ":443 " && s_ssl="${BGREEN}●${NC}" || s_ssl="${BRED}●${NC}"
     s_xray=$(svc_status zv-xray)
 
     clear
@@ -135,7 +137,7 @@ main_menu() {
                 source /etc/zv-manager/config.conf 2>/dev/null
                 ;;
             r|R)
-                for svc in ssh dropbear nginx zv-stunnel zv-wss zv-udp zv-xray; do
+                for svc in ssh dropbear nginx zv-wss zv-udp zv-xray; do
                     systemctl restart "$svc" &>/dev/null
                 done
                 echo -e "  ${BGREEN}Semua service di-restart!${NC}"; sleep 2 ;;
