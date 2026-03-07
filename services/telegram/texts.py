@@ -162,21 +162,13 @@ def text_vmess_info(tipe: str, username: str, uuid: str, domain: str,
     return "\n".join(lines)
 
 def vmess_url_messages(username: str, uuid: str, domain: str) -> list:
-    """Kembalikan 1 pesan berisi semua URL VMess — tap <code> untuk salin."""
+    """Kembalikan list (text, url) per URL VMess — untuk dikirim dengan CopyTextButton."""
     url_tls, url_http, url_grpc = vmess_build_urls(username, uuid, domain)
-    msg = (
-        f"📋 <b>URL Import VMess</b>\n"
-        f"━━━━━━━━━━━━━━━━━━━\n"
-        f"🔐 <b>TLS (WS)</b>\n"
-        f"<code>{url_tls}</code>\n\n"
-        f"🔓 <b>HTTP (WS)</b>\n"
-        f"<code>{url_http}</code>\n\n"
-        f"🔒 <b>gRPC</b>\n"
-        f"<code>{url_grpc}</code>\n"
-        f"━━━━━━━━━━━━━━━━━━━\n"
-        f"👆 Tap kode untuk menyalin"
-    )
-    return [msg]
+    return [
+        (f"🔐 <b>URL VMESS TLS</b>\n<code>{url_tls}</code>",  url_tls),
+        (f"🔓 <b>URL VMESS HTTP</b>\n<code>{url_http}</code>", url_http),
+        (f"🔒 <b>URL VMESS gRPC</b>\n<code>{url_grpc}</code>", url_grpc),
+    ]
 
 def generate_dashboard_html(username: str, uuid: str, domain: str,
                              exp_display: str, server_label: str,
