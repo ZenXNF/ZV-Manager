@@ -57,6 +57,7 @@ StartLimitBurst=5
 
 [Service]
 Type=simple
+WorkingDirectory=/opt/zv-telegram
 ExecStart=/usr/bin/python3 -u /opt/zv-telegram/bot.py
 Restart=always
 RestartSec=10s
