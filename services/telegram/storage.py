@@ -133,7 +133,7 @@ def count_accounts(srv_ip: str) -> int:
     now = time.time()
     if srv_ip in _account_cache:
         cnt, ts = _account_cache[srv_ip]
-        if now - ts < 60:
+        if now - ts < 120:
             return cnt
     lip   = local_ip()
     count = 0
@@ -155,10 +155,10 @@ def count_accounts(srv_ip: str) -> int:
                 result = subprocess.run(
                     ["sshpass", "-p", sc.get("PASS", ""),
                      "ssh", "-o", "StrictHostKeyChecking=no",
-                     "-o", "ConnectTimeout=8", "-o", "BatchMode=no",
+                     "-o", "ConnectTimeout=3", "-o", "BatchMode=no",
                      "-p", sc.get("PORT", "22"),
                      f"{sc.get('USER', '')}@{srv_ip}", "zv-agent list"],
-                    capture_output=True, text=True, timeout=12
+                    capture_output=True, text=True, timeout=6
                 )
                 raw = result.stdout.strip()
                 if raw and raw != "LIST-EMPTY":
