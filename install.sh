@@ -6,7 +6,8 @@
 # ============================================================
 
 INSTALL_DIR="/etc/zv-manager"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="/root/ZV-Manager"
+GITHUB_URL="https://github.com/ZenXNF/ZV-Manager.git"
 
 # --- Buat log dir PERTAMA sebelum apapun ---
 mkdir -p /var/log/zv-manager
@@ -34,6 +35,33 @@ echo "  ╚═══════════════════════
 echo -e "\033[0m"
 echo -e "\033[0;36m  ──────────────────────────────────────\033[0m"
 echo ""
+
+# --- Clone / update repo dulu sebelum apapun ---
+if ! command -v git &>/dev/null; then
+    echo "[ INFO ] Menginstall git..."
+    apt-get install -y git &>/dev/null
+fi
+
+if [[ ! -d "$REPO_DIR/.git" ]]; then
+    echo "[ INFO ] Mengunduh ZV-Manager dari GitHub..."
+    rm -rf "$REPO_DIR"
+    git clone -q "$GITHUB_URL" "$REPO_DIR"
+else
+    echo "[ INFO ] Memperbarui repo..."
+    git -C "$REPO_DIR" fetch -q origin
+    git -C "$REPO_DIR" reset -q --hard origin/main
+fi
+
+if [[ ! -d "$REPO_DIR" ]]; then
+    echo "[ERROR] Gagal mengunduh repo dari GitHub!"
+    exit 1
+fi
+
+# Setelah clone, semua operasi dari repo
+SCRIPT_DIR="$REPO_DIR"
+find "$REPO_DIR" -name "*.sh" -exec chmod +x {} \;
+find "$REPO_DIR" -name "*.py" -exec chmod +x {} \;
+chmod +x "$REPO_DIR/checker/zv-checker" 2>/dev/null
 
 # --- Cek izin SEBELUM tanya konfirmasi ---
 source "$SCRIPT_DIR/core/license.sh"
