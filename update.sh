@@ -71,16 +71,22 @@ chmod +x /usr/local/bin/zv-agent
 echo " ✔  zv-agent diperbarui"
 
 # --- Update Telegram bot (Python) ---
-if [[ -f /etc/zv-manager/services/telegram/bot.py ]]; then
-    # Hapus file bash lama kalau ada
-    rm -f /usr/local/bin/zv-telegram-bot
-    cp /etc/zv-manager/services/telegram/bot.py /usr/local/bin/zv-telegram-bot.py
-    chmod +x /usr/local/bin/zv-telegram-bot.py
+if [[ -d /etc/zv-manager/services/telegram ]]; then
+    BOT_DIR="/opt/zv-telegram"
+    mkdir -p "$BOT_DIR"
+
+    # Hapus file lama
+    rm -f /usr/local/bin/zv-telegram-bot /usr/local/bin/zv-telegram-bot.py
+
+    # Deploy semua modul ke /opt/zv-telegram/
+    cp -r /etc/zv-manager/services/telegram/. "$BOT_DIR/"
+    find "$BOT_DIR" -name "*.py" -exec chmod +x {} \;
 
     # Update aiogram kalau perlu
-    pip3 install -q aiogram==3.* --break-system-packages 2>/dev/null ||     pip3 install -q aiogram==3.* 2>/dev/null
+    pip3 install -q "aiogram==3.*" --break-system-packages 2>/dev/null || \
+    pip3 install -q "aiogram==3.*" 2>/dev/null
 
-    # Update systemd service (pastikan pakai python3)
+    # Update systemd service — selalu pakai WorkingDirectory + path baru
     cat > /etc/systemd/system/zv-telegram.service <<'SVCEOF'
 [Unit]
 Description=ZV-Manager Telegram Bot (Python)
@@ -90,7 +96,8 @@ StartLimitBurst=5
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3 -u /usr/local/bin/zv-telegram-bot.py
+WorkingDirectory=/opt/zv-telegram
+ExecStart=/usr/bin/python3 -u /opt/zv-telegram/bot.py
 Restart=always
 RestartSec=10s
 MemoryMax=120M
@@ -105,11 +112,11 @@ SVCEOF
     systemctl daemon-reload
     if systemctl is-active --quiet zv-telegram 2>/dev/null; then
         systemctl restart zv-telegram &>/dev/null
-        echo " ✔  Telegram bot (Python) diperbarui & di-restart"
+        echo " ✔  Telegram bot diperbarui & di-restart"
     else
         systemctl enable zv-telegram &>/dev/null
         systemctl start zv-telegram &>/dev/null
-        echo " ✔  Telegram bot (Python) diperbarui & dijalankan"
+        echo " ✔  Telegram bot diperbarui & dijalankan"
     fi
 fi
 
