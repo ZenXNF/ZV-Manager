@@ -169,7 +169,7 @@ async def cb_proto_buat_vmess(cb: CallbackQuery):
     if not servers:
         await cb.message.edit_text("❌ Belum ada server VMess tersedia.", reply_markup=kb_back())
         await cb.answer(); return
-    await cb.message.edit_text(text_server_list("Buat Akun VMess"), parse_mode="HTML",
+    await cb.message.edit_text(text_server_list("Buat Akun VMess", proto="vmess"), parse_mode="HTML",
                                 reply_markup=kb_vmess_server_list("vs_buat"))
     await cb.answer()
 
@@ -181,7 +181,7 @@ async def cb_proto_trial_vmess(cb: CallbackQuery):
     if not servers:
         await cb.message.edit_text("❌ Belum ada server VMess tersedia.", reply_markup=kb_back())
         await cb.answer(); return
-    await cb.message.edit_text(text_server_list("Trial VMess Gratis"), parse_mode="HTML",
+    await cb.message.edit_text(text_server_list("Trial VMess Gratis", proto="vmess"), parse_mode="HTML",
                                 reply_markup=kb_vmess_server_list("vs_trial"))
     await cb.answer()
 
@@ -256,10 +256,9 @@ async def cb_vs_trial(cb: CallbackQuery):
                         tg["TG_SERVER_LABEL"]),
         parse_mode="HTML"
     )
-    # Kirim URL terpisah — mudah di-copy tap
-    for url_msg in vmess_url_messages(username, new_uuid, domain):
-        await cb.message.answer(url_msg, parse_mode="HTML")
-    await cb.message.answer("⬆️ Tap kode untuk menyalin, lalu import ke app.", reply_markup=kb_home_btn())
+    # Kirim URL dalam 1 pesan + tombol home
+    url_msgs = vmess_url_messages(username, new_uuid, domain)
+    await cb.message.answer(url_msgs[0], parse_mode="HTML", reply_markup=kb_home_btn())
 
 # ── Pilih server VMess → Buat (input durasi) ──────────────────
 @router.callback_query(F.data.startswith("vs_buat_"))
@@ -377,10 +376,9 @@ async def cb_konfirm_vmess(cb: CallbackQuery):
                         tg["TG_SERVER_LABEL"], days, total, dashboard_url),
         parse_mode="HTML"
     )
-    # Kirim URL terpisah — mudah di-copy tap
-    for url_msg in vmess_url_messages(username, new_uuid, domain):
-        await cb.message.answer(url_msg, parse_mode="HTML")
-    await cb.message.answer("⬆️ Tap kode untuk menyalin, lalu import ke app.", reply_markup=kb_home_btn())
+    # Kirim URL dalam 1 pesan + tombol home
+    url_msgs = vmess_url_messages(username, new_uuid, domain)
+    await cb.message.answer(url_msgs[0], parse_mode="HTML", reply_markup=kb_home_btn())
 
 def load_server_list_safe() -> bool:
     from storage import get_server_list

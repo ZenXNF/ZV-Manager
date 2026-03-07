@@ -42,18 +42,32 @@ def text_home(fname: str, uid: int) -> str:
     )
 
 
-def text_server_list(title: str) -> str:
+def text_server_list(title: str, proto: str = "ssh") -> str:
+    """Daftar server untuk pilih saat beli/trial. proto='ssh' atau 'vmess'."""
+    from pathlib import Path as _P
     servers = get_server_list()
     out = f"<b>{title}</b>\n\n"
     if not servers:
         return out + "❌ Belum ada server.\n\nPilih server:"
+    local_ip_str = _P("/etc/zv-manager/accounts/ipvps").read_text().strip() if                    _P("/etc/zv-manager/accounts/ipvps").exists() else ""
     for s in servers:
         name = s.get("NAME", "")
         ip   = s.get("IP", "")
+        # VMess hanya server lokal
+        if proto == "vmess" and ip != local_ip_str:
+            continue
         tg   = load_tg_server_conf(name)
         cnt  = count_accounts(ip)
-        hh   = f"Rp{fmt(tg['TG_HARGA_HARI'])}" if tg["TG_HARGA_HARI"] != "0" else "Hubungi admin"
-        hb   = f"Rp{fmt(tg['TG_HARGA_BULAN'])}" if tg["TG_HARGA_BULAN"] != "0" else "Hubungi admin"
+        # Harga: VMess pakai TG_HARGA_VMESS_HARI jika > 0, else fallback SSH
+        if proto == "vmess":
+            harga_hari_raw = tg.get("TG_HARGA_VMESS_HARI","0") or "0"
+            if harga_hari_raw == "0":
+                harga_hari_raw = tg.get("TG_HARGA_HARI","0") or "0"
+        else:
+            harga_hari_raw = tg.get("TG_HARGA_HARI","0") or "0"
+        hh = f"Rp{fmt(harga_hari_raw)}" if harga_hari_raw != "0" else "Hubungi admin"
+        hb_raw = str(int(harga_hari_raw) * 30) if harga_hari_raw.isdigit() else "0"
+        hb = f"Rp{fmt(hb_raw)}" if hb_raw != "0" else "Hubungi admin"
         bw_hr = int(tg.get("TG_BW_PER_HARI", "5") or "5")
         bw_30 = bw_hr * 30
         bandwidth = f"{bw_hr} GB/hari · {bw_30} GB/30hr" if bw_hr > 0 else "Unlimited"
@@ -148,13 +162,21 @@ def text_vmess_info(tipe: str, username: str, uuid: str, domain: str,
     return "\n".join(lines)
 
 def vmess_url_messages(username: str, uuid: str, domain: str) -> list:
-    """Kembalikan list pesan URL VMess — tiap URL 1 pesan berisi <code> saja."""
+    """Kembalikan 1 pesan berisi semua URL VMess — tap <code> untuk salin."""
     url_tls, url_http, url_grpc = vmess_build_urls(username, uuid, domain)
-    return [
-        f"🔐 <b>URL VMESS TLS</b>\n<code>{url_tls}</code>",
-        f"🔓 <b>URL VMESS HTTP</b>\n<code>{url_http}</code>",
-        f"🔒 <b>URL VMESS gRPC</b>\n<code>{url_grpc}</code>",
-    ]
+    msg = (
+        f"📋 <b>URL Import VMess</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"🔐 <b>TLS (WS)</b>\n"
+        f"<code>{url_tls}</code>\n\n"
+        f"🔓 <b>HTTP (WS)</b>\n"
+        f"<code>{url_http}</code>\n\n"
+        f"🔒 <b>gRPC</b>\n"
+        f"<code>{url_grpc}</code>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"👆 Tap kode untuk menyalin"
+    )
+    return [msg]
 
 def generate_dashboard_html(username: str, uuid: str, domain: str,
                              exp_display: str, server_label: str,

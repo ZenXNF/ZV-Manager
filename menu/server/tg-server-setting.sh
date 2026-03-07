@@ -83,8 +83,8 @@ _edit_server_tg() {
         echo -e "  ${BGREEN}[6]${NC} Ubah Maksimal Akun"
         echo -e "  ${BGREEN}[7]${NC} Ubah Bandwidth / hari GB"
         echo -e "  ${BGREEN}[8]${NC} Ubah Persentase Harga BW ${BCYAN}default: 40%${NC}"
-        echo -e "  ${BGREEN}[9]${NC} Ubah Harga VMess / hari ${BCYAN}(0 = ikut harga SSH)${NC}
-        echo -e "  ${BYELLOW}[s]${NC} Simpan""
+        echo -e "  ${BGREEN}[9]${NC} Ubah Harga VMess / hari ${BCYAN}(0 = ikut harga SSH)${NC}"
+        echo -e "  ${BYELLOW}[s]${NC} Simpan"
         echo ""
         echo -e "  ${BRED}[0]${NC} Kembali"
         echo ""
