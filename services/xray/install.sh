@@ -82,9 +82,6 @@ SVCEOF
     systemctl enable zv-xray &>/dev/null
     systemctl restart zv-xray &>/dev/null
 
-    # ── 5. Update nginx — tambah routing VMess ──────────────
-    _update_nginx_vmess
-
     # ── 6. Verifikasi ───────────────────────────────────────
     sleep 2
     if systemctl is-active --quiet zv-xray; then
@@ -157,55 +154,6 @@ _write_xray_config() {
 JSONEOF
 }
 
-_update_nginx_vmess() {
-    local domain
-    domain=$(cat /etc/zv-manager/domain 2>/dev/null)
-
-    # Cek apakah sudah ada nginx vmess conf
-    if grep -q "vmess" /etc/nginx/nginx.conf 2>/dev/null; then
-        return 0
-    fi
-
-    # Tambah location /vmess di server port 80
-    # dan tambah server baru port 443 untuk gRPC
-    local nginx_conf="/etc/nginx/nginx.conf"
-
-    # Inject location /vmess sebelum closing } di server port 80
-    sed -i '/proxy_buffering off;/{
-        a\        }
-        a\
-        a\        location /vmess {
-        a\            proxy_pass http://127.0.0.1:10001;
-        a\            proxy_http_version 1.1;
-        a\            proxy_set_header Upgrade $http_upgrade;
-        a\            proxy_set_header Connection $connection_upgrade;
-        a\            proxy_set_header Host $host;
-        a\            proxy_set_header X-Real-IP $remote_addr;
-        a\            proxy_read_timeout 3600s;
-        a\            proxy_send_timeout 3600s;
-        a\            proxy_buffering off;
-    }' "$nginx_conf" 2>/dev/null || true
-
-    # Tambah server block gRPC port 8443 (ssl termination via cert)
-    if [[ -f "$SSL_CERT" && -f "$SSL_KEY" ]]; then
-        # Inject sebelum baris terakhir }
-        sed -i "$ i\\
-\\
-    # VMess gRPC (port 8443, TLS)\\
-    server {\\
-        listen 8443 ssl http2;\\
-        server_name ${domain} _;\\
-        ssl_certificate ${SSL_CERT};\\
-        ssl_certificate_key ${SSL_KEY};\\
-        location /vmess-grpc {\\
-            grpc_pass grpc://127.0.0.1:10002;\\
-            grpc_set_header Host \$host;\\
-        }\\
-    }" "$nginx_conf" 2>/dev/null || true
-    fi
-
-    nginx -t &>/dev/null && systemctl reload nginx &>/dev/null || true
-}
 
 # Reload xray config tanpa restart (tambah/hapus akun)
 reload_xray() {

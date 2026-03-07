@@ -72,6 +72,20 @@ http {
         listen ${WS_PORT} default_server;
         server_name _;
 
+        # VMess WebSocket
+        location /vmess {
+            proxy_pass http://127.0.0.1:10001;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade \$http_upgrade;
+            proxy_set_header Connection \$connection_upgrade;
+            proxy_set_header Host \$host;
+            proxy_set_header X-Real-IP \$remote_addr;
+            proxy_read_timeout 3600s;
+            proxy_send_timeout 3600s;
+            proxy_buffering off;
+        }
+
+        # SSH WebSocket (catch-all)
         location / {
             proxy_pass http://127.0.0.1:8880;
             proxy_http_version 1.1;
@@ -79,6 +93,32 @@ http {
             proxy_set_header Connection \$connection_upgrade;
             proxy_set_header Host \$host;
             proxy_set_header X-Real-IP \$remote_addr;
+            proxy_read_timeout 3600s;
+            proxy_send_timeout 3600s;
+            proxy_buffering off;
+        }
+    }
+
+    # VMess gRPC (port 8443, TLS via stunnel/cert langsung)
+    server {
+        listen 8443 ssl http2;
+        server_name ${domain} _;
+        ssl_certificate /etc/zv-manager/ssl/cert.pem;
+        ssl_certificate_key /etc/zv-manager/ssl/key.pem;
+        ssl_protocols TLSv1.2 TLSv1.3;
+
+        location /vmess-grpc {
+            grpc_pass grpc://127.0.0.1:10002;
+            grpc_set_header Host \$host;
+        }
+
+        # VMess WS TLS juga lewat sini
+        location /vmess {
+            proxy_pass http://127.0.0.1:10001;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade \$http_upgrade;
+            proxy_set_header Connection \$connection_upgrade;
+            proxy_set_header Host \$host;
             proxy_read_timeout 3600s;
             proxy_send_timeout 3600s;
             proxy_buffering off;
@@ -106,7 +146,7 @@ NGINXMAIN
     if nginx -t &>/dev/null; then
         systemctl enable nginx &>/dev/null
         systemctl start nginx &>/dev/null
-        print_success "Nginx (port ${WS_PORT} catch-all + port ${NGINX_PORT} info)"
+        print_success "Nginx (SSH WS port ${WS_PORT}, VMess WS port ${WS_PORT}/vmess, VMess TLS port 8443, info port ${NGINX_PORT})"
     else
         print_error "Nginx config error! Cek: nginx -t"
         nginx -t
