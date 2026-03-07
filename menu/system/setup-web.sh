@@ -100,9 +100,8 @@ _uninstall_web() {
 }
 
 _change_host() {
-    local local_ip local_domain current
+    local local_ip current
     local_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null)
-    local_domain=$(cat /etc/zv-manager/domain 2>/dev/null)
     current=$(cat /etc/zv-manager/web-host 2>/dev/null || echo "$local_ip")
 
     clear
@@ -113,15 +112,39 @@ _change_host() {
     echo -e "  Saat ini  : ${BYELLOW}${current}${NC}"
     echo ""
     echo -e "  ${BGREEN}[1]${NC} IPv4 — ${local_ip}"
-    [[ -n "$local_domain" ]] && echo -e "  ${BGREEN}[2]${NC} Domain — ${local_domain}"
+    echo -e "  ${BGREEN}[2]${NC} Domain (masukkan manual)"
     echo -e "  ${BRED}[0]${NC} Kembali"
     echo ""
     read -rp "  Pilihan: " ch
     case "$ch" in
-        1) echo "$local_ip" > /etc/zv-manager/web-host; print_ok "Berubah ke IPv4: ${local_ip}" ;;
-        2) [[ -n "$local_domain" ]] && { echo "$local_domain" > /etc/zv-manager/web-host; print_ok "Berubah ke domain: ${local_domain}"; } ;;
+        1)
+            echo "$local_ip" > /etc/zv-manager/web-host
+            print_ok "Berubah ke IPv4: ${local_ip}"
+            sleep 1
+            ;;
+        2)
+            echo ""
+            read -rp "  Masukkan domain (contoh: status.zenxu.my.id): " input_domain
+            input_domain="${input_domain// /}"
+            if [[ -z "$input_domain" ]]; then
+                print_error "Domain tidak boleh kosong!"; sleep 1; return
+            fi
+            print_info "Memverifikasi domain ${input_domain}..."
+            local resolved
+            resolved=$(dig +short "$input_domain" A 2>/dev/null | head -1)
+            if [[ -z "$resolved" ]]; then
+                print_error "Domain tidak bisa di-resolve. Pastikan DNS sudah dikonfigurasi."
+                press_any_key; return
+            fi
+            if [[ "$resolved" != "$local_ip" ]]; then
+                print_error "Domain mengarah ke ${resolved}, bukan ke VPS ini (${local_ip})."
+                press_any_key; return
+            fi
+            echo "$input_domain" > /etc/zv-manager/web-host
+            print_ok "Domain valid! Berubah ke: ${input_domain}"
+            sleep 1
+            ;;
     esac
-    sleep 1
 }
 
 _open_web_info() {
