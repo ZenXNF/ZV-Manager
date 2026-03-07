@@ -67,8 +67,8 @@ _edit_server_tg() {
         echo -e "  ${BWHITE}Bandwidth      :${NC} ${BYELLOW}${TG_BW_TOTAL:-Unlimited}${NC}"
         echo -e "  ${BWHITE}Limit IP/akun  :${NC} ${BYELLOW}${TG_LIMIT_IP} IP${NC}"
         echo -e "  ${BWHITE}Maks Akun      :${NC} ${BYELLOW}${TG_MAX_AKUN}${NC}"
-        echo -e "  ${BWHITE}BW / hari      :${NC} ${BYELLOW}${TG_BW_PER_HARI} GB${NC}
-        echo -e "  ${BWHITE}Harga BW / GB  :${NC} ${BYELLOW}${TG_BW_HARGA_PCT}% dari harga/hari${NC}""
+        echo -e "  ${BWHITE}BW / hari      :${NC} ${BYELLOW}${TG_BW_PER_HARI} GB${NC}"
+        echo -e "  ${BWHITE}Harga BW / GB  :${NC} ${BYELLOW}${TG_BW_HARGA_PCT}% dari harga/hari${NC}"
         echo ""
         echo -e "${BCYAN}  ──────────────────────────────────────────────${NC}"
         echo ""
@@ -78,8 +78,8 @@ _edit_server_tg() {
         echo -e "  ${BGREEN}[4]${NC} Ubah Bandwidth"
         echo -e "  ${BGREEN}[5]${NC} Ubah Limit IP per akun"
         echo -e "  ${BGREEN}[6]${NC} Ubah Maksimal Akun"
-        echo -e "  ${BGREEN}[7]${NC} Ubah Bandwidth / hari GB
-        echo -e "  ${BGREEN}[8]${NC} Ubah Persentase Harga BW ${BCYAN}default: 40%${NC}""
+        echo -e "  ${BGREEN}[7]${NC} Ubah Bandwidth / hari GB"
+        echo -e "  ${BGREEN}[8]${NC} Ubah Persentase Harga BW ${BCYAN}default: 40%${NC}"
         echo -e "  ${BYELLOW}[s]${NC} Simpan"
         echo ""
         echo -e "  ${BRED}[0]${NC} Kembali"
