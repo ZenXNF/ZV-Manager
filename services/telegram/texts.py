@@ -3,23 +3,35 @@
 #   ZV-Manager Bot - Text Message Builders
 # ============================================================
 
+from pathlib import Path
 from storage import get_server_list, saldo_get, load_tg_server_conf, count_accounts
 from utils import fmt, fmt_bytes
+
+def _status_url() -> str:
+    domain = Path("/etc/zv-manager/domain").read_text().strip() if Path("/etc/zv-manager/domain").exists() else ""
+    ip = Path("/etc/zv-manager/accounts/ipvps").read_text().strip() if Path("/etc/zv-manager/accounts/ipvps").exists() else ""
+    host = domain or ip
+    return f"http://{host}:81" if host else ""
 
 
 def text_home(fname: str, uid: int) -> str:
     servers = get_server_list()
     saldo   = saldo_get(uid)
+    url     = _status_url()
+    cek_line = f"\n🖥️ Cek server: {url}" if url else ""
     return (
         f"⚡ <b>ZV-Manager SSH Tunnel</b>\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
-        f"🖥️ Server   : {len(servers)} server\n"
-        f"🆔 User ID  : <code>{uid}</code>\n"
-        f"💰 Saldo    : Rp{fmt(saldo)}\n"
+        f"🌐 Server  : {len(servers)} server tersedia\n"
+        f"🆔 User ID : <code>{uid}</code>\n"
+        f"💰 Saldo   : Rp{fmt(saldo)}\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
-        f"🔹 SSH Tunnel / Premium\n"
+        f"💎 <b>Layanan Tersedia</b>\n"
+        f"🔹 SSH Tunnel Premium\n"
         f"🔹 Support Bug Host / SNI\n"
-        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"🔹 Masa Aktif Fleksibel\n"
+        f"🔹 Auto Deploy Akun 24 Jam\n"
+        f"━━━━━━━━━━━━━━━━━━━{cek_line}\n"
         f"Halo, {fname}! Pilih menu 👇"
     )
 
@@ -41,11 +53,11 @@ def text_server_list(title: str) -> str:
         bandwidth = f"{bw_hr} GB/hari · {bw_30} GB/30hr" if bw_hr > 0 else "Unlimited"
         out += (
             f"🌐 <b>{tg['TG_SERVER_LABEL']}</b>\n"
-            f"💰 Harga/hr : {hh}\n"
-            f"📅 Harga/30 : {hb}\n"
-            f"📶 BW       : {bandwidth}\n"
-            f"🔢 Limit    : {tg['TG_LIMIT_IP']} IP/akun\n"
-            f"👥 Akun     : {cnt}/{tg['TG_MAX_AKUN']}\n\n"
+            f"💰 Harga/hari: {hh}\n"
+            f"📅 Harga/30hr: {hb}\n"
+            f"📶 Bandwidth: {bandwidth}\n"
+            f"🔢 Limit IP: {tg['TG_LIMIT_IP']} IP/akun\n"
+            f"👥 Total Akun: {cnt}/{tg['TG_MAX_AKUN']}\n\n"
         )
     return out + "Pilih server:"
 
