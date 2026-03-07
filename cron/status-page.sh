@@ -350,8 +350,11 @@ cat > "$OUTPUT" << HTMLEOF
   }
 
   .card-body {
-    display: grid; grid-template-columns: repeat(4, 1fr);
-    padding: 11px 14px; gap: 6px;
+    display: grid; grid-template-columns: repeat(2, 1fr);
+    padding: 11px 14px; gap: 10px;
+  }
+  @media (min-width: 400px) {
+    .card-body { grid-template-columns: repeat(4, 1fr); }
   }
   .stat-label {
     font-size: 10px; color: var(--text3);
