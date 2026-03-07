@@ -8,7 +8,9 @@ from storage import get_server_list, saldo_get, load_tg_server_conf, count_accou
 from utils import fmt, fmt_bytes
 
 def _status_url() -> str:
-    # Baca dari web-host (diset via menu Web Status), fallback ke IP
+    # Hanya tampilkan jika web sudah diinstall (cron ada)
+    if not Path("/etc/cron.d/zv-status-page").exists():
+        return ""
     for p in ["/etc/zv-manager/web-host", "/etc/zv-manager/accounts/ipvps"]:
         try:
             h = Path(p).read_text().strip()

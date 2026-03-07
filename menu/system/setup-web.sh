@@ -68,12 +68,21 @@ CRONEOF
     bash "$STATUS_SCRIPT" 2>/dev/null
 
     echo ""
-    print_ok "Halaman web berhasil diinstall!"
-    echo ""
+    # Default host = IPv4
     local local_ip
     local_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null)
+    echo "$local_ip" > /etc/zv-manager/web-host
+
+    print_ok "Halaman web berhasil diinstall!"
+    echo ""
     echo -e "  ${BWHITE}Akses di :${NC} ${BGREEN}http://${local_ip}:${NGINX_PORT}${NC}"
     echo ""
+    echo -e "  ${BYELLOW}Ingin menggunakan domain custom?${NC}"
+    read -rp "  Ganti ke domain? [y/N]: " ganti
+    if [[ "${ganti,,}" == "y" ]]; then
+        _change_host
+        bash "$STATUS_SCRIPT" 2>/dev/null
+    fi
     press_any_key
 }
 
