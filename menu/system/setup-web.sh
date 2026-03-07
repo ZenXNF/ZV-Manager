@@ -159,23 +159,26 @@ _change_host() {
 }
 
 _open_web_info() {
-    local local_ip host
-    local_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null)
-    host=$(cat /etc/zv-manager/web-host 2>/dev/null || echo "$local_ip")
+    local cur_domain
+    cur_domain=$(cat /etc/zv-manager/domain 2>/dev/null)
+    local ssl_type
+    ssl_type=$(cat /etc/zv-manager/ssl/ssl-type 2>/dev/null || echo "self-signed")
+    local ssl_label
+    [[ "$ssl_type" == "letsencrypt" || "$ssl_type" == "wildcard" ]] &&         ssl_label="${BGREEN}Let's Encrypt ✓${NC}" || ssl_label="${BYELLOW}Self-Signed${NC}"
     clear
     echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
     echo -e " │          ${BWHITE}INFO HALAMAN WEB STATUS${NC}             │"
     echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
     echo ""
     echo -e "  ${BWHITE}Status    :${NC} ${BGREEN}Aktif${NC}"
-    echo -e "  ${BWHITE}URL       :${NC} ${BYELLOW}https://${DOMAIN}/status${NC}"
-    
+    echo -e "  ${BWHITE}URL       :${NC} ${BYELLOW}https://${cur_domain}/status${NC}"
+    echo -e "  ${BWHITE}SSL       :${NC} ${ssl_label}"
     echo -e "  ${BWHITE}Update    :${NC} ${BYELLOW}Otomatis setiap 5 menit${NC}"
     echo ""
     echo -e "  ${BGREEN}[1]${NC} Refresh sekarang"
     echo -e "  ${BGREEN}[2]${NC} Ganti domain/IPv4"
-    echo -e "  ${BRED}[3]${NC} Uninstall"
     echo -e "  ${BGREEN}[3]${NC} Request Let's Encrypt SSL ${BCYAN}(HTTPS gratis)${NC}"
+    echo -e "  ${BRED}[4]${NC} Uninstall"
     echo ""
     echo -e "  ${BRED}[0]${NC} Kembali"
     echo ""
@@ -184,11 +187,23 @@ _open_web_info() {
         1)
             print_info "Refresh halaman..."
             bash "$STATUS_SCRIPT" 2>/dev/null
-            print_ok "Selesai! Buka https://${DOMAIN}/status"
+            print_ok "Selesai! Buka https://${cur_domain}/status"
             press_any_key
             ;;
         2) _change_host; bash "$STATUS_SCRIPT" 2>/dev/null ;;
-        3) _uninstall_web ;;
+        3)
+            if [[ -z "$cur_domain" || "$cur_domain" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                print_error "Set domain dulu via opsi [2] sebelum request SSL!"
+                press_any_key; return
+            fi
+            read -rp "  Request Let's Encrypt untuk ${cur_domain}? [y/N]: " yn
+            [[ "$yn" != "y" && "$yn" != "Y" ]] && return
+            source /etc/zv-manager/core/ssl.sh
+            setup_ssl_letsencrypt "$cur_domain"
+            systemctl reload nginx &>/dev/null || systemctl restart nginx &>/dev/null
+            press_any_key
+            ;;
+        4) _uninstall_web ;;
     esac
 }
 
