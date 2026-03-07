@@ -64,8 +64,8 @@ _edit_server_tg() {
         echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
         echo ""
         echo -e "  ${BWHITE}Label di Bot   :${NC} ${BYELLOW}${TG_SERVER_LABEL}${NC}"
-        echo -e "  ${BWHITE}Harga SSH/hari :${NC} ${BYELLOW}Rp${TG_HARGA_HARI}${NC}
-        echo -e "  ${BWHITE}Harga VMess/hr :${NC} ${BYELLOW}Rp${TG_HARGA_VMESS_HARI}${NC} ${BCYAN}(0 = ikut SSH)${NC}""
+        echo -e "  ${BWHITE}Harga SSH/hari :${NC} ${BYELLOW}Rp${TG_HARGA_HARI}${NC}"
+        echo -e "  ${BWHITE}Harga VMess/hr :${NC} ${BYELLOW}Rp${TG_HARGA_VMESS_HARI}${NC} ${BCYAN}(0 = ikut SSH)${NC}"
         echo -e "  ${BWHITE}Harga / 30 hari:${NC} ${BYELLOW}Rp${TG_HARGA_BULAN}${NC} ${BCYAN}otomatis × 30${NC}"
         echo -e "  ${BWHITE}Bandwidth      :${NC} ${BYELLOW}${TG_BW_TOTAL:-Unlimited}${NC}"
         echo -e "  ${BWHITE}Limit IP/akun  :${NC} ${BYELLOW}${TG_LIMIT_IP} IP${NC}"
