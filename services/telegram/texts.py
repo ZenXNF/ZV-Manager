@@ -43,7 +43,7 @@ def text_server_list(title: str) -> str:
             f"🌐 <b>{tg['TG_SERVER_LABEL']}</b>\n"
             f"💰 Harga/hari  : {hh}\n"
             f"📅 Harga/30hr  : {hb}\n"
-            f"📶 Bandwidth       : {bw_str}\n"
+            f"📶 Bandwidth       : {bandwidth}\n"
             f"🔢 Limit IP    : {tg['TG_LIMIT_IP']} IP/akun\n"
             f"👥 Total Akun  : {cnt}/{tg['TG_MAX_AKUN']}\n\n"
         )
