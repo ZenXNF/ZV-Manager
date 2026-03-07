@@ -35,7 +35,7 @@ from storage import (
     saldo_deduct, saldo_get, save_account_conf, save_vmess_conf,
     state_clear, state_get, state_set
 )
-from texts import text_akun_info, text_home, text_server_list, text_vmess_info
+from texts import text_akun_info, text_home, text_server_list, text_vmess_info, vmess_url_messages, generate_dashboard_html
 from utils import backup_realtime, fmt, fmt_bytes, tail_log, ts_to_wib, zv_log
 
 router = Router()
@@ -125,8 +125,8 @@ async def cb_menu_buat(cb: CallbackQuery):
     await cb.message.edit_text(
         "⚡ <b>Buat Akun</b>\n\nPilih protokol:", parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🔑 SSH Tunnel", callback_data="proto_buat_ssh"),
-             InlineKeyboardButton(text="⚡ VMess",      callback_data="proto_buat_vmess")],
+            [InlineKeyboardButton(text="🔑 SSH",   callback_data="proto_buat_ssh"),
+             InlineKeyboardButton(text="⚡ VMESS", callback_data="proto_buat_vmess")],
             [InlineKeyboardButton(text="↩ Kembali",    callback_data="home")]
         ]))
     await cb.answer()
@@ -136,8 +136,8 @@ async def cb_menu_trial(cb: CallbackQuery):
     await cb.message.edit_text(
         "🎁 <b>Coba Gratis</b>\n\nPilih protokol:", parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🔑 SSH Tunnel", callback_data="proto_trial_ssh"),
-             InlineKeyboardButton(text="⚡ VMess",      callback_data="proto_trial_vmess")],
+            [InlineKeyboardButton(text="🔑 SSH",   callback_data="proto_trial_ssh"),
+             InlineKeyboardButton(text="⚡ VMESS", callback_data="proto_trial_vmess")],
             [InlineKeyboardButton(text="↩ Kembali",    callback_data="home")]
         ]))
     await cb.answer()
@@ -254,8 +254,12 @@ async def cb_vs_trial(cb: CallbackQuery):
     await cb.message.answer(
         text_vmess_info("TRIAL", username, new_uuid, domain, exp_disp,
                         tg["TG_SERVER_LABEL"]),
-        parse_mode="HTML", reply_markup=kb_home_btn()
+        parse_mode="HTML"
     )
+    # Kirim URL terpisah — mudah di-copy tap
+    for url_msg in vmess_url_messages(username, new_uuid, domain):
+        await cb.message.answer(url_msg, parse_mode="HTML")
+    await cb.message.answer("⬆️ Tap kode untuk menyalin, lalu import ke app.", reply_markup=kb_home_btn())
 
 # ── Pilih server VMess → Buat (input durasi) ──────────────────
 @router.callback_query(F.data.startswith("vs_buat_"))
@@ -273,16 +277,18 @@ async def cb_vs_buat(cb: CallbackQuery):
     hh    = f"Rp{fmt(harga)}/hari" if harga > 0 else "Gratis"
     await cb.answer()
     state_clear(uid)
-    state_set(uid, "STATE",    "vmess_await_days")
-    state_set(uid, "SERVER",   sname)
-    state_set(uid, "FNAME",    fname)
+    state_set(uid, "STATE",  "vmess_await_username")
+    state_set(uid, "SERVER", sname)
+    state_set(uid, "FNAME",  fname)
     await cb.message.answer(
         f"⚡ <b>Buat Akun VMess</b>\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
         f"🌐 Server  : <b>{tg['TG_SERVER_LABEL']}</b>\n"
         f"💰 Harga   : {hh}\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
-        f"Berapa hari? (1–365)",
+        f"Ketik username VMess kamu:\n"
+        f"• 4–16 karakter, huruf kecil/angka/strip (-)\n"
+        f"• Contoh: <code>budi-vip</code>",
         parse_mode="HTML", reply_markup=kb_back("home")
     )
 
@@ -311,8 +317,8 @@ async def cb_konfirm_vmess(cb: CallbackQuery):
         if not saldo_deduct(uid, total):
             await cb.message.edit_text("❌ Saldo tidak cukup."); state_clear(uid); return
 
-    suffix   = "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
-    username = f"vmess-{suffix}"
+    # Pakai username custom dari state, fallback ke random
+    username = state_get(uid, "USERNAME_VMESS") or                "vmess-" + "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
     new_uuid = str(_uuid.uuid4())
     now_ts   = int(time.time())
     exp_ts   = now_ts + days * 86400
@@ -350,12 +356,31 @@ async def cb_konfirm_vmess(cb: CallbackQuery):
                 parse_mode="HTML")
         except Exception: pass
 
+    # Generate dashboard HTML
+    import os as _os
+    dashboard_url = ""
+    try:
+        _os.makedirs("/var/www/zv-manager/api", exist_ok=True)
+        html_fname = f"vmess-{username}-{new_uuid}.html"
+        html_path  = f"/var/www/zv-manager/api/{html_fname}"
+        html_content = generate_dashboard_html(
+            username, new_uuid, domain, exp_disp, tg["TG_SERVER_LABEL"]
+        )
+        with open(html_path, "w") as _hf: _hf.write(html_content)
+        dashboard_url = f"https://{domain}/api/{html_fname}"
+    except Exception as _e:
+        pass
+
     await cb.message.edit_text("✅ Akun VMess sedang dibuat...")
     await cb.message.answer(
         text_vmess_info("BELI", username, new_uuid, domain, exp_disp,
-                        tg["TG_SERVER_LABEL"], days, total),
-        parse_mode="HTML", reply_markup=kb_home_btn()
+                        tg["TG_SERVER_LABEL"], days, total, dashboard_url),
+        parse_mode="HTML"
     )
+    # Kirim URL terpisah — mudah di-copy tap
+    for url_msg in vmess_url_messages(username, new_uuid, domain):
+        await cb.message.answer(url_msg, parse_mode="HTML")
+    await cb.message.answer("⬆️ Tap kode untuk menyalin, lalu import ke app.", reply_markup=kb_home_btn())
 
 def load_server_list_safe() -> bool:
     from storage import get_server_list

@@ -43,6 +43,21 @@ _count_active() {
     echo "$count"
 }
 
+# ── Helper: hitung akun VMess aktif per server ───────────
+_count_vmess_active() {
+    local server_name="$1"
+    local now_ts; now_ts=$(date +%s)
+    local count=0
+    for conf in /etc/zv-manager/accounts/vmess/*.conf; do
+        [[ -f "$conf" ]] || continue
+        local srv exp_ts
+        srv=$(grep "^SERVER=" "$conf" | cut -d= -f2 | tr -d '"')
+        exp_ts=$(grep "^EXPIRED_TS=" "$conf" | cut -d= -f2 | tr -d '"')
+        [[ "$srv" == "$server_name" && -n "$exp_ts" && "$exp_ts" -gt "$now_ts" ]] && count=$((count+1))
+    done
+    echo "$count"
+}
+
 # ── Helper: update uptime tracking ───────────────────────
 # Simpan history 30 hari sebagai string "1" (up) atau "0" (down)
 _update_uptime() {
@@ -96,7 +111,8 @@ for conf in "$SERVER_DIR"/*.conf; do
     ms=$(_ping_ms "$IP")
     port_ok=$(_check_port "$IP" "${PORT:-22}")
     akun=$(_count_active "$NAME")
-    TOTAL_AKUN=$((TOTAL_AKUN + akun))
+    vakun=$(_count_vmess_active "$NAME")
+    TOTAL_AKUN=$((TOTAL_AKUN + akun + vakun))
 
     if [[ "$port_ok" == "1" ]]; then
         STATUS="UP"; STATUS_CLASS="up"; TOTAL_UP=$((TOTAL_UP+1))
@@ -131,7 +147,7 @@ for conf in "$SERVER_DIR"/*.conf; do
         </div>
         <div>
           <div class='slbl'>AKUN AKTIF</div>
-          <div class='sval'>${akun}</div>
+          <div class='sval'>${akun} SSH · ${vakun} VMess</div>
         </div>
         <div>
           <div class='slbl'>LAST CHECK</div>

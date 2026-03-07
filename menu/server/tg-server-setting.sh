@@ -32,6 +32,7 @@ _load_tg() {
     TG_MAX_AKUN="500"
     TG_BW_PER_HARI="5"
     TG_BW_HARGA_PCT="40"
+    TG_HARGA_VMESS_HARI="0"
     [[ -f "$f" ]] && source "$f"
 }
 
@@ -46,6 +47,7 @@ TG_LIMIT_IP="${TG_LIMIT_IP}"
 TG_MAX_AKUN="${TG_MAX_AKUN}"
 TG_BW_PER_HARI="${TG_BW_PER_HARI}"
 TG_BW_HARGA_PCT="${TG_BW_HARGA_PCT}"
+TG_HARGA_VMESS_HARI="${TG_HARGA_VMESS_HARI}"
 EOF
     print_ok "Setting disimpan!"
     sleep 1
@@ -62,7 +64,8 @@ _edit_server_tg() {
         echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
         echo ""
         echo -e "  ${BWHITE}Label di Bot   :${NC} ${BYELLOW}${TG_SERVER_LABEL}${NC}"
-        echo -e "  ${BWHITE}Harga / hari   :${NC} ${BYELLOW}Rp${TG_HARGA_HARI}${NC}"
+        echo -e "  ${BWHITE}Harga SSH/hari :${NC} ${BYELLOW}Rp${TG_HARGA_HARI}${NC}
+        echo -e "  ${BWHITE}Harga VMess/hr :${NC} ${BYELLOW}Rp${TG_HARGA_VMESS_HARI}${NC} ${BCYAN}(0 = ikut SSH)${NC}""
         echo -e "  ${BWHITE}Harga / 30 hari:${NC} ${BYELLOW}Rp${TG_HARGA_BULAN}${NC} ${BCYAN}otomatis × 30${NC}"
         echo -e "  ${BWHITE}Bandwidth      :${NC} ${BYELLOW}${TG_BW_TOTAL:-Unlimited}${NC}"
         echo -e "  ${BWHITE}Limit IP/akun  :${NC} ${BYELLOW}${TG_LIMIT_IP} IP${NC}"
@@ -80,7 +83,8 @@ _edit_server_tg() {
         echo -e "  ${BGREEN}[6]${NC} Ubah Maksimal Akun"
         echo -e "  ${BGREEN}[7]${NC} Ubah Bandwidth / hari GB"
         echo -e "  ${BGREEN}[8]${NC} Ubah Persentase Harga BW ${BCYAN}default: 40%${NC}"
-        echo -e "  ${BYELLOW}[s]${NC} Simpan"
+        echo -e "  ${BGREEN}[9]${NC} Ubah Harga VMess / hari ${BCYAN}(0 = ikut harga SSH)${NC}
+        echo -e "  ${BYELLOW}[s]${NC} Simpan""
         echo ""
         echo -e "  ${BRED}[0]${NC} Kembali"
         echo ""
@@ -122,6 +126,10 @@ _edit_server_tg() {
                 if [[ "$v" =~ ^[0-9]+$ ]] && (( v >= 1 && v <= 100 )); then
                     TG_BW_HARGA_PCT="$v"
                 fi
+                ;;
+            9)
+                read -rp "  Harga VMess/hari (0=ikut SSH) [${TG_HARGA_VMESS_HARI}]: " v
+                [[ "$v" =~ ^[0-9]+$ ]] && TG_HARGA_VMESS_HARI="$v"
                 ;;
             s|S) _save_tg "$name" ;;
             0) break ;;

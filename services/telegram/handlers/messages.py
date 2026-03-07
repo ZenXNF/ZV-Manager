@@ -275,6 +275,41 @@ async def handle_message(msg: Message):
 
 
     # ── VMess: input durasi ────────────────────────────────
+    if state == "vmess_await_username":
+        import re
+        uname = text.strip().lower()
+        # Validasi: 4-20 char, hanya huruf kecil, angka, strip
+        if not re.match(r'^[a-z0-9][a-z0-9\-]{2,18}[a-z0-9]$', uname):
+            await msg.answer(
+                "❌ Username tidak valid!\n\n"
+                "• 4–20 karakter\n"
+                "• Hanya huruf kecil, angka, strip (-)\n"
+                "• Tidak boleh mulai/akhir dengan strip\n"
+                "• Contoh: <code>budi-vip</code>",
+                parse_mode="HTML"
+            ); return
+        # Cek sudah ada
+        from pathlib import Path as _P
+        if _P(f"/etc/zv-manager/accounts/vmess/{uname}.conf").exists():
+            await msg.answer(f"❌ Username <code>{uname}</code> sudah dipakai, coba yang lain.", parse_mode="HTML"); return
+        sname = state_get(uid, "SERVER")
+        tg    = load_tg_server_conf(sname)
+        harga = int(tg.get("TG_HARGA_VMESS_HARI","0") or tg.get("TG_HARGA_HARI","0"))
+        hh    = f"Rp{fmt(harga)}/hari" if harga > 0 else "Gratis"
+        state_set(uid, "USERNAME_VMESS", uname)
+        state_set(uid, "STATE", "vmess_await_days")
+        await msg.answer(
+            f"⚡ <b>Buat Akun VMess</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━\n"
+            f"👤 Username : <code>{uname}</code>\n"
+            f"🌐 Server   : {tg['TG_SERVER_LABEL']}\n"
+            f"💰 Harga    : {hh}\n"
+            f"━━━━━━━━━━━━━━━━━━━\n"
+            f"Berapa hari? (1–365)",
+            parse_mode="HTML"
+        )
+        return
+
     if state == "vmess_await_days":
         if not text.isdigit() or not (1 <= int(text) <= 365):
             await msg.answer("❌ Masukkan angka antara 1 sampai 365."); return

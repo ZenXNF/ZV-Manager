@@ -99,59 +99,158 @@ def text_akun_info(tipe: str, username: str, password: str, domain: str,
         f"{harga_line}"
     )
 
-def text_vmess_info(tipe: str, username: str, uuid: str, domain: str,
-                    exp_display: str, server_label: str,
-                    days: int = 0, total: int = 0) -> str:
-    """Pesan info akun VMess setelah beli/trial."""
+def vmess_build_urls(username: str, uuid: str, domain: str):
+    """Kembalikan (url_tls, url_http, url_grpc)."""
     import base64, json
-    is_trial = (tipe == "TRIAL")
-    header = "🌟 TRIAL VMESS PREMIUM 🌟" if is_trial else "✅ AKUN VMESS PREMIUM"
-
     def _url(port, tls, net, path, label):
         obj = {"v":"2","ps":label,"add":domain,"port":str(port),
                "id":uuid,"aid":"0","net":net,"type":"none",
-               "host":domain if net=="ws" else "","path":path,
-               "tls":tls}
+               "host":domain if net=="ws" else "","path":path,"tls":tls}
         return "vmess://" + base64.b64encode(json.dumps(obj).encode()).decode()
+    return (
+        _url(443, "tls",  "ws",   "/vmess",     f"{username}-TLS"),
+        _url(80,  "none", "ws",   "/vmess",     f"{username}-HTTP"),
+        _url(443, "tls",  "grpc", "vmess-grpc", f"{username}-gRPC"),
+    )
 
-    url_tls  = _url(443,  "tls",  "ws",   "/vmess",      f"{username}-TLS")
-    url_http = _url(80,   "none", "ws",   "/vmess",      f"{username}-HTTP")
-    url_grpc = _url(443, "tls",  "grpc", "vmess-grpc",  f"{username}-gRPC")
-
+def text_vmess_info(tipe: str, username: str, uuid: str, domain: str,
+                    exp_display: str, server_label: str,
+                    days: int = 0, total: int = 0,
+                    dashboard_url: str = "") -> str:
+    """Pesan info akun VMess — tanpa URL (dikirim terpisah via vmess_url_messages)."""
+    from utils import fmt
+    is_trial = (tipe == "TRIAL")
+    header   = "🌟 TRIAL VMESS PREMIUM 🌟" if is_trial else "✅ AKUN VMESS PREMIUM"
     lines = [
         f"<b>{header}</b>",
-        "",
-        "🔹 <b>Informasi Akun</b>",
-        "┌─────────────────────",
-        f"│ Username : <code>{username}</code>",
-        f"│ Domain   : <code>{domain}</code>",
-        f"│ UUID     : <code>{uuid}</code>",
-        "│ Port TLS : 443",
-        "│ Port HTTP: 80",
-        "│ Alter ID : 0",
-        "│ Network  : Websocket / gRPC",
-        "│ Path WS  : /vmess",
-        "│ Path gRPC: vmess-grpc",
-        "└─────────────────────",
-        "",
-        "🔐 <b>URL VMESS TLS (WS)</b>",
-        f"<code>{url_tls}</code>",
-        "",
-        "🔓 <b>URL VMESS HTTP (WS)</b>",
-        f"<code>{url_http}</code>",
-        "",
-        "🔒 <b>URL VMESS gRPC</b>",
-        f"<code>{url_grpc}</code>",
-        "",
-        "┌─────────────────────",
+        "━━━━━━━━━━━━━━━━━━━",
+        f"⚡ Username : <code>{username}</code>",
+        f"🌐 Domain   : <code>{domain}</code>",
+        f"🔑 UUID     : <code>{uuid}</code>",
+        "━━━━━━━━━━━━━━━━━━━",
+        "📡 Port TLS  : 443 (WS + gRPC)",
+        "📡 Port HTTP : 80 (WS)",
+        "📎 Path WS   : /vmess",
+        "📎 Path gRPC : vmess-grpc",
+        "━━━━━━━━━━━━━━━━━━━",
     ]
     if is_trial:
-        lines.append("│ Expired : 30 menit")
+        lines.append("⏳ Expired : 30 menit")
     else:
-        lines.append(f"│ Expired : {exp_display}")
+        lines.append(f"⏳ Expired : {exp_display}")
         if days and total:
-            from utils import fmt
-            lines.append(f"│ Durasi  : {days} hari — Rp{fmt(total)}")
-    lines += ["└─────────────────────", "", "✨ Selamat menikmati layanan! ✨"]
+            lines.append(f"💸 Dibayar : {days} hari — Rp{fmt(total)}")
+    if dashboard_url:
+        lines += ["━━━━━━━━━━━━━━━━━━━",
+                  f"🖥️ Dashboard : {dashboard_url}"]
+    lines += ["━━━━━━━━━━━━━━━━━━━",
+              "⬇️ Salin URL di bawah lalu import ke app"]
     return "\n".join(lines)
+
+def vmess_url_messages(username: str, uuid: str, domain: str) -> list:
+    """Kembalikan list pesan URL VMess — tiap URL 1 pesan berisi <code> saja."""
+    url_tls, url_http, url_grpc = vmess_build_urls(username, uuid, domain)
+    return [
+        f"🔐 <b>URL VMESS TLS</b>\n<code>{url_tls}</code>",
+        f"🔓 <b>URL VMESS HTTP</b>\n<code>{url_http}</code>",
+        f"🔒 <b>URL VMESS gRPC</b>\n<code>{url_grpc}</code>",
+    ]
+
+def generate_dashboard_html(username: str, uuid: str, domain: str,
+                             exp_display: str, server_label: str,
+                             is_trial: bool = False) -> str:
+    """Generate HTML dashboard akun VMess."""
+    url_tls, url_http, url_grpc = vmess_build_urls(username, uuid, domain)
+    trial_badge = ' <span style="background:#f97316;color:#fff;padding:2px 8px;border-radius:20px;font-size:12px">TRIAL</span>' if is_trial else ""
+    return f"""<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VMess Info — {username}</title>
+<style>
+  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+  body {{ background: #0f172a; color: #e2e8f0; font-family: system-ui, sans-serif;
+         min-height: 100vh; padding: 20px; }}
+  .card {{ background: #1e293b; border-radius: 16px; padding: 24px;
+           max-width: 600px; margin: 0 auto; box-shadow: 0 4px 24px rgba(0,0,0,.4); }}
+  h1 {{ font-size: 20px; color: #38bdf8; margin-bottom: 4px; }}
+  .badge {{ display: inline-block; background: #6366f1; color: #fff;
+            padding: 2px 10px; border-radius: 20px; font-size: 12px; margin-bottom: 16px; }}
+  .section {{ margin: 16px 0; }}
+  .section h2 {{ font-size: 13px; color: #94a3b8; text-transform: uppercase;
+                letter-spacing: 1px; margin-bottom: 8px; }}
+  .row {{ display: flex; justify-content: space-between; align-items: center;
+          padding: 8px 0; border-bottom: 1px solid #334155; gap: 8px; }}
+  .row:last-child {{ border-bottom: none; }}
+  .label {{ color: #94a3b8; font-size: 13px; flex-shrink: 0; }}
+  .val {{ font-family: monospace; font-size: 13px; color: #f1f5f9;
+          word-break: break-all; text-align: right; }}
+  .url-block {{ background: #0f172a; border-radius: 10px; padding: 12px; margin: 8px 0; }}
+  .url-label {{ font-size: 12px; color: #38bdf8; margin-bottom: 6px; }}
+  .url-text {{ font-family: monospace; font-size: 11px; color: #a5f3fc;
+               word-break: break-all; }}
+  .copy-btn {{ display: block; width: 100%; margin-top: 8px; padding: 8px;
+               background: #0ea5e9; color: #fff; border: none; border-radius: 8px;
+               cursor: pointer; font-size: 13px; }}
+  .copy-btn:active {{ background: #0284c7; }}
+  .expired {{ color: #fb923c; font-weight: 600; }}
+  footer {{ text-align: center; margin-top: 24px; color: #475569; font-size: 12px; }}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>⚡ VMess Account{trial_badge}</h1>
+  <div class="badge">{server_label}</div>
+
+  <div class="section">
+    <h2>Informasi Akun</h2>
+    <div class="row"><span class="label">Username</span><span class="val">{username}</span></div>
+    <div class="row"><span class="label">UUID</span><span class="val">{uuid}</span></div>
+    <div class="row"><span class="label">Domain</span><span class="val">{domain}</span></div>
+    <div class="row"><span class="label">Expired</span><span class="val expired">{exp_display}</span></div>
+  </div>
+
+  <div class="section">
+    <h2>Konfigurasi</h2>
+    <div class="row"><span class="label">Port TLS</span><span class="val">443</span></div>
+    <div class="row"><span class="label">Port HTTP</span><span class="val">80</span></div>
+    <div class="row"><span class="label">Network</span><span class="val">WebSocket / gRPC</span></div>
+    <div class="row"><span class="label">Path WS</span><span class="val">/vmess</span></div>
+    <div class="row"><span class="label">Path gRPC</span><span class="val">vmess-grpc</span></div>
+    <div class="row"><span class="label">Alter ID</span><span class="val">0</span></div>
+    <div class="row"><span class="label">TLS</span><span class="val">TLS</span></div>
+  </div>
+
+  <div class="section">
+    <h2>Import URL</h2>
+    <div class="url-block">
+      <div class="url-label">🔐 VMess TLS (WS)</div>
+      <div class="url-text" id="u1">{url_tls}</div>
+      <button class="copy-btn" onclick="cp('u1',this)">📋 Salin</button>
+    </div>
+    <div class="url-block">
+      <div class="url-label">🔓 VMess HTTP (WS)</div>
+      <div class="url-text" id="u2">{url_http}</div>
+      <button class="copy-btn" onclick="cp('u2',this)">📋 Salin</button>
+    </div>
+    <div class="url-block">
+      <div class="url-label">🔒 VMess gRPC</div>
+      <div class="url-text" id="u3">{url_grpc}</div>
+      <button class="copy-btn" onclick="cp('u3',this)">📋 Salin</button>
+    </div>
+  </div>
+</div>
+<footer>ZV-Manager • {domain}</footer>
+<script>
+function cp(id,btn){{
+  var t=document.getElementById(id).innerText;
+  navigator.clipboard.writeText(t).then(function(){{
+    btn.textContent='✅ Tersalin!';
+    setTimeout(function(){{btn.textContent='📋 Salin';}},2000);
+  }});
+}}
+</script>
+</body>
+</html>"""
 
