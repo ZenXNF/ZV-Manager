@@ -2,7 +2,7 @@
 # ============================================================
 #   ZV-Manager Bot - User Handlers
 #   /start, home, buat akun, trial, akun saya,
-#   perpanjang, tambah kuota, riwayat, konfirmasi
+#   perpanjang, tambah bandwidth, riwayat, konfirmasi
 # ============================================================
 
 import os
@@ -45,7 +45,7 @@ async def notify_admin(bot, tipe: str, fname: str, uid: int,
     if not ADMIN_ID or uid == ADMIN_ID:
         return
     icons  = {"BELI": "🛒", "RENEW": "🔄", "BW": "📶"}
-    labels = {"BELI": "Pembelian Baru", "RENEW": "Perpanjang Akun", "BW": "Tambah Kuota"}
+    labels = {"BELI": "Pembelian Baru", "RENEW": "Perpanjang Akun", "BW": "Tambah Bandwidth"}
     icon   = icons.get(tipe, "💡")
     label  = labels.get(tipe, "Transaksi")
     extra  = f"\n📶 Tambah   : {days_or_gb} GB" if tipe == "BW" else f"\n📅 Durasi   : {days_or_gb} hari"
@@ -437,7 +437,7 @@ async def cb_konfirm_renew(cb: CallbackQuery):
     )
 
 
-# ── Tambah Kuota Bandwidth ───────────────────────────────────
+# ── Tambah Bandwidth Bandwidth ───────────────────────────────────
 @router.callback_query(F.data == "m_tambah_bw")
 async def cb_tambah_bw(cb: CallbackQuery):
     uid       = cb.from_user.id
@@ -454,7 +454,7 @@ async def cb_tambah_bw(cb: CallbackQuery):
     except Exception: pass
     if not akun_list:
         await cb.message.edit_text(
-            "📶 <b>Tambah Kuota</b>\n\nTidak ada akun yang mendukung fitur kuota.",
+            "📶 <b>Tambah Bandwidth</b>\n\nTidak ada akun yang mendukung fitur bandwidth.",
             parse_mode="HTML", reply_markup=kb_home_btn()
         ); return
     b = InlineKeyboardBuilder()
@@ -464,7 +464,7 @@ async def cb_tambah_bw(cb: CallbackQuery):
             row.append(InlineKeyboardButton(text=akun_list[i+1], callback_data=f"bw_akun_{akun_list[i+1]}"))
         b.row(*row)
     b.row(InlineKeyboardButton(text="↩ Kembali", callback_data="m_akun"))
-    await cb.message.edit_text("➕ <b>Tambah Kuota</b>\n\nPilih akun:",
+    await cb.message.edit_text("➕ <b>Tambah Bandwidth</b>\n\nPilih akun:",
                                 parse_mode="HTML", reply_markup=b.as_markup())
 
 @router.callback_query(F.data.startswith("bw_akun_"))
@@ -488,7 +488,7 @@ async def cb_bw_akun(cb: CallbackQuery):
     pct          = min(int(bw_used * 100 / bw_quota), 100) if bw_quota > 0 else 0
     filled       = pct // 10
     bar          = "▓" * filled + "░" * (10 - filled)
-    status_str   = "🚫 Diblokir (Kuota Habis)" if bw_blocked else "✅ Aktif"
+    status_str   = "🚫 Diblokir (Bandwidth Habis)" if bw_blocked else "✅ Aktif"
     p1 = harga_per_gb * 1; p5 = harga_per_gb * 5; p10 = harga_per_gb * 10
     state_clear(uid)
     state_set(uid, "STATE",    "bw_pilih_paket")
@@ -502,7 +502,7 @@ async def cb_bw_akun(cb: CallbackQuery):
     b.row(InlineKeyboardButton(text=f"➕ 10 GB — Rp{fmt(p10)}", callback_data=f"bw_beli_10_{username}"))
     b.row(InlineKeyboardButton(text="↩ Kembali", callback_data="m_tambah_bw"))
     await cb.message.edit_text(
-        f"➕ <b>Tambah Kuota</b>\n"
+        f"➕ <b>Tambah Bandwidth</b>\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
         f"👤 Username : <code>{username}</code>\n"
         f"📶 Terpakai : {fmt_bytes(bw_used)} / {fmt_bytes(bw_quota)}\n"
@@ -540,10 +540,10 @@ async def cb_bw_beli(cb: CallbackQuery):
     state_set(uid, "BW_GB",    str(gb))
     state_set(uid, "BW_TOTAL", str(total))
     await cb.message.edit_text(
-        f"➕ <b>Konfirmasi Tambah Kuota</b>\n"
+        f"➕ <b>Konfirmasi Tambah Bandwidth</b>\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
         f"👤 Username     : <code>{username}</code>\n"
-        f"📶 Tambah Kuota : {gb} GB\n"
+        f"📶 Tambah Bandwidth : {gb} GB\n"
         f"💸 Total        : Rp{fmt(total)}\n"
         f"💰 Saldo        : Rp{fmt(saldo)}\n"
         f"━━━━━━━━━━━━━━━━━━━\nLanjutkan?",
@@ -575,13 +575,13 @@ async def cb_konfirm_bw(cb: CallbackQuery):
     state_clear(uid)
     zv_log(f"BW_BELI: {uid} user={username} gb={gb} total={total}")
     new_quota = int(ac["BW_QUOTA_BYTES"])
-    await cb.message.edit_text("✅ Kuota ditambahkan!")
+    await cb.message.edit_text("✅ Bandwidth ditambahkan!")
     await cb.message.answer(
-        f"➕ <b>Kuota Berhasil Ditambahkan</b>\n"
+        f"➕ <b>Bandwidth Berhasil Ditambahkan</b>\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
         f"👤 Username     : <code>{username}</code>\n"
         f"📶 Ditambah     : {gb} GB\n"
-        f"📊 Total Kuota  : {fmt_bytes(new_quota)}\n"
+        f"📊 Total Bandwidth  : {fmt_bytes(new_quota)}\n"
         f"📈 Terpakai     : {fmt_bytes(old_used)}\n"
         f"💸 Dibayar      : Rp{fmt(total)}\n"
         f"💰 Sisa Saldo   : Rp{fmt(saldo_get(uid))}\n"
@@ -660,7 +660,7 @@ async def cb_history(cb: CallbackQuery):
                 user  = re.search(r"user=(\S+)", line).group(1)
                 gb    = re.search(r"gb=(\d+)", line).group(1)
                 total = re.search(r"total=(\d+)", line).group(1)
-                entries.append(f"📶 Tambah Kuota <code>{user}</code>\n   +{gb} GB — Rp{fmt(total)}\n   <i>{ts}</i>")
+                entries.append(f"📶 Tambah Bandwidth <code>{user}</code>\n   +{gb} GB — Rp{fmt(total)}\n   <i>{ts}</i>")
             except Exception: pass
     if not entries:
         await cb.message.edit_text(

@@ -242,7 +242,7 @@ async def handle_message(msg: Message):
         hh          = f"Rp{fmt(harga)}/hari" if harga > 0 else "Gratis"
         bw_per_hari = int(tg.get("TG_BW_PER_HARI", "5") or "5")
         bw_total_gb = days * bw_per_hari
-        bw_line     = f"\n📶 Kuota      : {bw_total_gb} GB" if bw_per_hari > 0 else ""
+        bw_line     = f"\n📶 Bandwidth      : {bw_total_gb} GB" if bw_per_hari > 0 else ""
         if harga > 0 and saldo < total:
             await msg.answer(
                 f"📋 <b>Konfirmasi Pesanan</b>\n━━━━━━━━━━━━━━━━━━━\n"

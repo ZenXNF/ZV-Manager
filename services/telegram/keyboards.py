@@ -22,7 +22,7 @@ def kb_home() -> InlineKeyboardMarkup:
     )
     b.row(
         InlineKeyboardButton(text="📋 Riwayat Saldo", callback_data="m_saldo_history"),
-        InlineKeyboardButton(text="📶 Tambah Kuota",  callback_data="m_tambah_bw")
+        InlineKeyboardButton(text="📶 Tambah Bandwidth",  callback_data="m_tambah_bw")
     )
     return b.as_markup()
 

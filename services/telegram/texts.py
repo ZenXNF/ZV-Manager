@@ -38,12 +38,12 @@ def text_server_list(title: str) -> str:
         hb   = f"Rp{fmt(tg['TG_HARGA_BULAN'])}" if tg["TG_HARGA_BULAN"] != "0" else "Hubungi admin"
         bw_hr = int(tg.get("TG_BW_PER_HARI", "5") or "5")
         bw_30 = bw_hr * 30
-        kuota = f"{bw_hr} GB/hari · {bw_30} GB/30hr" if bw_hr > 0 else "Unlimited"
+        bandwidth = f"{bw_hr} GB/hari · {bw_30} GB/30hr" if bw_hr > 0 else "Unlimited"
         out += (
             f"🌐 <b>{tg['TG_SERVER_LABEL']}</b>\n"
             f"💰 Harga/hari  : {hh}\n"
             f"📅 Harga/30hr  : {hb}\n"
-            f"📶 Kuota       : {kuota}\n"
+            f"📶 Bandwidth       : {bw_str}\n"
             f"🔢 Limit IP    : {tg['TG_LIMIT_IP']} IP/akun\n"
             f"👥 Total Akun  : {cnt}/{tg['TG_MAX_AKUN']}\n\n"
         )

@@ -73,7 +73,7 @@ for conf_file in "$ACCOUNT_DIR"/*.conf; do
         _bw_block "$user"
         used_fmt=$(_bw_fmt "$used")
         quota_fmt=$(_bw_fmt "$quota")
-        _tg_send "$tg_uid" "🚫 <b>Kuota Habis!</b>%0A━━━━━━━━━━━━━━━━━━━%0A👤 Username : <code>${user}</code>%0A📶 Terpakai : ${used_fmt} / ${quota_fmt}%0A━━━━━━━━━━━━━━━━━━━%0ASilahkan tambah kuota melalui bot."
+        _tg_send "$tg_uid" "🚫 <b>Bandwidth Habis!</b>%0A━━━━━━━━━━━━━━━━━━━%0A👤 Username : <code>${user}</code>%0A📶 Terpakai : ${used_fmt} / ${quota_fmt}%0A━━━━━━━━━━━━━━━━━━━%0ASilahkan tambah bandwidth melalui bot."
         _bw_log "QUOTA_EXCEEDED: $user used=${used} quota=${quota}"
         continue
     fi
@@ -89,11 +89,11 @@ for conf_file in "$ACCOUNT_DIR"/*.conf; do
             sisa_fmt=$(_bw_fmt "$sisa")
             used_fmt=$(_bw_fmt "$used")
             quota_fmt=$(_bw_fmt "$quota")
-            _tg_send "$tg_uid" "⚠️ <b>Kuota Hampir Habis!</b>%0A━━━━━━━━━━━━━━━━━━━%0A👤 Username : <code>${user}</code>%0A📶 Terpakai : ${used_fmt} / ${quota_fmt}%0A📊 Persentase: ${pct}%%25%0A💾 Sisa      : ${sisa_fmt}%0A━━━━━━━━━━━━━━━━━━━%0ASilahkan tambah kuota sebelum habis!"
+            _tg_send "$tg_uid" "⚠️ <b>Bandwidth Hampir Habis!</b>%0A━━━━━━━━━━━━━━━━━━━%0A👤 Username : <code>${user}</code>%0A📶 Terpakai : ${used_fmt} / ${quota_fmt}%0A📊 Persentase: ${pct}%%25%0A💾 Sisa      : ${sisa_fmt}%0A━━━━━━━━━━━━━━━━━━━%0ASilahkan tambah bandwidth sebelum habis!"
             _bw_log "WARN_80: $user pct=${pct}% used=${used}"
         fi
     else
-        # Reset warning flag jika sudah turun di bawah 80% (setelah tambah kuota)
+        # Reset warning flag jika sudah turun di bawah 80% (setelah tambah bandwidth)
         rm -f "$warn_file" 2>/dev/null
     fi
 done
