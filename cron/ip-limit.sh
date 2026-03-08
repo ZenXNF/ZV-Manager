@@ -36,22 +36,24 @@ _get_ip_limit() {
 # Korelasi nginx + xray log → {user: [IP1, IP2, ...]}
 # Window: 3 menit terakhir
 _get_user_ips() {
-    python3 - "$NGINX_LOG" "$XRAY_LOG" << 'PYEOF'
-import sys, re
-from datetime import datetime, timezone, timedelta
+    python3 - "$NGINX_LOG" "$XRAY_LOG" << 'PYEOF2'
+import sys, re, json
+from datetime import datetime, timedelta
 
 nginx_log = sys.argv[1]
 xray_log  = sys.argv[2]
 now       = datetime.now()
-window    = timedelta(minutes=3)
+window    = timedelta(minutes=5)
 
-# Parse nginx log: IP + timestamp untuk /vmess
-# Format: 1.2.3.4 - - [08/Mar/2026:08:55:29 +0700] "GET /vmess HTTP/1.1" 101
 nginx_re = re.compile(
     r'^(\S+) \S+ \S+ \[(\d+/\w+/\d+:\d+:\d+:\d+) ([+-]\d{4})\] '
     r'"(?:GET|POST) /vmess[\s/].*?" (101)'
 )
-# {timestamp_second: [ip, ...]}
+xray_re = re.compile(
+    r'^(\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2})\.\d+ from 127\.0\.0\.1:\d+ '
+    r'accepted .+ email: (\S+@vmess)'
+)
+
 nginx_map = {}
 try:
     with open(nginx_log) as f:
@@ -59,24 +61,13 @@ try:
             m = nginx_re.match(line)
             if not m: continue
             ip, ts_str, tz_str, _ = m.groups()
-            try:
-                dt = datetime.strptime(f"{ts_str} {tz_str}", "%d/%b/%Y:%H:%M:%S %z")
-                dt_local = dt.astimezone().replace(tzinfo=None)
-                if now - dt_local > window: continue
-                key = dt_local.strftime("%Y/%m/%d %H:%M:%S")
-                nginx_map.setdefault(key, []).append(ip)
-            except Exception:
-                pass
+            dt = datetime.strptime(f"{ts_str} {tz_str}", "%d/%b/%Y:%H:%M:%S %z").astimezone().replace(tzinfo=None)
+            if now - dt > window: continue
+            key = dt.strftime("%Y/%m/%d %H:%M:%S")
+            nginx_map.setdefault(key, []).append(ip)
 except Exception:
     pass
 
-# Parse xray log: timestamp + email untuk vmess-ws
-# Format: 2026/03/08 08:55:29.123456 from 127.0.0.1:PORT accepted ... email: USER@vmess
-xray_re = re.compile(
-    r'^(\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2})\.\d+ from 127\.0\.0\.1:\d+ '
-    r'accepted .+ email: (\S+@vmess)'
-)
-# {email: set(IPs)}
 user_ips = {}
 try:
     with open(xray_log) as f:
@@ -84,28 +75,19 @@ try:
             m = xray_re.match(line)
             if not m: continue
             ts_key, email = m.groups()
-            # Cari di nginx_map dengan window ±2 detik
-            matched_ips = []
-            try:
-                base_dt = datetime.strptime(ts_key, "%Y/%m/%d %H:%M:%S")
-                if now - base_dt > window: continue
-                for delta in range(-2, 3):
-                    check_dt = base_dt + timedelta(seconds=delta)
-                    check_key = check_dt.strftime("%Y/%m/%d %H:%M:%S")
-                    matched_ips.extend(nginx_map.get(check_key, []))
-            except Exception:
-                pass
+            base_dt = datetime.strptime(ts_key, "%Y/%m/%d %H:%M:%S")
+            if now - base_dt > window: continue
             username = email.replace("@vmess", "")
-            if username not in user_ips:
-                user_ips[username] = set()
-            user_ips[username].update(matched_ips)
+            for delta in range(-2, 3):
+                check = (base_dt + timedelta(seconds=delta)).strftime("%Y/%m/%d %H:%M:%S")
+                user_ips.setdefault(username, set()).update(nginx_map.get(check, []))
 except Exception:
     pass
 
-import json
 print(json.dumps({k: list(v) for k, v in user_ips.items()}))
-PYEOF
+PYEOF2
 }
+
 
 # Kick user via Xray API
 _kick_user() {
