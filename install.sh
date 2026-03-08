@@ -105,6 +105,8 @@ case "$install_mode" in
             chmod +x "$INSTALL_DIR/checker/zv-checker" 2>/dev/null
             cp "$INSTALL_DIR/zv-agent.sh" /usr/local/bin/zv-agent
             chmod +x /usr/local/bin/zv-agent
+            cp "$INSTALL_DIR/zv-vmess-agent.sh" /usr/local/bin/zv-vmess-agent
+            chmod +x /usr/local/bin/zv-vmess-agent
 
             # Extract backup — timpa data yang ada
             echo "[ INFO ] Merestore data dari backup..."
@@ -144,6 +146,8 @@ if [[ "$install_mode" == "1" ]]; then
     chmod +x "$INSTALL_DIR/checker/zv-checker" 2>/dev/null
     cp "$INSTALL_DIR/zv-agent.sh" /usr/local/bin/zv-agent
     chmod +x /usr/local/bin/zv-agent
+    cp "$INSTALL_DIR/zv-vmess-agent.sh" /usr/local/bin/zv-vmess-agent
+    chmod +x /usr/local/bin/zv-vmess-agent
 fi
 
 echo "[ INFO ] File berhasil disalin"

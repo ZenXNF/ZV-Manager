@@ -63,6 +63,7 @@ cp config.conf /etc/zv-manager/
 cp install.sh /etc/zv-manager/
 cp update.sh /etc/zv-manager/
 cp zv-agent.sh /etc/zv-manager/
+cp zv-vmess-agent.sh /etc/zv-manager/
 NEW_HASH=$(git -C /root/ZV-Manager rev-parse --short HEAD 2>/dev/null || echo "unknown")
 sed -i "s/^COMMIT_HASH=.*/COMMIT_HASH=\"${NEW_HASH}\"/" /etc/zv-manager/config.conf
 echo " ✔  Script diperbarui (#${NEW_HASH})"
@@ -71,6 +72,10 @@ echo " ✔  Script diperbarui (#${NEW_HASH})"
 cp /etc/zv-manager/zv-agent.sh /usr/local/bin/zv-agent
 chmod +x /usr/local/bin/zv-agent
 echo " ✔  zv-agent diperbarui"
+# --- Update zv-vmess-agent binary ---
+cp /etc/zv-manager/zv-vmess-agent.sh /usr/local/bin/zv-vmess-agent
+chmod +x /usr/local/bin/zv-vmess-agent
+echo " ✔  zv-vmess-agent diperbarui"
 
 # --- Update Telegram bot (Python) ---
 if [[ -d /etc/zv-manager/services/telegram ]]; then
