@@ -126,7 +126,7 @@ cfg = {
   "stats": {},
   "api": {"tag": "api", "services": ["StatsService"]},
   "policy": {
-    "levels": {"0": {"statsUserUplink": True, "statsUserDownlink": True}},
+    "levels": {"0": {"statsUserUplink": True, "statsUserDownlink": True, "statsUserOnline": True}},
     "system": {"statsInboundUplink": True, "statsInboundDownlink": True,
                "statsOutboundUplink": True, "statsOutboundDownlink": True}
   },
