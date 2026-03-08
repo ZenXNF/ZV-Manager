@@ -340,7 +340,6 @@ async def _handle_state(msg: Message, uid: int, text: str, state: str):
 
     # ── VMess: input durasi ────────────────────────────────
     if state == "vmess_await_username":
-        import re
         uname = text.strip().lower()
         # Validasi: 4-20 char, hanya huruf kecil, angka, strip
         if not re.match(r'^[a-z0-9][a-z0-9\-]{2,18}[a-z0-9]$', uname):
