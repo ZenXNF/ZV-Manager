@@ -21,20 +21,23 @@ mkdir -p "$KICK_STATE" "$TG_STATE_DIR"
 
 _log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOG"; }
 
-# Ambil TG_LIMIT_IP dari server conf lokal
+# Ambil TG_LIMIT_IP dari server conf berdasarkan SERVER di vmess conf
 _get_ip_limit() {
-    local limit=0
-    local local_ip
-    local_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null)
-    for sc in /etc/zv-manager/servers/*.tg.conf; do
-        [[ -f "$sc" ]] || continue
-        local sc_ip
-        sc_ip=$(grep "^IP=" "$sc" | cut -d= -f2 | tr -d '"')
-        if [[ "$sc_ip" == "$local_ip" || -z "$local_ip" ]]; then
-            limit=$(grep "^TG_LIMIT_IP=" "$sc" | cut -d= -f2 | tr -d '"')
-            break
-        fi
-    done
+    local username="$1"
+    local server_name limit=0
+
+    # Coba ambil SERVER dari vmess conf
+    server_name=$(grep "^SERVER=" "${VMESS_DIR}/${username}.conf" 2>/dev/null | cut -d= -f2 | tr -d '"')
+
+    if [[ -n "$server_name" && -f "/etc/zv-manager/servers/${server_name}.tg.conf" ]]; then
+        limit=$(grep "^TG_LIMIT_IP=" "/etc/zv-manager/servers/${server_name}.tg.conf" | cut -d= -f2 | tr -d '"')
+    else
+        # Fallback: pakai tg.conf pertama
+        local sc
+        sc=$(ls /etc/zv-manager/servers/*.tg.conf 2>/dev/null | head -1)
+        [[ -f "$sc" ]] && limit=$(grep "^TG_LIMIT_IP=" "$sc" | cut -d= -f2 | tr -d '"')
+    fi
+
     echo "${limit:-0}"
 }
 
@@ -121,9 +124,7 @@ _tg_notify_ip() {
 _main() {
     [[ ! -d "$VMESS_DIR" ]] && exit 0
 
-    local ip_limit
-    ip_limit=$(_get_ip_limit)
-    [[ "$ip_limit" == "0" ]] && exit 0  # unlimited, skip
+    # ip_limit diambil per-user (bisa beda server)
 
     for conf in "${VMESS_DIR}"/*.conf; do
         [[ -f "$conf" ]] || continue
@@ -135,6 +136,11 @@ _main() {
         is_trial=$(grep "^IS_TRIAL=" "$conf" | cut -d= -f2 | tr -d '"')
 
         [[ -z "$username" || -z "$uuid" ]] && continue
+
+        # Ambil limit IP untuk user ini
+        local ip_limit
+        ip_limit=$(_get_ip_limit "$username")
+        [[ "${ip_limit:-0}" == "0" ]] && continue
 
         # Cek apakah sedang dalam cooldown kick (30 detik)
         local kick_flag="${KICK_STATE}/${username}.kick"
