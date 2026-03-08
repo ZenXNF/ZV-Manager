@@ -30,7 +30,7 @@ from keyboards import (
 )
 from middleware import _throttle
 from storage import (
-    already_trial, already_trial_vmess, count_accounts, invalidate_account_cache,
+    already_trial, already_trial_vmess, count_ssh_accounts, count_vmess_accounts, invalidate_account_cache,
     load_account_conf, load_server_conf, load_tg_server_conf, load_vmess_conf, local_ip,
     mark_trial, mark_trial_vmess, register_user,
     saldo_deduct, saldo_get, save_account_conf, save_vmess_conf,
@@ -359,7 +359,7 @@ async def cb_konfirm_vmess(cb: CallbackQuery):
 
     state_clear(uid)
     zv_log(f"VMESS_BELI: {uid} server={sname} user={username} days={days} total={total}")
-    invalidate_account_cache()
+    invalidate_account_cache(sconf.get("IP",""), "vmess")
     backup_realtime_vmess(username, "create")
     if ADMIN_ID and uid != ADMIN_ID:
         try:
@@ -1441,7 +1441,7 @@ async def cb_konfirm(cb: CallbackQuery):
             state_clear(uid); return
     state_clear(uid)
     zv_log(f"BELI: {uid} server={sname} user={username} days={days} total={total}")
-    invalidate_account_cache(ip)
+    invalidate_account_cache(ip, "ssh")
     await notify_admin(cb.bot, "BELI", fname, uid, username, tg["TG_SERVER_LABEL"], days, total)
     backup_realtime(username, "create")
     await cb.message.edit_text("✅ Akun sedang dibuat...")

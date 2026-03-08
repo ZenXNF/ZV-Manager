@@ -27,7 +27,7 @@ _install_web() {
     echo -e "  secara real-time dan bisa diakses oleh user."
     echo ""
     
-    echo -e "  ${BWHITE}Contoh    :${NC} ${BYELLOW}https://${DOMAIN}/status${NC}"
+    echo -e "  ${BWHITE}Contoh    :${NC} ${BYELLOW}https://${DOMAIN}${NC}"
     echo -e "  ${BWHITE}Update    :${NC} ${BYELLOW}Otomatis setiap 5 menit${NC}"
     echo ""
     read -rp "  Lanjutkan install? [y/N]: " conf
@@ -75,7 +75,7 @@ CRONEOF
 
     print_ok "Halaman web berhasil diinstall!"
     echo ""
-    echo -e "  ${BWHITE}Akses di :${NC} ${BGREEN}https://${DOMAIN}/status${NC}"
+    echo -e "  ${BWHITE}Akses di :${NC} ${BGREEN}https://${DOMAIN}${NC}"
     echo ""
     echo -e "  ${BYELLOW}Ingin menggunakan domain custom?${NC}"
     read -rp "  Ganti ke domain? [y/N]: " ganti
@@ -171,7 +171,7 @@ _open_web_info() {
     if [[ -z "$cur_host" ]]; then
         cur_url="(belum diset)"
     elif [[ "$cur_host" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-        cur_url="http://${cur_host}/status"
+        cur_url="http://${cur_host}"
     else
         cur_url="https://${cur_host}"
     fi

@@ -4,14 +4,14 @@
 # ============================================================
 
 from pathlib import Path
-from storage import get_server_list, get_server_list_by_type, saldo_get, load_tg_server_conf, count_accounts
+from storage import get_server_list, get_server_list_by_type, saldo_get, load_tg_server_conf, count_ssh_accounts, count_vmess_accounts
 from utils import fmt, fmt_bytes
 
 def _status_url() -> str:
     """
     Baca dari /etc/zv-manager/web-host (dibuat setup-web.sh).
     - File tidak ada → web belum diinstall, tidak tampil
-    - Isi IP (x.x.x.x) → http://x.x.x.x/status
+    - Isi IP (x.x.x.x) → http://x.x.x.x
     - Isi domain (mis. status.zenxu.my.id) → https://status.zenxu.my.id
     """
     try:
@@ -20,7 +20,7 @@ def _status_url() -> str:
             return ""
         import re as _re
         if _re.match(r"^\d{1,3}(\.\d{1,3}){3}$", val):
-            return f"http://{val}/status"
+            return f"http://{val}"
         # Domain custom — tampilkan apa adanya sebagai subdomain
         return f"https://{val}"
     except Exception:
@@ -59,7 +59,12 @@ def text_server_list(title: str, proto: str = "ssh") -> str:
         name = s.get("NAME", "")
         ip   = s.get("IP", "")
         tg   = load_tg_server_conf(name)
-        cnt  = count_accounts(ip)
+        stype = s.get("SERVER_TYPE", tg.get("TG_SERVER_TYPE", "both"))
+        # Hitung akun sesuai proto yang ditampilkan
+        if proto == "vmess":
+            cnt = count_vmess_accounts(ip)
+        else:
+            cnt = count_ssh_accounts(ip)
         # Harga: VMess pakai TG_HARGA_VMESS_HARI jika > 0, else fallback SSH
         if proto == "vmess":
             harga_hari_raw = tg.get("TG_HARGA_VMESS_HARI","0") or "0"
@@ -73,13 +78,18 @@ def text_server_list(title: str, proto: str = "ssh") -> str:
         bw_hr = int(tg.get("TG_BW_PER_HARI", "5") or "5")
         bw_30 = bw_hr * 30
         bandwidth = f"{bw_hr} GB/hari · {bw_30} GB/30hr" if bw_hr > 0 else "Unlimited"
+        # Label total akun sesuai proto
+        if proto == "vmess":
+            akun_label = f"👥 Total VMess: {cnt}/{tg['TG_MAX_AKUN']}"
+        else:
+            akun_label = f"👥 Total SSH: {cnt}/{tg['TG_MAX_AKUN']}"
         out += (
             f"🌐 <b>{tg['TG_SERVER_LABEL']}</b>\n"
             f"💰 Harga/hari: {hh}\n"
             f"📅 Harga/30hr: {hb}\n"
             f"📶 Bandwidth: {bandwidth}\n"
             f"🔢 Limit IP: {tg['TG_LIMIT_IP']} IP/akun\n"
-            f"👥 Total Akun: {cnt}/{tg['TG_MAX_AKUN']}\n\n"
+            f"{akun_label}\n\n"
         )
     return out + "Pilih server:"
 

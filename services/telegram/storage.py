@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 
 from config import (
-    ACCOUNT_DIR, SALDO_DIR, USERS_DIR, TRIAL_DIR,
+    ACCOUNT_DIR, VMESS_DIR, SALDO_DIR, USERS_DIR, TRIAL_DIR,
     SERVER_DIR, log
 )
 from utils import zv_log, local_ip
@@ -146,12 +146,26 @@ def get_server_list_by_type(stype: str) -> list[dict]:
     return result
 
 def count_accounts(srv_ip: str) -> int:
-    global _account_cache
-    now = time.time()
-    if srv_ip in _account_cache:
-        cnt, ts = _account_cache[srv_ip]
-        if now - ts < 120:
+    """Backward compat — hitung SSH saja."""
+    return count_ssh_accounts(srv_ip)
+
+# Cache pisah per proto: key = "ssh:IP" atau "vmess:IP"
+
+def _get_cached(key: str):
+    if key in _account_cache:
+        cnt, ts = _account_cache[key]
+        if time.time() - ts < 120:
             return cnt
+    return None
+
+def _set_cached(key: str, cnt: int):
+    _account_cache[key] = (cnt, time.time())
+
+def count_ssh_accounts(srv_ip: str) -> int:
+    key = f"ssh:{srv_ip}"
+    cached = _get_cached(key)
+    if cached is not None:
+        return cached
     lip   = local_ip()
     count = 0
     if srv_ip == lip:
@@ -183,14 +197,56 @@ def count_accounts(srv_ip: str) -> int:
                 break
         except Exception:
             pass
-    _account_cache[srv_ip] = (count, now)
+    _set_cached(key, count)
     return count
 
-def invalidate_account_cache(srv_ip: str = None):
+def count_vmess_accounts(srv_ip: str) -> int:
+    key = f"vmess:{srv_ip}"
+    cached = _get_cached(key)
+    if cached is not None:
+        return cached
+    lip   = local_ip()
+    count = 0
+    if srv_ip == lip:
+        try:
+            for f in Path(VMESS_DIR).glob("*.conf"):
+                if "IS_TRIAL=1" not in f.read_text():
+                    count += 1
+        except Exception:
+            pass
+    else:
+        try:
+            for sconf in Path(SERVER_DIR).glob("*.conf"):
+                if sconf.name.endswith(".tg.conf"):
+                    continue
+                sc = _read_conf_file(str(sconf))
+                if sc.get("IP", "").strip() != srv_ip:
+                    continue
+                result = subprocess.run(
+                    ["sshpass", "-p", sc.get("PASS", ""),
+                     "ssh", "-o", "StrictHostKeyChecking=no",
+                     "-o", "ConnectTimeout=3", "-o", "BatchMode=no",
+                     "-p", sc.get("PORT", "22"),
+                     f"{sc.get('USER', '')}@{srv_ip}", "zv-vmess-agent list"],
+                    capture_output=True, text=True, timeout=6
+                )
+                raw = result.stdout.strip()
+                if raw and raw != "LIST-EMPTY":
+                    count = raw.count("|")
+                break
+        except Exception:
+            pass
+    _set_cached(key, count)
+    return count
+
+def invalidate_account_cache(srv_ip: str = None, proto: str = None):
     """Paksa refresh counter akun. Panggil setelah beli/hapus akun."""
     global _account_cache
-    if srv_ip:
-        _account_cache.pop(srv_ip, None)
+    if srv_ip and proto:
+        _account_cache.pop(f"{proto}:{srv_ip}", None)
+    elif srv_ip:
+        _account_cache.pop(f"ssh:{srv_ip}", None)
+        _account_cache.pop(f"vmess:{srv_ip}", None)
     else:
         _account_cache.clear()
 
