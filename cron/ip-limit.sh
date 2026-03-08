@@ -161,6 +161,7 @@ _main() {
         local ip_count
         ip_count=$(_count_online_ips "$username")
 
+        _log "$username: ${ip_count} IP aktif (limit: ${ip_limit})"
         [[ "$ip_count" -le "$ip_limit" ]] && continue
 
         # Melebihi limit → kick
