@@ -4,7 +4,7 @@
 # ============================================================
 
 from pathlib import Path
-from storage import get_server_list, saldo_get, load_tg_server_conf, count_accounts
+from storage import get_server_list, get_server_list_by_type, saldo_get, load_tg_server_conf, count_accounts
 from utils import fmt, fmt_bytes
 
 def _status_url() -> str:
@@ -44,18 +44,13 @@ def text_home(fname: str, uid: int) -> str:
 
 def text_server_list(title: str, proto: str = "ssh") -> str:
     """Daftar server untuk pilih saat beli/trial. proto='ssh' atau 'vmess'."""
-    from pathlib import Path as _P
-    servers = get_server_list()
+    servers = get_server_list_by_type(proto)
     out = f"<b>{title}</b>\n\n"
     if not servers:
         return out + "❌ Belum ada server.\n\nPilih server:"
-    local_ip_str = _P("/etc/zv-manager/accounts/ipvps").read_text().strip() if                    _P("/etc/zv-manager/accounts/ipvps").exists() else ""
     for s in servers:
         name = s.get("NAME", "")
         ip   = s.get("IP", "")
-        # VMess hanya server lokal
-        if proto == "vmess" and ip != local_ip_str:
-            continue
         tg   = load_tg_server_conf(name)
         cnt  = count_accounts(ip)
         # Harga: VMess pakai TG_HARGA_VMESS_HARI jika > 0, else fallback SSH
