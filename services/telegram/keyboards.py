@@ -99,6 +99,9 @@ def kb_admin_panel() -> InlineKeyboardMarkup:
     )
     b.row(
         InlineKeyboardButton(text="📊 History Transaksi", callback_data="adm_history"),
+        InlineKeyboardButton(text="🟢 Online VMess",      callback_data="adm_online_vmess")
+    )
+    b.row(
         InlineKeyboardButton(text="🏠 Menu Utama",        callback_data="home")
     )
     return b.as_markup()

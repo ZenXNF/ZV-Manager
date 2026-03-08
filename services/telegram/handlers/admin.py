@@ -457,3 +457,96 @@ async def cb_adm_history(cb: CallbackQuery):
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
             InlineKeyboardButton(text="↩ Kembali", callback_data="m_admin")
         ]]))
+
+# ── Online VMess ─────────────────────────────────────────────
+@router.callback_query(F.data == "adm_online_vmess")
+async def cb_adm_online_vmess(cb: CallbackQuery):
+    uid = cb.from_user.id
+    if uid != ADMIN_ID:
+        await cb.answer("❌ Akses ditolak"); return
+    await cb.answer()
+
+    import re
+    from datetime import datetime, timedelta
+    from pathlib import Path
+
+    xray_log  = "/var/log/xray-access.log"
+    nginx_log = "/var/log/nginx/access.log"
+    now       = datetime.now()
+    window    = timedelta(minutes=5)
+
+    # Parse nginx: timestamp → [ip, ...]
+    nginx_re = re.compile(
+        r'^(\S+) \S+ \S+ \[(\d+/\w+/\d+:\d+:\d+:\d+) ([+-]\d{4})\] '
+        r'"(?:GET|POST) /vmess[\s/].*?" (101)'
+    )
+    nginx_map: dict = {}
+    try:
+        with open(nginx_log) as f:
+            for line in f:
+                m = nginx_re.match(line)
+                if not m: continue
+                ip, ts_str, tz_str, _ = m.groups()
+                dt = datetime.strptime(f"{ts_str} {tz_str}", "%d/%b/%Y:%H:%M:%S %z").astimezone().replace(tzinfo=None)
+                if now - dt > window: continue
+                key = dt.strftime("%Y/%m/%d %H:%M:%S")
+                nginx_map.setdefault(key, []).append(ip)
+    except Exception:
+        pass
+
+    # Parse xray: timestamp + email → match ke nginx_map
+    xray_re = re.compile(
+        r'^(\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2})\.\d+ from 127\.0\.0\.1:\d+ '
+        r'accepted .+ email: (\S+@vmess)'
+    )
+    # {username: {ip: last_seen_dt}}
+    user_data: dict = {}
+    try:
+        with open(xray_log) as f:
+            for line in f:
+                m = xray_re.match(line)
+                if not m: continue
+                ts_key, email = m.groups()
+                base_dt = datetime.strptime(ts_key, "%Y/%m/%d %H:%M:%S")
+                if now - base_dt > window: continue
+                username = email.replace("@vmess", "")
+                for delta in range(-2, 3):
+                    check = (base_dt + timedelta(seconds=delta)).strftime("%Y/%m/%d %H:%M:%S")
+                    for ip in nginx_map.get(check, []):
+                        if username not in user_data:
+                            user_data[username] = {}
+                        if ip not in user_data[username] or user_data[username][ip] < base_dt:
+                            user_data[username][ip] = base_dt
+    except Exception:
+        pass
+
+    if not user_data:
+        msg = (
+            "🟢 <b>Online VMess</b>\n"
+            "━━━━━━━━━━━━━━━━━━━\n"
+            "😴 Tidak ada user aktif saat ini\n"
+            "━━━━━━━━━━━━━━━━━━━"
+        )
+    else:
+        msg = (
+            f"🟢 <b>Online VMess</b> — {len(user_data)} user aktif\n"
+            "━━━━━━━━━━━━━━━━━━━\n"
+        )
+        for username, ips in sorted(user_data.items()):
+            last_seen = max(ips.values())
+            ago = int((now - last_seen).total_seconds() / 60)
+            ip_list = ", ".join(sorted(set(ips.keys())))
+            msg += (
+                f"👤 <code>{username}</code>\n"
+                f"   🌐 {ip_list}\n"
+                f"   🕐 {ago} menit lalu\n"
+            )
+        msg += "━━━━━━━━━━━━━━━━━━━"
+
+    await cb.message.edit_text(
+        msg, parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="🔄 Refresh",  callback_data="adm_online_vmess"),
+            InlineKeyboardButton(text="↩ Kembali", callback_data="m_admin"),
+        ]])
+    )
