@@ -7,7 +7,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from config import ADMIN_ID
-from storage import get_server_list, saldo_get, load_tg_server_conf
+from storage import get_server_list, get_server_list_by_type, saldo_get, load_tg_server_conf
 
 
 def kb_home() -> InlineKeyboardMarkup:
@@ -64,7 +64,7 @@ def kb_confirm(cb_yes: str) -> InlineKeyboardMarkup:
     return b.as_markup()
 
 def kb_server_list(prefix: str, page: int = 0) -> InlineKeyboardMarkup:
-    servers  = get_server_list()
+    servers  = get_server_list_by_type("ssh")
     per_page = 6
     start    = page * per_page
     chunk    = servers[start:start + per_page]
@@ -107,10 +107,8 @@ def kb_admin_panel() -> InlineKeyboardMarkup:
     return b.as_markup()
 
 def kb_vmess_server_list(prefix: str, page: int = 0) -> InlineKeyboardMarkup:
-    """Server list untuk VMess — hanya server lokal (IP sama)."""
-    from storage import get_server_list, local_ip
-    lip     = local_ip()
-    servers = [s for s in get_server_list() if s.get("IP", "") == lip]
+    """Server list untuk VMess — filter tipe vmess/both."""
+    servers = get_server_list_by_type("vmess")
     per_page = 6
     start    = page * per_page
     chunk    = servers[start:start + per_page]

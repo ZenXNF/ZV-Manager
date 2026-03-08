@@ -123,10 +123,26 @@ def get_server_list() -> list[dict]:
                 continue
             conf = _read_conf_file(str(f))
             if conf.get("NAME"):
+                # Merge tg.conf jika ada
+                tg_f = Path(SERVER_DIR) / f"{conf['NAME']}.tg.conf"
+                if tg_f.exists():
+                    conf.update(_read_conf_file(str(tg_f)))
                 result.append(conf)
     except Exception:
         pass
     _server_list_cache = (result, now)
+    return result
+
+def get_server_list_by_type(stype: str) -> list[dict]:
+    """Filter server berdasarkan tipe: 'ssh', 'vmess', atau 'both'.
+    stype='ssh'   → return server dengan SERVER_TYPE ssh atau both
+    stype='vmess' → return server dengan SERVER_TYPE vmess atau both
+    """
+    result = []
+    for s in get_server_list():
+        t = s.get("TG_SERVER_TYPE", s.get("SERVER_TYPE", "both"))
+        if t == "both" or t == stype:
+            result.append(s)
     return result
 
 def count_accounts(srv_ip: str) -> int:
