@@ -5,6 +5,7 @@
 #   perpanjang, tambah bandwidth, riwayat, konfirmasi
 # ============================================================
 
+import asyncio
 import os
 import random
 import re
