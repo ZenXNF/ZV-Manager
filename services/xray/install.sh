@@ -155,12 +155,11 @@ cfg = {
     }
   ],
   "outbounds": [
-    {"tag": "direct",  "protocol": "freedom"},
-    {"tag": "api-out", "protocol": "freedom"}
+    {"tag": "direct", "protocol": "freedom"}
   ],
   "routing": {
     "rules": [
-      {"type": "field", "inboundTag": ["api-in"], "outboundTag": "api-out"}
+      {"type": "field", "inboundTag": ["api-in"], "outboundTag": "api"}
     ]
   }
 }
