@@ -21,27 +21,27 @@ _log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOG"; }
 # Xray stats name format: "user>>>USERNAME@vmess>>>traffic>>>uplink"
 _query_xray_bytes() {
     local username="$1"
-    local up=0 down=0
 
-    # Cek xray + grpc tools tersedia
-    if ! command -v grpc_cli &>/dev/null && ! "$XRAY_BIN" api --help &>/dev/null 2>&1; then
-        echo "0"; return
-    fi
-
-    # Pakai xray api statsquery
+    # Output JSON: {"stat":[{"name":"user>>>X@vmess>>>traffic>>>uplink","value":123},...]}
     local tmpout
     tmpout=$(mktemp)
     "$XRAY_BIN" api statsquery \
-        --server="$API_ADDR" \
-        -pattern "${username}@vmess" \
+        -s "$API_ADDR" \
+        -pattern "user>>>${username}@vmess" \
         2>/dev/null > "$tmpout" || true
 
-    # Parse output: "value: 12345"
-    up=$(grep  -A2 "uplink"   "$tmpout" | grep "value:" | awk '{print $2}' | head -1)
-    down=$(grep -A2 "downlink" "$tmpout" | grep "value:" | awk '{print $2}' | head -1)
+    local total
+    total=$(python3 -c "
+import json, sys
+try:
+    with open('${tmpout}') as f:
+        data = json.load(f)
+    print(sum(int(s.get('value',0)) for s in data.get('stat',[])))
+except Exception:
+    print(0)
+")
     rm -f "$tmpout"
-
-    echo $(( ${up:-0} + ${down:-0} ))
+    echo "${total:-0}"
 }
 
 # Kirim notif Telegram ke user
