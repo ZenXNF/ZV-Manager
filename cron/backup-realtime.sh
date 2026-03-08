@@ -8,14 +8,25 @@
 source /etc/zv-manager/core/telegram.sh
 
 ACCOUNT_DIR="/etc/zv-manager/accounts/ssh"
+VMESS_DIR="/etc/zv-manager/accounts/vmess"
 SALDO_DIR="/etc/zv-manager/accounts/saldo"
 
 # Argumen: username akun yang baru dibuat/diubah
 USERNAME="$1"
 ACTION="${2:-update}"   # create / renew / edit / delete
+PROTO="${3:-ssh}"       # ssh / vmess
 
 [[ -z "$USERNAME" ]] && exit 0
 tg_load || exit 0
+
+# Pilih direktori conf berdasarkan protokol
+if [[ "$PROTO" == "vmess" ]]; then
+    CONF="${VMESS_DIR}/${USERNAME}.conf"
+    PROTO_LABEL="VMess"
+else
+    CONF="${ACCOUNT_DIR}/${USERNAME}.conf"
+    PROTO_LABEL="SSH"
+fi
 
 _tg_send_doc() {
     local file="$1" caption="$2"
@@ -68,11 +79,10 @@ ACTION_ICON="🆕"
 [[ "$ACTION" == "renew" ]] && ACTION_LABEL="Diperpanjang" && ACTION_ICON="🔄"
 [[ "$ACTION" == "edit"  ]] && ACTION_LABEL="Diedit"       && ACTION_ICON="✏️"
 
-CAPTION="${ACTION_ICON} <b>Backup Real-time: Akun ${ACTION_LABEL}</b>
+CAPTION="${ACTION_ICON} <b>Backup Real-time: ${PROTO_LABEL} ${ACTION_LABEL}</b>
 ━━━━━━━━━━━━━━━━━━━
 👤 Username : <code>${USERNAME}</code>
 📅 Expired  : ${EXPIRED:-?}
-🔢 Limit    : ${LIMIT:-?}
 🖥 Server   : ${SERVER:-local}
 📅 Waktu    : ${DATE}
 ━━━━━━━━━━━━━━━━━━━

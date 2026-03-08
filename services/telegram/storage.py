@@ -186,6 +186,14 @@ def count_accounts(srv_ip: str) -> int:
     _account_cache[srv_ip] = (count, now)
     return count
 
+def invalidate_account_cache(srv_ip: str = None):
+    """Paksa refresh counter akun. Panggil setelah beli/hapus akun."""
+    global _account_cache
+    if srv_ip:
+        _account_cache.pop(srv_ip, None)
+    else:
+        _account_cache.clear()
+
 
 # ── Account conf ─────────────────────────────────────────────
 def load_account_conf(username: str) -> dict:

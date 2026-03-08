@@ -25,13 +25,13 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from config import ACCOUNT_DIR, ADMIN_ID, NOTIFY_DIR, VMESS_DIR, log
 from keyboards import (
-    kb_back, kb_confirm, kb_for_user, kb_home_btn,
+    kb_after_buy, kb_back, kb_confirm, kb_for_user, kb_home_btn,
     kb_server_list, kb_vmess_server_list
 )
 from middleware import _throttle
 from storage import (
-    already_trial, already_trial_vmess, count_accounts, load_account_conf,
-    load_server_conf, load_tg_server_conf, load_vmess_conf, local_ip,
+    already_trial, already_trial_vmess, count_accounts, invalidate_account_cache,
+    load_account_conf, load_server_conf, load_tg_server_conf, load_vmess_conf, local_ip,
     mark_trial, mark_trial_vmess, register_user,
     saldo_deduct, saldo_get, save_account_conf, save_vmess_conf,
     state_clear, state_get, state_set
@@ -70,7 +70,7 @@ async def _vmess_agent(sname: str, *args) -> str:
         return f"AGENT-ERR|{e}"
 
 
-from utils import backup_realtime, fmt, fmt_bytes, tail_log, ts_to_wib, zv_log
+from utils import backup_realtime, backup_realtime_vmess, fmt, fmt_bytes, tail_log, ts_to_wib, zv_log
 
 router = Router()
 
@@ -179,19 +179,17 @@ async def cb_menu_trial(cb: CallbackQuery):
 @router.callback_query(F.data == "proto_buat_ssh")
 async def cb_proto_buat_ssh(cb: CallbackQuery):
     if not load_server_list_safe():
-        await cb.message.edit_text("❌ Belum ada server.")
-        await cb.answer(); return
+        await cb.message.edit_text("❌ Belum ada server."); await cb.answer(); return
     await cb.message.edit_text(text_server_list("Buat Akun SSH"), parse_mode="HTML",
-                                reply_markup=kb_server_list("s_buat"))
+                                reply_markup=kb_server_list("s_buat", back_cb="m_buat"))
     await cb.answer()
 
 @router.callback_query(F.data == "proto_trial_ssh")
 async def cb_proto_trial_ssh(cb: CallbackQuery):
     if not load_server_list_safe():
-        await cb.message.edit_text("❌ Belum ada server.")
-        await cb.answer(); return
+        await cb.message.edit_text("❌ Belum ada server."); await cb.answer(); return
     await cb.message.edit_text(text_server_list("Trial SSH Gratis"), parse_mode="HTML",
-                                reply_markup=kb_server_list("s_trial"))
+                                reply_markup=kb_server_list("s_trial", back_cb="m_trial"))
     await cb.answer()
 
 # ── VMess — pilih server ──────────────────────────────────────
@@ -199,20 +197,20 @@ async def cb_proto_trial_ssh(cb: CallbackQuery):
 async def cb_proto_buat_vmess(cb: CallbackQuery):
     from storage import get_server_list_by_type
     if not get_server_list_by_type("vmess"):
-        await cb.message.edit_text("❌ Belum ada server VMess tersedia.", reply_markup=kb_back())
+        await cb.message.edit_text("❌ Belum ada server VMess tersedia.", reply_markup=kb_back("m_buat"))
         await cb.answer(); return
     await cb.message.edit_text(text_server_list("Buat Akun VMess", proto="vmess"), parse_mode="HTML",
-                                reply_markup=kb_vmess_server_list("vs_buat"))
+                                reply_markup=kb_vmess_server_list("vs_buat", back_cb="m_buat"))
     await cb.answer()
 
 @router.callback_query(F.data == "proto_trial_vmess")
 async def cb_proto_trial_vmess(cb: CallbackQuery):
     from storage import get_server_list_by_type
     if not get_server_list_by_type("vmess"):
-        await cb.message.edit_text("❌ Belum ada server VMess tersedia.", reply_markup=kb_back())
+        await cb.message.edit_text("❌ Belum ada server VMess tersedia.", reply_markup=kb_back("m_trial"))
         await cb.answer(); return
     await cb.message.edit_text(text_server_list("Trial VMess Gratis", proto="vmess"), parse_mode="HTML",
-                                reply_markup=kb_vmess_server_list("vs_trial"))
+                                reply_markup=kb_vmess_server_list("vs_trial", back_cb="m_trial"))
     await cb.answer()
 
 # Pagination VMess
@@ -279,7 +277,7 @@ async def cb_vs_trial(cb: CallbackQuery):
     await cb.message.answer(
         text_vmess_info("TRIAL", username, new_uuid, domain, exp_disp,
                         tg["TG_SERVER_LABEL"]),
-        parse_mode="HTML", reply_markup=kb_home_btn()
+        parse_mode="HTML", reply_markup=kb_after_buy("vmess")
     )
 
 # ── Pilih server VMess → Buat (input durasi) ──────────────────
@@ -367,6 +365,8 @@ async def cb_konfirm_vmess(cb: CallbackQuery):
 
     state_clear(uid)
     zv_log(f"VMESS_BELI: {uid} server={sname} user={username} days={days} total={total}")
+    invalidate_account_cache()
+    backup_realtime_vmess(username, "create")
     if ADMIN_ID and uid != ADMIN_ID:
         try:
             await cb.bot.send_message(ADMIN_ID,
@@ -400,7 +400,7 @@ async def cb_konfirm_vmess(cb: CallbackQuery):
     await cb.message.answer(
         text_vmess_info("BELI", username, new_uuid, domain, exp_disp,
                         tg["TG_SERVER_LABEL"], days, total, dashboard_url),
-        parse_mode="HTML", reply_markup=kb_home_btn()
+        parse_mode="HTML", reply_markup=kb_after_buy("vmess")
     )
 
 def load_server_list_safe() -> bool:
@@ -511,7 +511,7 @@ async def cb_s_trial(cb: CallbackQuery):
     await cb.message.answer(
         text_akun_info("TRIAL", username, password, domain,
                        exp_display, tg["TG_LIMIT_IP"], tg["TG_SERVER_LABEL"]),
-        parse_mode="HTML", reply_markup=kb_home_btn()
+        parse_mode="HTML", reply_markup=kb_after_buy("ssh")
     )
 
 
@@ -674,8 +674,22 @@ async def cb_akun_proto_ssh(cb: CallbackQuery):
     now_ts = int(time.time())
     await cb.answer()
     items  = _collect_ssh_akun(uid)
+    if not items:
+        try:
+            await cb.message.edit_text(
+                "🔑 <b>Akun SSH Kamu</b>\n━━━━━━━━━━━━━━━━━━━\nBelum ada akun SSH.",
+                parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="🛒 Beli Akun SSH", callback_data="proto_buat_ssh")],
+                    [InlineKeyboardButton(text="↩ Kembali", callback_data="m_akun")]
+                ])
+            )
+        except Exception: pass
+        return
     out, kb = _render_ssh_page(items, 0, now_ts, uid)
-    await cb.message.edit_text(out, parse_mode="HTML", reply_markup=kb)
+    try:
+        await cb.message.edit_text(out, parse_mode="HTML", reply_markup=kb)
+    except Exception: pass
 
 @router.callback_query(F.data == "akun_proto_vmess")
 async def cb_akun_proto_vmess(cb: CallbackQuery):
@@ -683,28 +697,52 @@ async def cb_akun_proto_vmess(cb: CallbackQuery):
     now_ts = int(time.time())
     await cb.answer()
     items  = _collect_vmess_akun(uid)
+    if not items:
+        try:
+            await cb.message.edit_text(
+                "⚡ <b>Akun VMess Kamu</b>\n━━━━━━━━━━━━━━━━━━━\nBelum ada akun VMess.",
+                parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="🛒 Beli Akun VMess", callback_data="proto_buat_vmess")],
+                    [InlineKeyboardButton(text="↩ Kembali", callback_data="m_akun")]
+                ])
+            )
+        except Exception: pass
+        return
     out, kb = _render_vmess_page(items, 0, now_ts, uid)
-    await cb.message.edit_text(out, parse_mode="HTML", reply_markup=kb)
+    try:
+        await cb.message.edit_text(out, parse_mode="HTML", reply_markup=kb)
+    except Exception: pass
 
 @router.callback_query(F.data.startswith("akun_ssh_"))
 async def cb_akun_ssh_page(cb: CallbackQuery):
     uid    = cb.from_user.id
     now_ts = int(time.time())
-    page   = int(cb.data.split("_")[-1])
+    try:
+        page = int(cb.data.split("_")[-1])
+    except (ValueError, IndexError):
+        await cb.answer(); return
     await cb.answer()
     items  = _collect_ssh_akun(uid)
     out, kb = _render_ssh_page(items, page, now_ts, uid)
-    await cb.message.edit_text(out, parse_mode="HTML", reply_markup=kb)
+    try:
+        await cb.message.edit_text(out, parse_mode="HTML", reply_markup=kb)
+    except Exception: pass
 
 @router.callback_query(F.data.startswith("akun_vmess_"))
 async def cb_akun_vmess_page(cb: CallbackQuery):
     uid    = cb.from_user.id
     now_ts = int(time.time())
-    page   = int(cb.data.split("_")[-1])
+    try:
+        page = int(cb.data.split("_")[-1])
+    except (ValueError, IndexError):
+        await cb.answer(); return
     await cb.answer()
     items  = _collect_vmess_akun(uid)
     out, kb = _render_vmess_page(items, page, now_ts, uid)
-    await cb.message.edit_text(out, parse_mode="HTML", reply_markup=kb)
+    try:
+        await cb.message.edit_text(out, parse_mode="HTML", reply_markup=kb)
+    except Exception: pass
 
 
 # ── Perpanjang ────────────────────────────────────────────────
@@ -823,6 +861,7 @@ async def cb_konfirm_vrenew(cb: CallbackQuery):
     except Exception: pass
     state_clear(uid)
     zv_log(f"VMESS_RENEW: {uid} user={username} days={days} total={total}")
+    backup_realtime_vmess(username, "renew")
     if ADMIN_ID and uid != ADMIN_ID:
         try:
             await cb.bot.send_message(ADMIN_ID,
@@ -931,12 +970,13 @@ async def cb_konfirm_renew(cb: CallbackQuery):
     )
 
 
-# ── Tambah Bandwidth Bandwidth ───────────────────────────────────
+# ── Tambah Bandwidth ─────────────────────────────────────────
 @router.callback_query(F.data == "m_tambah_bw")
 async def cb_tambah_bw(cb: CallbackQuery):
     uid       = cb.from_user.id
-    akun_list = []
+    akun_list = []  # list of (label, callback_data)
     await cb.answer()
+    # SSH
     try:
         for f in Path(ACCOUNT_DIR).glob("*.conf"):
             ac = load_account_conf(f.stem)
@@ -944,8 +984,21 @@ async def cb_tambah_bw(cb: CallbackQuery):
             if ac.get("IS_TRIAL", "0") == "1": continue
             if not ac.get("BW_QUOTA_BYTES", "0") or ac.get("BW_QUOTA_BYTES", "0") == "0": continue
             uname = ac.get("USERNAME", "")
-            if uname: akun_list.append(uname)
+            if uname: akun_list.append((f"🔑 {uname}", f"bw_akun_{uname}"))
     except Exception: pass
+    # VMess
+    try:
+        if Path(VMESS_DIR).exists():
+            for vf in Path(VMESS_DIR).glob("*.conf"):
+                vc = load_vmess_conf(vf.stem)
+                if str(vc.get("TG_USER_ID","")).strip() != str(uid): continue
+                if vc.get("IS_TRIAL","0") == "1": continue
+                bw_limit = int(vc.get("BW_LIMIT_GB","0") or "0")
+                if bw_limit == 0: continue
+                vuname = vc.get("USERNAME","")
+                if vuname: akun_list.append((f"⚡ {vuname}", f"vbw_akun_{vuname}"))
+    except Exception: pass
+
     if not akun_list:
         await cb.message.edit_text(
             "📶 <b>Tambah Bandwidth</b>\n\nTidak ada akun yang mendukung fitur bandwidth.",
@@ -953,12 +1006,12 @@ async def cb_tambah_bw(cb: CallbackQuery):
         ); return
     b = InlineKeyboardBuilder()
     for i in range(0, len(akun_list), 2):
-        row = [InlineKeyboardButton(text=akun_list[i], callback_data=f"bw_akun_{akun_list[i]}")]
+        row = [InlineKeyboardButton(text=akun_list[i][0], callback_data=akun_list[i][1])]
         if i+1 < len(akun_list):
-            row.append(InlineKeyboardButton(text=akun_list[i+1], callback_data=f"bw_akun_{akun_list[i+1]}"))
+            row.append(InlineKeyboardButton(text=akun_list[i+1][0], callback_data=akun_list[i+1][1]))
         b.row(*row)
     b.row(InlineKeyboardButton(text="↩ Kembali", callback_data="m_akun"))
-    await cb.message.edit_text("➕ <b>Tambah Bandwidth</b>\n\nPilih akun:",
+    await cb.message.edit_text("📶 <b>Tambah Bandwidth</b>\n\nPilih akun:",
                                 parse_mode="HTML", reply_markup=b.as_markup())
 
 @router.callback_query(F.data.startswith("bw_akun_"))
@@ -1083,6 +1136,125 @@ async def cb_konfirm_bw(cb: CallbackQuery):
         f"💰 Sisa Saldo   : Rp{fmt(saldo_get(uid))}\n"
         f"━━━━━━━━━━━━━━━━━━━\nKoneksi sudah aktif kembali!",
         parse_mode="HTML"
+    )
+
+
+# ── VMess Bandwidth ────────────────────────────────────────────
+@router.callback_query(F.data.startswith("vbw_akun_"))
+async def cb_vbw_akun(cb: CallbackQuery):
+    username = cb.data[len("vbw_akun_"):]
+    uid      = cb.from_user.id
+    await cb.answer()
+    vc = load_vmess_conf(username)
+    if not vc:
+        await cb.message.edit_text("❌ Akun tidak ditemukan.", reply_markup=kb_home_btn()); return
+    if str(vc.get("TG_USER_ID","")).strip() != str(uid):
+        await cb.answer("❌ Bukan akun kamu"); return
+    sname        = vc.get("SERVER","")
+    tg           = load_tg_server_conf(sname)
+    harga_hari   = int(tg.get("TG_HARGA_VMESS_HARI","0") or tg.get("TG_HARGA_HARI","0"))
+    bw_harga_pct = int(tg.get("TG_BW_HARGA_PCT","40") or "40")
+    harga_per_gb = max(1, int(harga_hari * bw_harga_pct / 100))
+    bw_limit     = int(vc.get("BW_LIMIT_GB","0") or "0")
+    bw_used_b    = int(vc.get("BW_USED_BYTES","0") or "0")
+    bw_quota_b   = bw_limit * 1024 * 1024 * 1024
+    pct          = min(int(bw_used_b * 100 / bw_quota_b), 100) if bw_quota_b > 0 else 0
+    filled       = pct // 10
+    bar          = "▓" * filled + "░" * (10 - filled)
+    p1 = harga_per_gb * 1; p5 = harga_per_gb * 5; p10 = harga_per_gb * 10
+    state_clear(uid)
+    state_set(uid, "STATE",    "vbw_pilih_paket")
+    state_set(uid, "USERNAME", username)
+    state_set(uid, "SERVER",   sname)
+    b = InlineKeyboardBuilder()
+    b.row(
+        InlineKeyboardButton(text=f"➕ 1 GB — Rp{fmt(p1)}",  callback_data=f"vbw_beli_1_{username}"),
+        InlineKeyboardButton(text=f"➕ 5 GB — Rp{fmt(p5)}",  callback_data=f"vbw_beli_5_{username}")
+    )
+    b.row(InlineKeyboardButton(text=f"➕ 10 GB — Rp{fmt(p10)}", callback_data=f"vbw_beli_10_{username}"))
+    b.row(InlineKeyboardButton(text="↩ Kembali", callback_data="m_tambah_bw"))
+    await cb.message.edit_text(
+        f"📶 <b>Tambah Bandwidth VMess</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"⚡ Username : <code>{username}</code>\n"
+        f"📶 Terpakai : {fmt_bytes(bw_used_b)} / {bw_limit} GB\n"
+        f"[{bar}] {pct}%\n"
+        f"💰 Saldo    : Rp{fmt(saldo_get(uid))}\n"
+        f"━━━━━━━━━━━━━━━━━━━\nPilih paket tambahan:",
+        parse_mode="HTML", reply_markup=b.as_markup()
+    )
+
+@router.callback_query(F.data.startswith("vbw_beli_"))
+async def cb_vbw_beli(cb: CallbackQuery):
+    parts    = cb.data.split("_", 3)
+    gb       = int(parts[2])
+    username = parts[3]
+    uid      = cb.from_user.id
+    await cb.answer()
+    vc           = load_vmess_conf(username)
+    sname        = vc.get("SERVER","")
+    tg           = load_tg_server_conf(sname)
+    harga_hari   = int(tg.get("TG_HARGA_VMESS_HARI","0") or tg.get("TG_HARGA_HARI","0"))
+    bw_harga_pct = int(tg.get("TG_BW_HARGA_PCT","40") or "40")
+    harga_per_gb = max(1, int(harga_hari * bw_harga_pct / 100))
+    total        = harga_per_gb * gb
+    saldo        = saldo_get(uid)
+    if total > 0 and saldo < total:
+        await cb.message.edit_text(
+            f"❌ Saldo tidak cukup.\nSaldo : Rp{fmt(saldo)}\nButuh : Rp{fmt(total)}",
+            reply_markup=kb_home_btn()
+        ); state_clear(uid); return
+    state_set(uid, "STATE",    "vbw_confirm")
+    state_set(uid, "USERNAME", username)
+    state_set(uid, "SERVER",   sname)
+    state_set(uid, "BW_GB",    str(gb))
+    state_set(uid, "BW_TOTAL", str(total))
+    await cb.message.edit_text(
+        f"📶 <b>Konfirmasi Tambah Bandwidth VMess</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"⚡ Username      : <code>{username}</code>\n"
+        f"📶 Tambah       : {gb} GB\n"
+        f"💸 Total        : Rp{fmt(total)}\n"
+        f"💰 Saldo        : Rp{fmt(saldo)}\n"
+        f"━━━━━━━━━━━━━━━━━━━\nLanjutkan?",
+        parse_mode="HTML", reply_markup=kb_confirm("vbw_konfirm")
+    )
+
+@router.callback_query(F.data == "vbw_konfirm")
+async def cb_konfirm_vbw(cb: CallbackQuery):
+    uid = cb.from_user.id
+    if state_get(uid, "STATE") != "vbw_confirm":
+        await cb.answer("⚠️ Sesi habis"); state_clear(uid); return
+    await cb.answer("⏳ Memproses...")
+    username = state_get(uid, "USERNAME")
+    gb       = int(state_get(uid, "BW_GB") or "0")
+    total    = int(state_get(uid, "BW_TOTAL") or "0")
+    if total > 0:
+        if not saldo_deduct(uid, total):
+            await cb.message.edit_text("❌ Saldo tidak cukup."); state_clear(uid); return
+    sname = state_get(uid, "SERVER")
+    # Update conf VMess
+    vc = load_vmess_conf(username)
+    old_limit = int(vc.get("BW_LIMIT_GB","0") or "0")
+    new_limit = old_limit + gb
+    vc["BW_LIMIT_GB"] = str(new_limit)
+    save_vmess_conf(username, vc)
+    # Notify agent (agar xray update limit jika support)
+    await _vmess_agent(sname, "setbw", username, str(new_limit))
+    state_clear(uid)
+    zv_log(f"VMESS_BW_BELI: {uid} user={username} gb={gb} total={total}")
+    backup_realtime_vmess(username, "edit")
+    await cb.message.edit_text("✅ Bandwidth VMess ditambahkan!")
+    await cb.message.answer(
+        f"📶 <b>Bandwidth VMess Berhasil Ditambahkan</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"⚡ Username   : <code>{username}</code>\n"
+        f"📶 Ditambah  : {gb} GB\n"
+        f"📊 Total BW  : {new_limit} GB\n"
+        f"💸 Dibayar   : Rp{fmt(total)}\n"
+        f"💰 Sisa Saldo: Rp{fmt(saldo_get(uid))}\n"
+        f"━━━━━━━━━━━━━━━━━━━",
+        parse_mode="HTML", reply_markup=kb_home_btn()
     )
 
 
@@ -1236,11 +1408,12 @@ async def cb_konfirm(cb: CallbackQuery):
             state_clear(uid); return
     state_clear(uid)
     zv_log(f"BELI: {uid} server={sname} user={username} days={days} total={total}")
+    invalidate_account_cache(ip)
     await notify_admin(cb.bot, "BELI", fname, uid, username, tg["TG_SERVER_LABEL"], days, total)
     backup_realtime(username, "create")
     await cb.message.edit_text("✅ Akun sedang dibuat...")
     await cb.message.answer(
         text_akun_info("BELI", username, password, domain, exp_display,
                        tg["TG_LIMIT_IP"], tg["TG_SERVER_LABEL"], days, total),
-        parse_mode="HTML", reply_markup=kb_home_btn()
+        parse_mode="HTML", reply_markup=kb_after_buy("ssh")
     )

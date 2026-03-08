@@ -40,7 +40,15 @@ def kb_home_admin() -> InlineKeyboardMarkup:
 def kb_for_user(uid: int) -> InlineKeyboardMarkup:
     return kb_home_admin() if uid == ADMIN_ID else kb_home()
 
-def kb_home_btn() -> InlineKeyboardMarkup:
+def kb_after_buy(proto: str = "ssh") -> InlineKeyboardMarkup:
+    """Tombol setelah beli/trial berhasil."""
+    b = InlineKeyboardBuilder()
+    b.row(
+        InlineKeyboardButton(text="📋 Akun Saya", callback_data="m_akun"),
+        InlineKeyboardButton(text="🛒 Beli Lagi",  callback_data="m_buat")
+    )
+    b.row(InlineKeyboardButton(text="🏠 Menu Utama", callback_data="home"))
+    return b.as_markup()
     b = InlineKeyboardBuilder()
     b.button(text="🏠 Menu Utama", callback_data="home")
     return b.as_markup()
@@ -58,7 +66,7 @@ def kb_confirm(cb_yes: str) -> InlineKeyboardMarkup:
     )
     return b.as_markup()
 
-def kb_server_list(prefix: str, page: int = 0) -> InlineKeyboardMarkup:
+def kb_server_list(prefix: str, page: int = 0, back_cb: str = "m_buat") -> InlineKeyboardMarkup:
     servers  = get_server_list_by_type("ssh")
     per_page = 6
     start    = page * per_page
@@ -75,7 +83,7 @@ def kb_server_list(prefix: str, page: int = 0) -> InlineKeyboardMarkup:
         nav.append(InlineKeyboardButton(text="Berikutnya ▶", callback_data=f"page_{prefix}_{page+1}"))
     if nav:
         b.row(*nav)
-    b.row(InlineKeyboardButton(text="↩ Kembali", callback_data="home"))
+    b.row(InlineKeyboardButton(text="↩ Kembali", callback_data=back_cb))
     return b.as_markup()
 
 def kb_admin_panel() -> InlineKeyboardMarkup:
@@ -104,7 +112,7 @@ def kb_admin_panel() -> InlineKeyboardMarkup:
     )
     return b.as_markup()
 
-def kb_vmess_server_list(prefix: str, page: int = 0) -> InlineKeyboardMarkup:
+def kb_vmess_server_list(prefix: str, page: int = 0, back_cb: str = "m_buat") -> InlineKeyboardMarkup:
     """Server list untuk VMess — filter tipe vmess/both."""
     servers = get_server_list_by_type("vmess")
     per_page = 6
@@ -122,5 +130,5 @@ def kb_vmess_server_list(prefix: str, page: int = 0) -> InlineKeyboardMarkup:
         nav.append(InlineKeyboardButton(text="Berikutnya ▶", callback_data=f"vpage_{prefix}_{page+1}"))
     if nav:
         b.row(*nav)
-    b.row(InlineKeyboardButton(text="↩ Kembali", callback_data="home"))
+    b.row(InlineKeyboardButton(text="↩ Kembali", callback_data=back_cb))
     return b.as_markup()

@@ -87,3 +87,13 @@ def backup_realtime(username: str, action: str = "update"):
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL
         )
+
+def backup_realtime_vmess(username: str, action: str = "update"):
+    """Backup real-time untuk akun VMess."""
+    script = "/etc/zv-manager/cron/backup-realtime.sh"
+    if os.path.exists(script):
+        subprocess.Popen(
+            ["/bin/bash", script, username, action, "vmess"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
