@@ -49,6 +49,8 @@ def kb_after_buy(proto: str = "ssh") -> InlineKeyboardMarkup:
     )
     b.row(InlineKeyboardButton(text="🏠 Menu Utama", callback_data="home"))
     return b.as_markup()
+
+def kb_home_btn() -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
     b.button(text="🏠 Menu Utama", callback_data="home")
     return b.as_markup()
