@@ -226,6 +226,37 @@ TGEOF
         echo -e "  ${BWHITE}Harga SSH   :${NC} ${BGREEN}Rp${tg_harga_hari}/hari${NC}"
     [[ "$server_type" != "ssh" ]] && \
         echo -e "  ${BWHITE}Harga VMess :${NC} ${BGREEN}Rp${tg_harga_vmess_hari}/hari${NC}"
+
+    # --- Auto deploy agent ke server ---
+    local local_ip
+    local_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null)
+
+    if [[ "$ip" == "$local_ip" ]]; then
+        # Server lokal — pastikan binary sudah ada
+        cp /etc/zv-manager/zv-agent.sh /usr/local/bin/zv-agent 2>/dev/null
+        chmod +x /usr/local/bin/zv-agent 2>/dev/null
+        cp /etc/zv-manager/zv-vmess-agent.sh /usr/local/bin/zv-vmess-agent 2>/dev/null
+        chmod +x /usr/local/bin/zv-vmess-agent 2>/dev/null
+        print_ok "Agent lokal siap."
+    else
+        # Server remote — deploy via SSH
+        echo ""
+        print_info "Deploy agent ke remote server ${name}..."
+        source /etc/zv-manager/utils/remote.sh
+        local r1; r1=$(deploy_agent "$name")
+        if [[ "$r1" == "DEPLOY-OK" ]]; then
+            print_ok "zv-agent (SSH) berhasil di-deploy ke ${name}!"
+        else
+            print_warning "zv-agent gagal: ${r1#DEPLOY-ERR|}"
+        fi
+        local r2; r2=$(deploy_vmess_agent "$name")
+        if [[ "$r2" == "DEPLOY-OK" ]]; then
+            print_ok "zv-vmess-agent berhasil di-deploy ke ${name}!"
+        else
+            print_warning "zv-vmess-agent gagal: ${r2#DEPLOY-ERR|}"
+        fi
+    fi
+
     press_any_key
 }
 
