@@ -122,7 +122,7 @@ if not clients:
                 "alterId": 0, "email": "placeholder@vmess"}]
 
 cfg = {
-  "log": {"loglevel": "warning", "error": "/var/log/xray-error.log"},
+  "log": {"loglevel": "info", "access": "/var/log/xray-access.log", "error": "/var/log/xray-error.log"},
   "stats": {},
   "api": {"tag": "api", "services": ["StatsService"]},
   "policy": {
