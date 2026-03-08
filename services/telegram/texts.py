@@ -7,25 +7,30 @@ from pathlib import Path
 from storage import get_server_list, get_server_list_by_type, saldo_get, load_tg_server_conf, count_accounts
 from utils import fmt, fmt_bytes
 
-def _status_url(domain: str = "") -> str:
-    """Buat URL status page dari domain server. Kosong = tidak tampil."""
-    if not domain:
+def _status_url() -> str:
+    """
+    Baca dari /etc/zv-manager/web-host (dibuat setup-web.sh).
+    - File tidak ada → web belum diinstall, tidak tampil
+    - Isi IP (x.x.x.x) → http://x.x.x.x/status
+    - Isi domain (mis. status.zenxu.my.id) → https://status.zenxu.my.id
+    """
+    try:
+        val = Path("/etc/zv-manager/web-host").read_text().strip()
+        if not val:
+            return ""
+        import re as _re
+        if _re.match(r"^\d{1,3}(\.\d{1,3}){3}$", val):
+            return f"http://{val}/status"
+        # Domain custom — tampilkan apa adanya sebagai subdomain
+        return f"https://{val}"
+    except Exception:
         return ""
-    # Cek apakah sudah ada status page (cron terpasang)
-    if not Path("/etc/cron.d/zv-status-page").exists():
-        return ""
-    return f"https://status.{domain}/status" if "." in domain else ""
 
 
 def text_home(fname: str, uid: int) -> str:
-    servers = get_server_list()
-    saldo   = saldo_get(uid)
-    # Ambil domain dari server pertama untuk status URL
-    main_domain = ""
-    if servers:
-        first_sc = __import__("storage").load_server_conf(servers[0].get("NAME",""))
-        main_domain = first_sc.get("DOMAIN","") if first_sc else ""
-    url      = _status_url(main_domain)
+    servers  = get_server_list()
+    saldo    = saldo_get(uid)
+    url      = _status_url()
     cek_line = f"\n🖥️ Cek server: {url}" if url else ""
     return (
         f"⚡ <b>ZV-Manager SSH Tunnel</b>\n"
@@ -46,7 +51,6 @@ def text_home(fname: str, uid: int) -> str:
 
 def text_server_list(title: str, proto: str = "ssh") -> str:
     """Daftar server untuk pilih saat beli/trial. proto='ssh' atau 'vmess'."""
-    from storage import load_server_conf
     servers = get_server_list_by_type(proto)
     out = f"<b>{title}</b>\n\n"
     if not servers:
@@ -55,8 +59,6 @@ def text_server_list(title: str, proto: str = "ssh") -> str:
         name = s.get("NAME", "")
         ip   = s.get("IP", "")
         tg   = load_tg_server_conf(name)
-        sc   = load_server_conf(name)
-        domain = sc.get("DOMAIN","") if sc else ""
         cnt  = count_accounts(ip)
         # Harga: VMess pakai TG_HARGA_VMESS_HARI jika > 0, else fallback SSH
         if proto == "vmess":
@@ -71,19 +73,13 @@ def text_server_list(title: str, proto: str = "ssh") -> str:
         bw_hr = int(tg.get("TG_BW_PER_HARI", "5") or "5")
         bw_30 = bw_hr * 30
         bandwidth = f"{bw_hr} GB/hari · {bw_30} GB/30hr" if bw_hr > 0 else "Unlimited"
-        # Status URL: subdomain dari nama server + base domain
-        status_line = ""
-        if domain and "." in domain:
-            status_url = _status_url(domain)
-            if status_url:
-                status_line = f"\n🖥️ Status: {status_url}"
         out += (
             f"🌐 <b>{tg['TG_SERVER_LABEL']}</b>\n"
             f"💰 Harga/hari: {hh}\n"
             f"📅 Harga/30hr: {hb}\n"
             f"📶 Bandwidth: {bandwidth}\n"
             f"🔢 Limit IP: {tg['TG_LIMIT_IP']} IP/akun\n"
-            f"👥 Total Akun: {cnt}/{tg['TG_MAX_AKUN']}{status_line}\n\n"
+            f"👥 Total Akun: {cnt}/{tg['TG_MAX_AKUN']}\n\n"
         )
     return out + "Pilih server:"
 

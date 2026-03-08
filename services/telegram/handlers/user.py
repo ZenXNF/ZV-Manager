@@ -597,8 +597,8 @@ def _render_ssh_page(items: list, page: int, now_ts: int, uid: int) -> tuple[str
     if nav: b.row(*nav)
     if has_premium:
         b.row(
-            InlineKeyboardButton(text="🔄 Perpanjang", callback_data="m_perpanjang"),
-            InlineKeyboardButton(text="📶 Bandwidth",  callback_data="m_tambah_bw")
+            InlineKeyboardButton(text="🔄 Perpanjang", callback_data="m_perpanjang_ssh"),
+            InlineKeyboardButton(text="📶 Bandwidth",  callback_data="m_tambah_bw_ssh")
         )
     b.row(InlineKeyboardButton(text="🏠 Menu", callback_data="home"))
     return out, b.as_markup()
@@ -643,7 +643,7 @@ def _render_vmess_page(items: list, page: int, now_ts: int, uid: int) -> tuple[s
         nav.append(InlineKeyboardButton(text="Berikutnya ▶", callback_data=f"akun_vmess_{page+1}"))
     if nav: b.row(*nav)
     if has_premium:
-        b.row(InlineKeyboardButton(text="🔄 Perpanjang", callback_data="m_perpanjang"))
+        b.row(InlineKeyboardButton(text="🔄 Perpanjang", callback_data="m_perpanjang_vmess"))
     b.row(InlineKeyboardButton(text="🏠 Menu", callback_data="home"))
     return out, b.as_markup()
 
@@ -746,51 +746,68 @@ async def cb_akun_vmess_page(cb: CallbackQuery):
 
 
 # ── Perpanjang ────────────────────────────────────────────────
-# ── Perpanjang VMess ──────────────────────────────────────────
-@router.callback_query(F.data == "m_perpanjang")
-async def cb_perpanjang(cb: CallbackQuery):
+async def _show_perpanjang(cb: CallbackQuery, proto: str):
+    """proto: 'ssh' atau 'vmess'"""
     uid       = cb.from_user.id
     akun_list = []
     await cb.answer()
-    # SSH
-    try:
-        for f in Path(ACCOUNT_DIR).glob("*.conf"):
-            ac = load_account_conf(f.stem)
-            if str(ac.get("TG_USER_ID","")).strip() != str(uid): continue
-            if ac.get("IS_TRIAL","0") == "1": continue
-            uname = ac.get("USERNAME","")
-            if uname: akun_list.append(("ssh", uname))
-    except Exception: pass
-    # VMess
-    try:
-        for vf in Path(VMESS_DIR).glob("*.conf"):
-            vc = load_vmess_conf(vf.stem)
-            if str(vc.get("TG_USER_ID","")).strip() != str(uid): continue
-            if vc.get("IS_TRIAL","0") == "1": continue
-            vuname = vc.get("USERNAME","")
-            if vuname: akun_list.append(("vmess", vuname))
-    except Exception: pass
 
+    if proto in ("ssh", "all"):
+        try:
+            for f in sorted(Path(ACCOUNT_DIR).glob("*.conf")):
+                ac = load_account_conf(f.stem)
+                if str(ac.get("TG_USER_ID","")).strip() != str(uid): continue
+                if ac.get("IS_TRIAL","0") == "1": continue
+                uname = ac.get("USERNAME","")
+                if uname: akun_list.append(("ssh", uname))
+        except Exception: pass
+
+    if proto in ("vmess", "all"):
+        try:
+            for vf in sorted(Path(VMESS_DIR).glob("*.conf")):
+                vc = load_vmess_conf(vf.stem)
+                if str(vc.get("TG_USER_ID","")).strip() != str(uid): continue
+                if vc.get("IS_TRIAL","0") == "1": continue
+                vuname = vc.get("USERNAME","")
+                if vuname: akun_list.append(("vmess", vuname))
+        except Exception: pass
+
+    back_cb = f"akun_proto_{proto}" if proto != "all" else "m_akun"
     if not akun_list:
         await cb.message.edit_text(
-            "📋 <b>Perpanjang Akun</b>\n\nKamu belum punya akun premium.",
-            parse_mode="HTML", reply_markup=kb_home_btn()
+            "🔄 <b>Perpanjang Akun</b>\n\nKamu belum punya akun premium.",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="↩ Kembali", callback_data=back_cb)]
+            ])
         ); return
 
     b = InlineKeyboardBuilder()
     row = []
-    for proto, uname in akun_list:
-        label = f"⚡ {uname}" if proto == "vmess" else f"🔑 {uname}"
-        cb_data = f"vrenew_{uname}" if proto == "vmess" else f"renew_{uname}"
+    for p, uname in akun_list:
+        label   = f"⚡ {uname}" if p == "vmess" else f"🔑 {uname}"
+        cb_data = f"vrenew_{uname}" if p == "vmess" else f"renew_{uname}"
         row.append(InlineKeyboardButton(text=label, callback_data=cb_data))
         if len(row) == 2:
             b.row(*row); row = []
     if row: b.row(*row)
-    b.row(InlineKeyboardButton(text="↩ Kembali", callback_data="home"))
+    b.row(InlineKeyboardButton(text="↩ Kembali", callback_data=back_cb))
     await cb.message.edit_text(
         "🔄 <b>Perpanjang Akun</b>\n\nPilih akun:",
         parse_mode="HTML", reply_markup=b.as_markup()
     )
+
+@router.callback_query(F.data == "m_perpanjang_ssh")
+async def cb_perpanjang_ssh(cb: CallbackQuery):
+    await _show_perpanjang(cb, "ssh")
+
+@router.callback_query(F.data == "m_perpanjang_vmess")
+async def cb_perpanjang_vmess(cb: CallbackQuery):
+    await _show_perpanjang(cb, "vmess")
+
+@router.callback_query(F.data == "m_perpanjang")
+async def cb_perpanjang(cb: CallbackQuery):
+    await _show_perpanjang(cb, "all")
 
 @router.callback_query(F.data.startswith("vrenew_"))
 async def cb_vrenew_akun(cb: CallbackQuery):
@@ -971,48 +988,70 @@ async def cb_konfirm_renew(cb: CallbackQuery):
 
 
 # ── Tambah Bandwidth ─────────────────────────────────────────
-@router.callback_query(F.data == "m_tambah_bw")
-async def cb_tambah_bw(cb: CallbackQuery):
+async def _show_tambah_bw(cb: CallbackQuery, proto: str):
+    """proto: 'ssh' atau 'vmess'"""
     uid       = cb.from_user.id
     akun_list = []  # list of (label, callback_data)
     await cb.answer()
-    # SSH
-    try:
-        for f in Path(ACCOUNT_DIR).glob("*.conf"):
-            ac = load_account_conf(f.stem)
-            if str(ac.get("TG_USER_ID", "")).strip() != str(uid): continue
-            if ac.get("IS_TRIAL", "0") == "1": continue
-            if not ac.get("BW_QUOTA_BYTES", "0") or ac.get("BW_QUOTA_BYTES", "0") == "0": continue
-            uname = ac.get("USERNAME", "")
-            if uname: akun_list.append((f"🔑 {uname}", f"bw_akun_{uname}"))
-    except Exception: pass
-    # VMess
-    try:
-        if Path(VMESS_DIR).exists():
-            for vf in Path(VMESS_DIR).glob("*.conf"):
-                vc = load_vmess_conf(vf.stem)
-                if str(vc.get("TG_USER_ID","")).strip() != str(uid): continue
-                if vc.get("IS_TRIAL","0") == "1": continue
-                bw_limit = int(vc.get("BW_LIMIT_GB","0") or "0")
-                if bw_limit == 0: continue
-                vuname = vc.get("USERNAME","")
-                if vuname: akun_list.append((f"⚡ {vuname}", f"vbw_akun_{vuname}"))
-    except Exception: pass
 
+    if proto == "ssh":
+        try:
+            for f in sorted(Path(ACCOUNT_DIR).glob("*.conf")):
+                ac = load_account_conf(f.stem)
+                if str(ac.get("TG_USER_ID","")).strip() != str(uid): continue
+                if ac.get("IS_TRIAL","0") == "1": continue
+                if not ac.get("BW_QUOTA_BYTES","0") or ac.get("BW_QUOTA_BYTES","0") == "0": continue
+                uname = ac.get("USERNAME","")
+                if uname: akun_list.append((f"🔑 {uname}", f"bw_akun_{uname}"))
+        except Exception: pass
+
+    elif proto == "vmess":
+        try:
+            if Path(VMESS_DIR).exists():
+                for vf in sorted(Path(VMESS_DIR).glob("*.conf")):
+                    vc = load_vmess_conf(vf.stem)
+                    if str(vc.get("TG_USER_ID","")).strip() != str(uid): continue
+                    if vc.get("IS_TRIAL","0") == "1": continue
+                    bw_limit = int(vc.get("BW_LIMIT_GB","0") or "0")
+                    if bw_limit == 0: continue
+                    vuname = vc.get("USERNAME","")
+                    if vuname: akun_list.append((f"⚡ {vuname}", f"vbw_akun_{vuname}"))
+        except Exception: pass
+
+    back_cb = f"akun_proto_{proto}"
     if not akun_list:
         await cb.message.edit_text(
             "📶 <b>Tambah Bandwidth</b>\n\nTidak ada akun yang mendukung fitur bandwidth.",
-            parse_mode="HTML", reply_markup=kb_home_btn()
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="↩ Kembali", callback_data=back_cb)]
+            ])
         ); return
+
     b = InlineKeyboardBuilder()
     for i in range(0, len(akun_list), 2):
         row = [InlineKeyboardButton(text=akun_list[i][0], callback_data=akun_list[i][1])]
         if i+1 < len(akun_list):
             row.append(InlineKeyboardButton(text=akun_list[i+1][0], callback_data=akun_list[i+1][1]))
         b.row(*row)
-    b.row(InlineKeyboardButton(text="↩ Kembali", callback_data="m_akun"))
-    await cb.message.edit_text("📶 <b>Tambah Bandwidth</b>\n\nPilih akun:",
-                                parse_mode="HTML", reply_markup=b.as_markup())
+    b.row(InlineKeyboardButton(text="↩ Kembali", callback_data=back_cb))
+    await cb.message.edit_text(
+        "📶 <b>Tambah Bandwidth</b>\n\nPilih akun:",
+        parse_mode="HTML", reply_markup=b.as_markup()
+    )
+
+@router.callback_query(F.data == "m_tambah_bw_ssh")
+async def cb_tambah_bw_ssh(cb: CallbackQuery):
+    await _show_tambah_bw(cb, "ssh")
+
+@router.callback_query(F.data == "m_tambah_bw_vmess")
+async def cb_tambah_bw_vmess(cb: CallbackQuery):
+    await _show_tambah_bw(cb, "vmess")
+
+@router.callback_query(F.data == "m_tambah_bw")
+async def cb_tambah_bw(cb: CallbackQuery):
+    # Fallback: cek SSH dulu, lalu VMess
+    await _show_tambah_bw(cb, "ssh")
 
 @router.callback_query(F.data.startswith("bw_akun_"))
 async def cb_bw_akun(cb: CallbackQuery):
@@ -1048,7 +1087,7 @@ async def cb_bw_akun(cb: CallbackQuery):
         InlineKeyboardButton(text=f"➕ 5 GB — Rp{fmt(p5)}",  callback_data=f"bw_beli_5_{username}")
     )
     b.row(InlineKeyboardButton(text=f"➕ 10 GB — Rp{fmt(p10)}", callback_data=f"bw_beli_10_{username}"))
-    b.row(InlineKeyboardButton(text="↩ Kembali", callback_data="m_tambah_bw"))
+    b.row(InlineKeyboardButton(text="↩ Kembali", callback_data="m_tambah_bw_ssh"))
     await cb.message.edit_text(
         f"➕ <b>Tambah Bandwidth</b>\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
@@ -1172,7 +1211,7 @@ async def cb_vbw_akun(cb: CallbackQuery):
         InlineKeyboardButton(text=f"➕ 5 GB — Rp{fmt(p5)}",  callback_data=f"vbw_beli_5_{username}")
     )
     b.row(InlineKeyboardButton(text=f"➕ 10 GB — Rp{fmt(p10)}", callback_data=f"vbw_beli_10_{username}"))
-    b.row(InlineKeyboardButton(text="↩ Kembali", callback_data="m_tambah_bw"))
+    b.row(InlineKeyboardButton(text="↩ Kembali", callback_data="m_tambah_bw_vmess"))
     await cb.message.edit_text(
         f"📶 <b>Tambah Bandwidth VMess</b>\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
