@@ -1,23 +1,20 @@
 #!/bin/bash
 # ============================================================
 #   ZV-Manager - IP Limit Enforcement VMess
+#   Teknik: korelasi timestamp nginx log + xray log
 #   Cron: setiap menit
-#   Cara kerja:
-#     1. Query statsonlineiplist per user
-#     2. Hitung unique IP aktif
-#     3. Jika > TG_LIMIT_IP → kick user (rmu) dari semua inbound
-#        tunggu 30 detik → tambah balik (adu)
-#     4. Notif Telegram ke user
 # ============================================================
 
 VMESS_DIR="/etc/zv-manager/accounts/vmess"
 XRAY_BIN="/usr/local/bin/xray"
 API_ADDR="127.0.0.1:10085"
+NGINX_LOG="/var/log/nginx/access.log"
+XRAY_LOG="/var/log/xray-access.log"
 LOG="/var/log/zv-manager/ip-limit.log"
 KICK_STATE="/tmp/zv-ip-kick"
 TG_STATE_DIR="/tmp/zv-tg-state"
 
-mkdir -p "$KICK_STATE" "$TG_STATE_DIR"
+mkdir -p "$KICK_STATE" "$TG_STATE_DIR" "$(dirname $LOG)"
 
 _log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOG"; }
 
@@ -25,150 +22,182 @@ _log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOG"; }
 _get_ip_limit() {
     local username="$1"
     local server_name limit=0
-
-    # Coba ambil SERVER dari vmess conf
     server_name=$(grep "^SERVER=" "${VMESS_DIR}/${username}.conf" 2>/dev/null | cut -d= -f2 | tr -d '"')
-
     if [[ -n "$server_name" && -f "/etc/zv-manager/servers/${server_name}.tg.conf" ]]; then
         limit=$(grep "^TG_LIMIT_IP=" "/etc/zv-manager/servers/${server_name}.tg.conf" | cut -d= -f2 | tr -d '"')
     else
-        # Fallback: pakai tg.conf pertama
         local sc
         sc=$(ls /etc/zv-manager/servers/*.tg.conf 2>/dev/null | head -1)
         [[ -f "$sc" ]] && limit=$(grep "^TG_LIMIT_IP=" "$sc" | cut -d= -f2 | tr -d '"')
     fi
-
     echo "${limit:-0}"
 }
 
-# Hitung IP aktif user via Xray API
-_count_online_ips() {
-    local username="$1"
-    local tmpout
-    tmpout=$(mktemp)
-    "$XRAY_BIN" api statsonlineiplist \
-        -s "$API_ADDR" \
-        -email "${username}@vmess" \
-        2>/dev/null > "$tmpout" || true
+# Korelasi nginx + xray log → {user: [IP1, IP2, ...]}
+# Window: 3 menit terakhir
+_get_user_ips() {
+    python3 - "$NGINX_LOG" "$XRAY_LOG" << 'PYEOF'
+import sys, re
+from datetime import datetime, timezone, timedelta
 
-    local count
-    count=$(python3 - "$tmpout" << 'PYEOF'
-import json, sys
-try:
-    with open(sys.argv[1]) as f:
-        data = json.load(f)
-    records = data.get("ip_records", [])
-    print(len(records))
-except Exception:
-    print(0)
-PYEOF
+nginx_log = sys.argv[1]
+xray_log  = sys.argv[2]
+now       = datetime.now()
+window    = timedelta(minutes=3)
+
+# Parse nginx log: IP + timestamp untuk /vmess
+# Format: 1.2.3.4 - - [08/Mar/2026:08:55:29 +0700] "GET /vmess HTTP/1.1" 101
+nginx_re = re.compile(
+    r'^(\S+) \S+ \S+ \[(\d+/\w+/\d+:\d+:\d+:\d+) ([+-]\d{4})\] '
+    r'"(?:GET|POST) /vmess[\s/].*?" (101)'
 )
-    rm -f "$tmpout"
-    echo "${count:-0}"
+# {timestamp_second: [ip, ...]}
+nginx_map = {}
+try:
+    with open(nginx_log) as f:
+        for line in f:
+            m = nginx_re.match(line)
+            if not m: continue
+            ip, ts_str, tz_str, _ = m.groups()
+            try:
+                dt = datetime.strptime(f"{ts_str} {tz_str}", "%d/%b/%Y:%H:%M:%S %z")
+                dt_local = dt.astimezone().replace(tzinfo=None)
+                if now - dt_local > window: continue
+                key = dt_local.strftime("%Y/%m/%d %H:%M:%S")
+                nginx_map.setdefault(key, []).append(ip)
+            except Exception:
+                pass
+except Exception:
+    pass
+
+# Parse xray log: timestamp + email untuk vmess-ws
+# Format: 2026/03/08 08:55:29.123456 from 127.0.0.1:PORT accepted ... email: USER@vmess
+xray_re = re.compile(
+    r'^(\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2})\.\d+ from 127\.0\.0\.1:\d+ '
+    r'accepted .+ email: (\S+@vmess)'
+)
+# {email: set(IPs)}
+user_ips = {}
+try:
+    with open(xray_log) as f:
+        for line in f:
+            m = xray_re.match(line)
+            if not m: continue
+            ts_key, email = m.groups()
+            # Cari di nginx_map dengan window ±2 detik
+            matched_ips = []
+            try:
+                base_dt = datetime.strptime(ts_key, "%Y/%m/%d %H:%M:%S")
+                if now - base_dt > window: continue
+                for delta in range(-2, 3):
+                    check_dt = base_dt + timedelta(seconds=delta)
+                    check_key = check_dt.strftime("%Y/%m/%d %H:%M:%S")
+                    matched_ips.extend(nginx_map.get(check_key, []))
+            except Exception:
+                pass
+            username = email.replace("@vmess", "")
+            if username not in user_ips:
+                user_ips[username] = set()
+            user_ips[username].update(matched_ips)
+except Exception:
+    pass
+
+import json
+print(json.dumps({k: list(v) for k, v in user_ips.items()}))
+PYEOF
 }
 
-# Kick user dari semua inbound VMess
+# Kick user via Xray API
 _kick_user() {
-    local username="$1"
+    local username="$1" uuid="$2"
     local email="${username}@vmess"
     "$XRAY_BIN" api rmu -s "$API_ADDR" -inbound "vmess-ws"   -email "$email" &>/dev/null || true
     "$XRAY_BIN" api rmu -s "$API_ADDR" -inbound "vmess-grpc" -email "$email" &>/dev/null || true
-    _log "$username KICKED (IP limit)"
+    _log "$username KICKED (IP limit exceeded)"
 }
 
-# Tambah balik user ke semua inbound VMess
 _readd_user() {
     local username="$1" uuid="$2"
     local email="${username}@vmess"
     local user_json="{\"vmess\":{\"id\":\"${uuid}\",\"email\":\"${email}\",\"alterId\":0}}"
     "$XRAY_BIN" api adu -s "$API_ADDR" -inbound "vmess-ws"   -user "$user_json" &>/dev/null || true
     "$XRAY_BIN" api adu -s "$API_ADDR" -inbound "vmess-grpc" -user "$user_json" &>/dev/null || true
-    _log "$username RE-ADDED after kick"
+    _log "$username RE-ADDED after kick cooldown"
 }
 
-# Kirim notif Telegram
 _tg_notify_ip() {
     local tg_uid="$1" username="$2" ip_count="$3" ip_limit="$4"
     [[ -z "$tg_uid" || "$tg_uid" == "0" ]] && return
-
-    # Rate limit notif — max 1x per 5 menit per user
     local flag_file="${TG_STATE_DIR}/iplimit_${username}"
     if [[ -f "$flag_file" ]]; then
-        local last_notif
-        last_notif=$(cat "$flag_file")
-        local now_ts
-        now_ts=$(date +%s)
-        (( now_ts - last_notif < 300 )) && return
+        local last; last=$(cat "$flag_file")
+        (( $(date +%s) - last < 300 )) && return
     fi
-
     local bot_token server_name
     bot_token=$(grep "^BOT_TOKEN=" /etc/zv-manager/servers/*.tg.conf 2>/dev/null | head -1 | cut -d= -f2 | tr -d '"')
     server_name=$(grep "^TG_SERVER_LABEL=" /etc/zv-manager/servers/*.tg.conf 2>/dev/null | head -1 | cut -d= -f2 | tr -d '"')
     [[ -z "$bot_token" ]] && return
-
-    local msg
-    msg="⚠️ <b>Limit IP VMess Terlampaui!</b>%0A"
+    local msg="⚠️ <b>Limit IP VMess Terlampaui!</b>%0A"
     msg+="━━━━━━━━━━━━━━━━━━━%0A"
     msg+="👤 Username : <code>${username}</code>%0A"
     msg+="🌐 Server   : ${server_name}%0A"
     msg+="📱 IP Aktif : ${ip_count} / ${ip_limit}%0A"
     msg+="━━━━━━━━━━━━━━━━━━━%0A"
-    msg+="🔄 Koneksi direset. Harap hanya gunakan ${ip_limit} perangkat."
-
+    msg+="🔄 Koneksi direset. Harap gunakan max ${ip_limit} perangkat."
     curl -s -X POST "https://api.telegram.org/bot${bot_token}/sendMessage" \
         -d "chat_id=${tg_uid}&text=${msg}&parse_mode=HTML" &>/dev/null
-
     date +%s > "$flag_file"
 }
 
 _main() {
     [[ ! -d "$VMESS_DIR" ]] && exit 0
+    [[ ! -f "$NGINX_LOG" || ! -f "$XRAY_LOG" ]] && exit 0
 
-    # ip_limit diambil per-user (bisa beda server)
+    # Dapatkan mapping user → IPs dari log korelasi
+    local user_ips_json
+    user_ips_json=$(_get_user_ips)
 
     for conf in "${VMESS_DIR}"/*.conf; do
         [[ -f "$conf" ]] || continue
 
-        local username uuid tg_uid is_trial
+        local username uuid tg_uid
         username=$(grep "^USERNAME=" "$conf" | cut -d= -f2 | tr -d '"')
         uuid=$(grep "^UUID=" "$conf" | cut -d= -f2 | tr -d '"')
         tg_uid=$(grep "^TG_USER_ID=" "$conf" | cut -d= -f2 | tr -d '"')
-        is_trial=$(grep "^IS_TRIAL=" "$conf" | cut -d= -f2 | tr -d '"')
-
         [[ -z "$username" || -z "$uuid" ]] && continue
 
-        # Ambil limit IP untuk user ini
-        local ip_limit
-        ip_limit=$(_get_ip_limit "$username")
-        [[ "${ip_limit:-0}" == "0" ]] && continue
-
-        # Cek apakah sedang dalam cooldown kick (30 detik)
+        # Cek cooldown kick
         local kick_flag="${KICK_STATE}/${username}.kick"
         if [[ -f "$kick_flag" ]]; then
-            local kick_ts
-            kick_ts=$(cat "$kick_flag")
-            local now_ts
-            now_ts=$(date +%s)
-            if (( now_ts - kick_ts >= 30 )); then
-                # Cooldown selesai → tambah balik
+            local kick_ts; kick_ts=$(cat "$kick_flag")
+            if (( $(date +%s) - kick_ts >= 30 )); then
                 _readd_user "$username" "$uuid"
                 rm -f "$kick_flag"
             fi
             continue
         fi
 
-        # Hitung IP aktif
+        local ip_limit
+        ip_limit=$(_get_ip_limit "$username")
+        [[ "${ip_limit:-0}" == "0" ]] && continue
+
+        # Hitung unique IP dari korelasi log
         local ip_count
-        ip_count=$(_count_online_ips "$username")
+        ip_count=$(python3 -c "
+import json, sys
+data = json.loads('''${user_ips_json}''')
+ips = data.get('${username}', [])
+print(len(set(ips)))
+" 2>/dev/null || echo "0")
 
-        _log "$username: ${ip_count} IP aktif (limit: ${ip_limit})"
-        [[ "$ip_count" -le "$ip_limit" ]] && continue
+        _log "$username: ${ip_count} IP unik (limit: ${ip_limit})"
 
-        # Melebihi limit → kick
-        _log "$username: ${ip_count} IP aktif (limit: ${ip_limit}) → kick"
-        _tg_notify_ip "$tg_uid" "$username" "$ip_count" "$ip_limit"
-        _kick_user "$username"
-        date +%s > "$kick_flag"
+        if (( ip_count > ip_limit )); then
+            _log "$username melebihi limit → kick"
+            _tg_notify_ip "$tg_uid" "$username" "$ip_count" "$ip_limit"
+            _kick_user "$username" "$uuid"
+            date +%s > "$kick_flag"
+        fi
     done
 }
 
