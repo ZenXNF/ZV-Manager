@@ -244,10 +244,7 @@ async def cb_vs_trial(cb: CallbackQuery):
         await cb.message.answer("❌ Server tidak ditemukan."); return
 
     tg     = load_tg_server_conf(sname)
-    try:
-        domain = Path("/etc/zv-manager/domain").read_text().strip() or sconf.get("IP","")
-    except Exception:
-        domain = sconf.get("DOMAIN") or sconf.get("IP","")
+    domain = sconf.get("DOMAIN") or sconf.get("IP","")
 
     suffix   = "".join(random.choices(string.digits, k=4))
     username = f"VTrial{suffix}"
@@ -323,10 +320,7 @@ async def cb_konfirm_vmess(cb: CallbackQuery):
     fname  = state_get(uid, "FNAME")
     sconf  = load_server_conf(sname)
     tg     = load_tg_server_conf(sname)
-    try:
-        domain = Path("/etc/zv-manager/domain").read_text().strip() or sconf.get("IP","")
-    except Exception:
-        domain = sconf.get("DOMAIN") or sconf.get("IP","")
+    domain = sconf.get("DOMAIN") or sconf.get("IP","")
     harga  = int(tg.get("TG_HARGA_VMESS_HARI","0") or tg.get("TG_HARGA_HARI","0"))
     total  = harga * days
 

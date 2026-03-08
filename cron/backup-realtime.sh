@@ -47,12 +47,11 @@ _tg_msg() {
         --max-time 10 &>/dev/null
 }
 
-CONF="${ACCOUNT_DIR}/${USERNAME}.conf"
 DATE=$(TZ="Asia/Jakarta" date +"%Y-%m-%d %H:%M")
 
 # Untuk delete — hanya kirim notif, file sudah tidak ada
 if [[ "$ACTION" == "delete" ]]; then
-    _tg_msg "🗑 <b>Backup Notif: Akun Dihapus</b>
+    _tg_msg "🗑 <b>Backup Notif: ${PROTO_LABEL} Dihapus</b>
 ━━━━━━━━━━━━━━━━━━━
 👤 Username : <code>${USERNAME}</code>
 📅 Waktu    : ${DATE}
