@@ -441,7 +441,6 @@ async def _handle_state(msg: Message, uid: int, text: str, state: str):
             )
             state_clear(uid); return
         saldo_line = f"\n💳 Saldo    : Rp{fmt(saldo)}" if harga > 0 else ""
-        from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
         await msg.answer(
             f"⚡ <b>Konfirmasi Perpanjang VMess</b>\n━━━━━━━━━━━━━━━━━━━\n"
             f"👤 Username : <code>{username}</code>\n"

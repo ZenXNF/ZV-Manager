@@ -590,6 +590,10 @@ def _render_ssh_page(items: list, page: int, now_ts: int) -> tuple[str, InlineKe
         nav.append(InlineKeyboardButton(text="Berikutnya ▶", callback_data=f"akun_ssh_{page+1}"))
     if nav: b.row(*nav)
     b.row(
+        InlineKeyboardButton(text="🔄 Perpanjang",    callback_data="m_perpanjang"),
+        InlineKeyboardButton(text="📶 Bandwidth",     callback_data="m_tambah_bw")
+    )
+    b.row(
         InlineKeyboardButton(text="⚡ Lihat VMess", callback_data="akun_proto_vmess"),
         InlineKeyboardButton(text="🏠 Menu",        callback_data="home")
     )
@@ -613,16 +617,12 @@ def _render_vmess_page(items: list, page: int, now_ts: int) -> tuple[str, Inline
         slabel   = vtg.get("TG_SERVER_LABEL","") or vsname or vc.get("DOMAIN","")
         tipe     = "Trial" if vc.get("IS_TRIAL","0") == "1" else "Premium"
         exp_d, status, sisa_l = _status_label(vc.get("EXPIRED_TS",""), now_ts)
-        bw_limit = int(vc.get("BW_LIMIT_GB","0") or "0")
-        bw_used  = int(vc.get("BW_USED_BYTES","0") or "0")
-        bw_line  = f"\n📶 Bandwidth : {_fmt_bw(bw_used, bw_limit)}" if bw_limit > 0 else ""
         out += (
             f"\n⚡ <b>{vuname}</b> <i>({tipe})</i>\n"
             f"🌐 Server   : {slabel}\n"
             f"🔑 UUID     : <code>{vuuid}</code>\n"
             f"⏳ Expired  : {exp_d} · {sisa_l}\n"
-            f"📊 Status   : {status}"
-            f"{bw_line}\n"
+            f"📊 Status   : {status}\n"
             f"━━━━━━━━━━━━━━━━━━━"
         )
 
@@ -633,6 +633,9 @@ def _render_vmess_page(items: list, page: int, now_ts: int) -> tuple[str, Inline
     if page < n_pages - 1:
         nav.append(InlineKeyboardButton(text="Berikutnya ▶", callback_data=f"akun_vmess_{page+1}"))
     if nav: b.row(*nav)
+    b.row(
+        InlineKeyboardButton(text="🔄 Perpanjang",  callback_data="m_perpanjang")
+    )
     b.row(
         InlineKeyboardButton(text="🔑 Lihat SSH", callback_data="akun_proto_ssh"),
         InlineKeyboardButton(text="🏠 Menu",      callback_data="home")

@@ -13,32 +13,27 @@ from storage import get_server_list, get_server_list_by_type, saldo_get, load_tg
 def kb_home() -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
     b.row(
-        InlineKeyboardButton(text="⚡ Buat Akun",     callback_data="m_buat"),
-        InlineKeyboardButton(text="🎁 Coba Gratis",   callback_data="m_trial")
+        InlineKeyboardButton(text="🛒 Beli Akun",      callback_data="m_buat"),
+        InlineKeyboardButton(text="🎁 Coba Gratis",    callback_data="m_trial")
     )
     b.row(
-        InlineKeyboardButton(text="📋 Akun Saya",     callback_data="m_akun"),
-        InlineKeyboardButton(text="🔄 Perpanjang",    callback_data="m_perpanjang")
-    )
-    b.row(
-        InlineKeyboardButton(text="📋 Riwayat Saldo", callback_data="m_saldo_history"),
-        InlineKeyboardButton(text="📶 Tambah BW",  callback_data="m_tambah_bw")
+        InlineKeyboardButton(text="📋 Akun Saya",      callback_data="m_akun"),
+        InlineKeyboardButton(text="💰 Riwayat Saldo",  callback_data="m_saldo_history")
     )
     return b.as_markup()
 
 def kb_home_admin() -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
     b.row(
-        InlineKeyboardButton(text="⚡ Buat Akun",     callback_data="m_buat"),
-        InlineKeyboardButton(text="🎁 Coba Gratis",   callback_data="m_trial")
+        InlineKeyboardButton(text="🛒 Beli Akun",      callback_data="m_buat"),
+        InlineKeyboardButton(text="🎁 Coba Gratis",    callback_data="m_trial")
     )
     b.row(
-        InlineKeyboardButton(text="📋 Akun Saya",     callback_data="m_akun"),
-        InlineKeyboardButton(text="🔄 Perpanjang",    callback_data="m_perpanjang")
+        InlineKeyboardButton(text="📋 Akun Saya",      callback_data="m_akun"),
+        InlineKeyboardButton(text="💰 Riwayat Saldo",  callback_data="m_saldo_history")
     )
     b.row(
-        InlineKeyboardButton(text="📋 Riwayat Saldo", callback_data="m_saldo_history"),
-        InlineKeyboardButton(text="🔧 Admin",         callback_data="m_admin")
+        InlineKeyboardButton(text="🔧 Admin",          callback_data="m_admin")
     )
     return b.as_markup()
 
