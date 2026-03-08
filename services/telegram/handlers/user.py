@@ -515,109 +515,188 @@ async def cb_s_trial(cb: CallbackQuery):
     )
 
 
-# ── Akun Saya ─────────────────────────────────────────────────
+# ── Akun Saya — helpers ───────────────────────────────────────
+_AKUN_PAGE_SIZE = 5
+
+def _status_label(exp_ts_raw: str, now_ts: int):
+    if exp_ts_raw and exp_ts_raw.isdigit():
+        exp_ts = int(exp_ts_raw)
+        sisa   = exp_ts - now_ts
+        disp   = ts_to_wib(exp_ts)
+        if sisa <= 0:
+            return disp, "❌ Expired", "Sudah habis"
+        elif sisa < 3600:
+            return disp, "⚠️ Aktif", "< 1 jam lagi"
+        elif sisa < 86400:
+            return disp, "⚠️ Aktif", f"{sisa//3600} jam lagi"
+        else:
+            return disp, "✅ Aktif", f"{sisa//86400} hari lagi"
+    return "-", "✅ Aktif", "-"
+
+def _collect_ssh_akun(uid: int) -> list:
+    items = []
+    try:
+        for f in sorted(Path(ACCOUNT_DIR).glob("*.conf")):
+            ac = load_account_conf(f.stem)
+            if str(ac.get("TG_USER_ID", "")).strip() != str(uid): continue
+            if not ac.get("USERNAME"): continue
+            items.append(ac)
+    except Exception: pass
+    return items
+
+def _collect_vmess_akun(uid: int) -> list:
+    items = []
+    try:
+        if Path(VMESS_DIR).exists():
+            for vf in sorted(Path(VMESS_DIR).glob("*.conf")):
+                vc = load_vmess_conf(vf.stem)
+                if str(vc.get("TG_USER_ID", "")).strip() != str(uid): continue
+                if not vc.get("USERNAME"): continue
+                items.append(vc)
+    except Exception: pass
+    return items
+
+def _render_ssh_page(items: list, page: int, now_ts: int) -> tuple[str, InlineKeyboardMarkup]:
+    total    = len(items)
+    n_pages  = max(1, (total + _AKUN_PAGE_SIZE - 1) // _AKUN_PAGE_SIZE)
+    page     = max(0, min(page, n_pages - 1))
+    chunk    = items[page * _AKUN_PAGE_SIZE:(page + 1) * _AKUN_PAGE_SIZE]
+
+    out = f"🔑 <b>Akun SSH Kamu</b>  ({total} akun)\n━━━━━━━━━━━━━━━━━━━\n"
+    if not chunk:
+        out += "\nBelum ada akun SSH."
+    for ac in chunk:
+        uname   = ac.get("USERNAME", "")
+        passwd  = ac.get("PASSWORD", "")
+        sname   = ac.get("SERVER", "")
+        sc      = load_server_conf(sname)
+        domain  = sc.get("DOMAIN") or sc.get("IP") or ac.get("DOMAIN", "")
+        tipe    = "Trial" if ac.get("IS_TRIAL","0") == "1" else "Premium"
+        exp_d, status, sisa_l = _status_label(ac.get("EXPIRED_TS",""), now_ts)
+        out += (
+            f"\n👤 <b>{uname}</b> <i>({tipe})</i>\n"
+            f"🌐 Host    : <code>{domain}</code>\n"
+            f"🔑 Pass    : <code>{passwd}</code>\n"
+            f"⏳ Expired : {exp_d}\n"
+            f"📊 Status  : {status} · {sisa_l}\n"
+            f"━━━━━━━━━━━━━━━━━━━"
+        )
+
+    b = InlineKeyboardBuilder()
+    nav = []
+    if page > 0:
+        nav.append(InlineKeyboardButton(text="◀ Sebelumnya", callback_data=f"akun_ssh_{page-1}"))
+    if page < n_pages - 1:
+        nav.append(InlineKeyboardButton(text="Berikutnya ▶", callback_data=f"akun_ssh_{page+1}"))
+    if nav: b.row(*nav)
+    b.row(
+        InlineKeyboardButton(text="⚡ Lihat VMess", callback_data="akun_proto_vmess"),
+        InlineKeyboardButton(text="🏠 Menu",        callback_data="home")
+    )
+    return out, b.as_markup()
+
+def _render_vmess_page(items: list, page: int, now_ts: int) -> tuple[str, InlineKeyboardMarkup]:
+    from texts import _fmt_bw
+    total    = len(items)
+    n_pages  = max(1, (total + _AKUN_PAGE_SIZE - 1) // _AKUN_PAGE_SIZE)
+    page     = max(0, min(page, n_pages - 1))
+    chunk    = items[page * _AKUN_PAGE_SIZE:(page + 1) * _AKUN_PAGE_SIZE]
+
+    out = f"⚡ <b>Akun VMess Kamu</b>  ({total} akun)\n━━━━━━━━━━━━━━━━━━━\n"
+    if not chunk:
+        out += "\nBelum ada akun VMess."
+    for vc in chunk:
+        vuname   = vc.get("USERNAME","")
+        vuuid    = vc.get("UUID","")
+        vsname   = vc.get("SERVER","")
+        vtg      = load_tg_server_conf(vsname) if vsname else {}
+        slabel   = vtg.get("TG_SERVER_LABEL","") or vsname or vc.get("DOMAIN","")
+        tipe     = "Trial" if vc.get("IS_TRIAL","0") == "1" else "Premium"
+        exp_d, status, sisa_l = _status_label(vc.get("EXPIRED_TS",""), now_ts)
+        bw_limit = int(vc.get("BW_LIMIT_GB","0") or "0")
+        bw_used  = int(vc.get("BW_USED_BYTES","0") or "0")
+        bw_line  = f"\n📶 Bandwidth : {_fmt_bw(bw_used, bw_limit)}" if bw_limit > 0 else ""
+        out += (
+            f"\n⚡ <b>{vuname}</b> <i>({tipe})</i>\n"
+            f"🌐 Server   : {slabel}\n"
+            f"🔑 UUID     : <code>{vuuid}</code>\n"
+            f"⏳ Expired  : {exp_d} · {sisa_l}\n"
+            f"📊 Status   : {status}"
+            f"{bw_line}\n"
+            f"━━━━━━━━━━━━━━━━━━━"
+        )
+
+    b = InlineKeyboardBuilder()
+    nav = []
+    if page > 0:
+        nav.append(InlineKeyboardButton(text="◀ Sebelumnya", callback_data=f"akun_vmess_{page-1}"))
+    if page < n_pages - 1:
+        nav.append(InlineKeyboardButton(text="Berikutnya ▶", callback_data=f"akun_vmess_{page+1}"))
+    if nav: b.row(*nav)
+    b.row(
+        InlineKeyboardButton(text="🔑 Lihat SSH", callback_data="akun_proto_ssh"),
+        InlineKeyboardButton(text="🏠 Menu",      callback_data="home")
+    )
+    return out, b.as_markup()
+
+
+# ── Akun Saya — entry point (pilih protokol) ──────────────────
 @router.callback_query(F.data == "m_akun")
 async def cb_akun_saya(cb: CallbackQuery):
     uid    = cb.from_user.id
-    now_ts = int(time.time())
-    out    = "📋 <b>Akun Kamu</b>\n━━━━━━━━━━━━━━━━━━━\n"
-    found  = False
     await cb.answer()
-    try:
-        for f in Path(ACCOUNT_DIR).glob("*.conf"):
-            ac = load_account_conf(f.stem)
-            if str(ac.get("TG_USER_ID", "")).strip() != str(uid):
-                continue
-            uname      = ac.get("USERNAME", "")
-            passwd     = ac.get("PASSWORD", "")
-            exp_ts_raw = ac.get("EXPIRED_TS", "")
-            is_trial   = ac.get("IS_TRIAL", "0") == "1"
-            sname      = ac.get("SERVER", "")
-            sc         = load_server_conf(sname)
-            domain     = sc.get("DOMAIN") or sc.get("IP") or ac.get("DOMAIN", "")
-            if not uname:
-                continue
-            if exp_ts_raw and exp_ts_raw.isdigit():
-                exp_ts = int(exp_ts_raw)
-                sisa   = exp_ts - now_ts
-                exp_display = ts_to_wib(exp_ts)
-                if sisa <= 0:
-                    status = "❌ Expired"; sisa_label = "Sudah habis"
-                elif sisa < 3600:
-                    status = "⚠️ Aktif"; sisa_label = "Kurang dari 1 jam"
-                elif sisa < 86400:
-                    status = "⚠️ Aktif"; sisa_label = f"{sisa//3600} jam lagi"
-                else:
-                    status = "✅ Aktif"; sisa_label = f"{sisa//86400} hari lagi"
-            else:
-                exp_display = ac.get("EXPIRED", "-")
-                status = "✅ Aktif"; sisa_label = "-"
-            tipe  = "Trial" if is_trial else "Premium"
-            found = True
-            out += (
-                f"\n👤 <b>{uname}</b> <i>({tipe})</i>\n"
-                f"🌐 Host    : <code>{domain}</code>\n"
-                f"🔑 Pass    : <code>{passwd}</code>\n"
-                f"⏳ Expired : {exp_display}\n"
-                f"📊 Status  : {status} · {sisa_label}\n"
-                f"━━━━━━━━━━━━━━━━━━━"
-            )
-    except Exception as e:
-        log.error(f"akun_saya error: {e}")
-    # Cek akun VMess juga
-    try:
-        from pathlib import Path as PV
-        vmess_dir_path = PV(VMESS_DIR)
-        if vmess_dir_path.exists():
-            for vf in vmess_dir_path.glob("*.conf"):
-                vc = load_vmess_conf(vf.stem)
-                if str(vc.get("TG_USER_ID","")).strip() != str(uid): continue
-                vuname    = vc.get("USERNAME","")
-                vuuid     = vc.get("UUID","")
-                vdomain   = vc.get("DOMAIN","")
-                vexp_ts   = vc.get("EXPIRED_TS","")
-                vsname    = vc.get("SERVER","")
-                is_vtrial = vc.get("IS_TRIAL","0") == "1"
-                if not vuname: continue
-                # Label server dari tg.conf
-                vtg = load_tg_server_conf(vsname) if vsname else {}
-                server_label = vtg.get("TG_SERVER_LABEL","") or vsname or vdomain
-                if vexp_ts and vexp_ts.isdigit():
-                    vexp = int(vexp_ts)
-                    vsisa = vexp - now_ts
-                    vexp_disp = ts_to_wib(vexp)
-                    if vsisa <= 0:
-                        vstatus = "❌ Expired"; vsisa_label = "Sudah habis"
-                    elif vsisa < 3600:
-                        vstatus = "⚠️ Aktif"; vsisa_label = "Kurang dari 1 jam"
-                    elif vsisa < 86400:
-                        vstatus = "⚠️ Aktif"; vsisa_label = f"{vsisa//3600} jam lagi"
-                    else:
-                        vstatus = "✅ Aktif"; vsisa_label = f"{vsisa//86400} hari lagi"
-                else:
-                    vexp_disp = "-"; vstatus = "✅ Aktif"; vsisa_label = "-"
-                vtipe = "Trial VMess" if is_vtrial else "VMess Premium"
-                # Bandwidth info
-                bw_limit = int(vc.get("BW_LIMIT_GB","0") or "0")
-                bw_used  = int(vc.get("BW_USED_BYTES","0") or "0")
-                from texts import _fmt_bw
-                bw_line = f"\n📶 Bandwidth : {_fmt_bw(bw_used, bw_limit)}" if bw_limit > 0 else ""
-                found = True
-                out += (
-                    f"\n⚡ <b>{vuname}</b> <i>({vtipe})</i>\n"
-                    f"🌐 Server   : {server_label}\n"
-                    f"🔑 UUID     : <code>{vuuid}</code>\n"
-                    f"⏳ Expired  : {vexp_disp} · {vsisa_label}\n"
-                    f"📊 Status   : {vstatus}"
-                    f"{bw_line}\n"
-                    f"━━━━━━━━━━━━━━━━━━━"
-                )
-    except Exception as ve:
-        log.error(f"akun_saya vmess error: {ve}")
+    n_ssh   = len(_collect_ssh_akun(uid))
+    n_vmess = len(_collect_vmess_akun(uid))
+    await cb.message.edit_text(
+        f"📋 <b>Akun Kamu</b>\n━━━━━━━━━━━━━━━━━━━\n"
+        f"🔑 SSH    : {n_ssh} akun\n"
+        f"⚡ VMess  : {n_vmess} akun\n"
+        f"━━━━━━━━━━━━━━━━━━━\nPilih protokol:",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text=f"🔑 SSH ({n_ssh})",   callback_data="akun_proto_ssh"),
+             InlineKeyboardButton(text=f"⚡ VMess ({n_vmess})", callback_data="akun_proto_vmess")],
+            [InlineKeyboardButton(text="🏠 Menu Utama", callback_data="home")]
+        ])
+    )
 
-    if not found:
-        out += "\nKamu belum punya akun aktif.\n\nTekan <b>Buat Akun</b> untuk membeli."
-    await cb.message.edit_text(out, parse_mode="HTML", reply_markup=kb_home_btn())
+@router.callback_query(F.data == "akun_proto_ssh")
+async def cb_akun_proto_ssh(cb: CallbackQuery):
+    uid    = cb.from_user.id
+    now_ts = int(time.time())
+    await cb.answer()
+    items  = _collect_ssh_akun(uid)
+    out, kb = _render_ssh_page(items, 0, now_ts)
+    await cb.message.edit_text(out, parse_mode="HTML", reply_markup=kb)
+
+@router.callback_query(F.data == "akun_proto_vmess")
+async def cb_akun_proto_vmess(cb: CallbackQuery):
+    uid    = cb.from_user.id
+    now_ts = int(time.time())
+    await cb.answer()
+    items  = _collect_vmess_akun(uid)
+    out, kb = _render_vmess_page(items, 0, now_ts)
+    await cb.message.edit_text(out, parse_mode="HTML", reply_markup=kb)
+
+@router.callback_query(F.data.startswith("akun_ssh_"))
+async def cb_akun_ssh_page(cb: CallbackQuery):
+    uid    = cb.from_user.id
+    now_ts = int(time.time())
+    page   = int(cb.data.split("_")[-1])
+    await cb.answer()
+    items  = _collect_ssh_akun(uid)
+    out, kb = _render_ssh_page(items, page, now_ts)
+    await cb.message.edit_text(out, parse_mode="HTML", reply_markup=kb)
+
+@router.callback_query(F.data.startswith("akun_vmess_"))
+async def cb_akun_vmess_page(cb: CallbackQuery):
+    uid    = cb.from_user.id
+    now_ts = int(time.time())
+    page   = int(cb.data.split("_")[-1])
+    await cb.answer()
+    items  = _collect_vmess_akun(uid)
+    out, kb = _render_vmess_page(items, page, now_ts)
+    await cb.message.edit_text(out, parse_mode="HTML", reply_markup=kb)
 
 
 # ── Perpanjang ────────────────────────────────────────────────

@@ -76,7 +76,7 @@ fi
 # ── LANGKAH 2: Stop semua service ZV-Manager ─────────────────────────────────
 _log_silent "Langkah 2: Menghentikan service ZV-Manager..."
 
-for svc in zv-wss zv-stunnel zv-udp zv-ws zv-badvpn; do
+for svc in zv-telegram zv-xray zv-wss zv-stunnel zv-udp zv-ws zv-badvpn; do
     if systemctl is-active --quiet "$svc" 2>/dev/null; then
         systemctl stop "$svc" 2>/dev/null
         _log_silent "  Stop: $svc"
@@ -262,6 +262,7 @@ _log_silent "Langkah 7: Menghapus file ZV-Manager..."
 
 rm -f /usr/local/bin/menu
 rm -f /usr/local/bin/zv-agent
+rm -f /usr/local/bin/zv-vmess-agent
 rm -f /usr/local/bin/zv-ws-proxy.py
 rm -f /usr/local/bin/badvpn-udpgw
 _log_silent "  Symlink dan binary global dihapus"
@@ -274,6 +275,18 @@ _log_silent "  /etc/zv-manager dihapus"
 
 rm -rf /root/ZV-Manager
 _log_silent "  /root/ZV-Manager dihapus"
+
+rm -rf /var/log/zv-manager
+_log_silent "  /var/log/zv-manager dihapus (riwayat transaksi & log)"
+
+rm -rf /var/www/zv-manager
+_log_silent "  /var/www/zv-manager dihapus (dashboard VMess)"
+
+rm -rf /usr/local/etc/xray
+_log_silent "  /usr/local/etc/xray dihapus (config Xray)"
+
+rm -f /usr/local/bin/xray
+_log_silent "  Xray binary dihapus"
 
 # ── LANGKAH 8: Hapus backup sshd_config lama ─────────────────────────────────
 for bak in /etc/ssh/sshd_config.bak.*; do
