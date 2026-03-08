@@ -204,3 +204,57 @@ pick_target_server() {
     set_target_server "$chosen"
     return 0
 }
+
+# Eksekusi zv-vmess-agent di remote/lokal dengan argumen
+# remote_vmess_agent <server_name> [zv-vmess-agent args...]
+remote_vmess_agent() {
+    local name="$1"
+    shift
+    local agent_args="$*"
+    if [[ "$name" == "local" || -z "$name" ]]; then
+        bash /etc/zv-manager/zv-vmess-agent.sh $agent_args
+        return $?
+    fi
+    local conf="${SERVER_DIR}/${name}.conf"
+    [[ ! -f "$conf" ]] && { echo "REMOTE-ERR|Server '$name' tidak ditemukan"; return 1; }
+    unset IP PORT USER PASS
+    source "$conf"
+    _ensure_sshpass
+    local result
+    result=$(sshpass -p "$PASS" ssh $_ssh_opts -p "$PORT" "${USER}@${IP}" \
+        "zv-vmess-agent $agent_args" 2>&1)
+    local rc=$?
+    if echo "$result" | grep -qi "command not found\|not found\|No such file"; then
+        echo "REMOTE-ERR|zv-vmess-agent tidak ditemukan di '${name}'. Deploy dulu via Menu Server → Deploy Agent."
+        return 1
+    fi
+    echo "$result"
+    return $rc
+}
+
+# Upload dan install zv-vmess-agent ke remote server
+deploy_vmess_agent() {
+    local name="$1"
+    local conf="${SERVER_DIR}/${name}.conf"
+    [[ ! -f "$conf" ]] && { echo "DEPLOY-ERR|Server '$name' tidak ditemukan"; return 1; }
+    local agent_src="/etc/zv-manager/zv-vmess-agent.sh"
+    [[ ! -f "$agent_src" ]] && { echo "DEPLOY-ERR|File zv-vmess-agent.sh tidak ada"; return 1; }
+    unset IP PORT USER PASS NAME
+    source "$conf"
+    _ensure_sshpass
+    sshpass -p "$PASS" ssh $_ssh_opts -p "$PORT" "${USER}@${IP}" \
+        "mkdir -p /etc/zv-manager/accounts/vmess" 2>&1
+    sshpass -p "$PASS" ssh $_ssh_opts -p "$PORT" "${USER}@${IP}" \
+        "cat > /usr/local/bin/zv-vmess-agent && chmod +x /usr/local/bin/zv-vmess-agent" \
+        < "$agent_src" 2>&1
+    [[ $? -ne 0 ]] && { echo "DEPLOY-ERR|Gagal upload file"; return 1; }
+    local test_result
+    test_result=$(sshpass -p "$PASS" ssh $_ssh_opts -p "$PORT" "${USER}@${IP}" \
+        "zv-vmess-agent ping" 2>&1)
+    if [[ "$test_result" == "ZV-VMESS-AGENT-OK" ]]; then
+        echo "DEPLOY-OK"
+    else
+        echo "DEPLOY-ERR|Upload berhasil tapi ping gagal: ${test_result}"
+        return 1
+    fi
+}
