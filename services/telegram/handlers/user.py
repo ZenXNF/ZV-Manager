@@ -556,7 +556,7 @@ def _collect_vmess_akun(uid: int) -> list:
     except Exception: pass
     return items
 
-def _render_ssh_page(items: list, page: int, now_ts: int) -> tuple[str, InlineKeyboardMarkup]:
+def _render_ssh_page(items: list, page: int, now_ts: int, uid: int) -> tuple[str, InlineKeyboardMarkup]:
     total    = len(items)
     n_pages  = max(1, (total + _AKUN_PAGE_SIZE - 1) // _AKUN_PAGE_SIZE)
     page     = max(0, min(page, n_pages - 1))
@@ -582,6 +582,12 @@ def _render_ssh_page(items: list, page: int, now_ts: int) -> tuple[str, InlineKe
             f"━━━━━━━━━━━━━━━━━━━"
         )
 
+    # Cek apakah user punya akun premium SSH (bukan trial) untuk perpanjang/bw
+    has_premium = any(
+        ac.get("IS_TRIAL","0") != "1"
+        for ac in items
+    )
+
     b = InlineKeyboardBuilder()
     nav = []
     if page > 0:
@@ -589,18 +595,15 @@ def _render_ssh_page(items: list, page: int, now_ts: int) -> tuple[str, InlineKe
     if page < n_pages - 1:
         nav.append(InlineKeyboardButton(text="Berikutnya ▶", callback_data=f"akun_ssh_{page+1}"))
     if nav: b.row(*nav)
-    b.row(
-        InlineKeyboardButton(text="🔄 Perpanjang",    callback_data="m_perpanjang"),
-        InlineKeyboardButton(text="📶 Bandwidth",     callback_data="m_tambah_bw")
-    )
-    b.row(
-        InlineKeyboardButton(text="⚡ Lihat VMess", callback_data="akun_proto_vmess"),
-        InlineKeyboardButton(text="🏠 Menu",        callback_data="home")
-    )
+    if has_premium:
+        b.row(
+            InlineKeyboardButton(text="🔄 Perpanjang", callback_data="m_perpanjang"),
+            InlineKeyboardButton(text="📶 Bandwidth",  callback_data="m_tambah_bw")
+        )
+    b.row(InlineKeyboardButton(text="🏠 Menu", callback_data="home"))
     return out, b.as_markup()
 
-def _render_vmess_page(items: list, page: int, now_ts: int) -> tuple[str, InlineKeyboardMarkup]:
-    from texts import _fmt_bw
+def _render_vmess_page(items: list, page: int, now_ts: int, uid: int) -> tuple[str, InlineKeyboardMarkup]:
     total    = len(items)
     n_pages  = max(1, (total + _AKUN_PAGE_SIZE - 1) // _AKUN_PAGE_SIZE)
     page     = max(0, min(page, n_pages - 1))
@@ -626,6 +629,12 @@ def _render_vmess_page(items: list, page: int, now_ts: int) -> tuple[str, Inline
             f"━━━━━━━━━━━━━━━━━━━"
         )
 
+    # Cek apakah user punya akun premium VMess untuk perpanjang
+    has_premium = any(
+        vc.get("IS_TRIAL","0") != "1"
+        for vc in items
+    )
+
     b = InlineKeyboardBuilder()
     nav = []
     if page > 0:
@@ -633,13 +642,9 @@ def _render_vmess_page(items: list, page: int, now_ts: int) -> tuple[str, Inline
     if page < n_pages - 1:
         nav.append(InlineKeyboardButton(text="Berikutnya ▶", callback_data=f"akun_vmess_{page+1}"))
     if nav: b.row(*nav)
-    b.row(
-        InlineKeyboardButton(text="🔄 Perpanjang",  callback_data="m_perpanjang")
-    )
-    b.row(
-        InlineKeyboardButton(text="🔑 Lihat SSH", callback_data="akun_proto_ssh"),
-        InlineKeyboardButton(text="🏠 Menu",      callback_data="home")
-    )
+    if has_premium:
+        b.row(InlineKeyboardButton(text="🔄 Perpanjang", callback_data="m_perpanjang"))
+    b.row(InlineKeyboardButton(text="🏠 Menu", callback_data="home"))
     return out, b.as_markup()
 
 
@@ -669,7 +674,7 @@ async def cb_akun_proto_ssh(cb: CallbackQuery):
     now_ts = int(time.time())
     await cb.answer()
     items  = _collect_ssh_akun(uid)
-    out, kb = _render_ssh_page(items, 0, now_ts)
+    out, kb = _render_ssh_page(items, 0, now_ts, uid)
     await cb.message.edit_text(out, parse_mode="HTML", reply_markup=kb)
 
 @router.callback_query(F.data == "akun_proto_vmess")
@@ -678,7 +683,7 @@ async def cb_akun_proto_vmess(cb: CallbackQuery):
     now_ts = int(time.time())
     await cb.answer()
     items  = _collect_vmess_akun(uid)
-    out, kb = _render_vmess_page(items, 0, now_ts)
+    out, kb = _render_vmess_page(items, 0, now_ts, uid)
     await cb.message.edit_text(out, parse_mode="HTML", reply_markup=kb)
 
 @router.callback_query(F.data.startswith("akun_ssh_"))
@@ -688,7 +693,7 @@ async def cb_akun_ssh_page(cb: CallbackQuery):
     page   = int(cb.data.split("_")[-1])
     await cb.answer()
     items  = _collect_ssh_akun(uid)
-    out, kb = _render_ssh_page(items, page, now_ts)
+    out, kb = _render_ssh_page(items, page, now_ts, uid)
     await cb.message.edit_text(out, parse_mode="HTML", reply_markup=kb)
 
 @router.callback_query(F.data.startswith("akun_vmess_"))
@@ -698,7 +703,7 @@ async def cb_akun_vmess_page(cb: CallbackQuery):
     page   = int(cb.data.split("_")[-1])
     await cb.answer()
     items  = _collect_vmess_akun(uid)
-    out, kb = _render_vmess_page(items, page, now_ts)
+    out, kb = _render_vmess_page(items, page, now_ts, uid)
     await cb.message.edit_text(out, parse_mode="HTML", reply_markup=kb)
 
 
