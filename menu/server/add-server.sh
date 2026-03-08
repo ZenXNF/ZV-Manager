@@ -111,6 +111,21 @@ add_server() {
     print_ok "Koneksi SSH berhasil!"
     echo ""
 
+    # --- Ambil ISP server ---
+    print_info "Mengambil info ISP server..."
+    local isp
+    isp=$(sshpass -p "$pass" ssh \
+        -o StrictHostKeyChecking=no \
+        -o UserKnownHostsFile=/dev/null \
+        -o ConnectTimeout=10 \
+        -o BatchMode=no \
+        -p "$port" \
+        "${user}@${ip}" \
+        "curl -s --max-time 5 ipinfo.io/org 2>/dev/null | sed 's/^AS[0-9]* //'" 2>/dev/null)
+    [[ -z "$isp" ]] && isp="Unknown"
+    print_ok "ISP: ${isp}"
+    echo ""
+
     # --- Pilih tipe server ---
     echo -e "${BCYAN}  ┌─────────────────────────────────────────────┐${NC}"
     echo -e "  │            ${BWHITE}TIPE SERVER${NC}                      │"
@@ -141,6 +156,7 @@ PORT="${port}"
 USER="${user}"
 PASS="${pass}"
 SERVER_TYPE="${server_type}"
+ISP="${isp}"
 ADDED="$(date +"%Y-%m-%d %H:%M")"
 CONFEOF
     chmod 600 "${SERVER_DIR}/${name}.conf"
@@ -220,6 +236,7 @@ TGEOF
     echo ""
     echo -e "  ${BWHITE}IP     :${NC} ${BGREEN}${ip}${NC}"
     echo -e "  ${BWHITE}Domain :${NC} ${BGREEN}${domain}${NC}"
+    echo -e "  ${BWHITE}ISP    :${NC} ${BGREEN}${isp}${NC}"
     echo -e "  ${BWHITE}Label  :${NC} ${BGREEN}${tg_label}${NC}"
     echo -e "  ${BWHITE}Tipe   :${NC} ${BGREEN}${server_type}${NC}"
     [[ "$server_type" != "vmess" ]] && \

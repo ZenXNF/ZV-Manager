@@ -159,19 +159,29 @@ _change_host() {
 }
 
 _open_web_info() {
-    local cur_domain
-    cur_domain=$(cat /etc/zv-manager/domain 2>/dev/null)
+    local cur_host
+    cur_host=$(cat /etc/zv-manager/web-host 2>/dev/null)
     local ssl_type
     ssl_type=$(cat /etc/zv-manager/ssl/ssl-type 2>/dev/null || echo "self-signed")
     local ssl_label
-    [[ "$ssl_type" == "letsencrypt" || "$ssl_type" == "wildcard" ]] &&         ssl_label="${BGREEN}Let's Encrypt ✓${NC}" || ssl_label="${BYELLOW}Self-Signed${NC}"
+    [[ "$ssl_type" == "letsencrypt" || "$ssl_type" == "wildcard" ]] && \
+        ssl_label="${BGREEN}Let's Encrypt ✓${NC}" || ssl_label="${BYELLOW}Self-Signed${NC}"
+    # Format URL sesuai tipe host
+    local cur_url
+    if [[ -z "$cur_host" ]]; then
+        cur_url="(belum diset)"
+    elif [[ "$cur_host" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        cur_url="http://${cur_host}/status"
+    else
+        cur_url="https://${cur_host}"
+    fi
     clear
     echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
     echo -e " │          ${BWHITE}INFO HALAMAN WEB STATUS${NC}             │"
     echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
     echo ""
     echo -e "  ${BWHITE}Status    :${NC} ${BGREEN}Aktif${NC}"
-    echo -e "  ${BWHITE}URL       :${NC} ${BYELLOW}https://${cur_domain}/status${NC}"
+    echo -e "  ${BWHITE}URL       :${NC} ${BYELLOW}${cur_url}${NC}"
     echo -e "  ${BWHITE}SSL       :${NC} ${ssl_label}"
     echo -e "  ${BWHITE}Update    :${NC} ${BYELLOW}Otomatis setiap 5 menit${NC}"
     echo ""
@@ -187,19 +197,19 @@ _open_web_info() {
         1)
             print_info "Refresh halaman..."
             bash "$STATUS_SCRIPT" 2>/dev/null
-            print_ok "Selesai! Buka https://${cur_domain}/status"
+            print_ok "Selesai! Buka ${cur_url}"
             press_any_key
             ;;
         2) _change_host; bash "$STATUS_SCRIPT" 2>/dev/null ;;
         3)
-            if [[ -z "$cur_domain" || "$cur_domain" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            if [[ -z "$cur_host" || "$cur_host" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
                 print_error "Set domain dulu via opsi [2] sebelum request SSL!"
                 press_any_key; return
             fi
-            read -rp "  Request Let's Encrypt untuk ${cur_domain}? [y/N]: " yn
+            read -rp "  Request Let's Encrypt untuk ${cur_host}? [y/N]: " yn
             [[ "$yn" != "y" && "$yn" != "Y" ]] && return
             source /etc/zv-manager/core/ssl.sh
-            setup_ssl_letsencrypt "$cur_domain"
+            setup_ssl_letsencrypt "$cur_host"
             systemctl reload nginx &>/dev/null || systemctl restart nginx &>/dev/null
             press_any_key
             ;;

@@ -159,7 +159,7 @@ else
     latest_xray=$(_xray_latest_version)
     # Strip 'v' prefix untuk perbandingan
     latest_xray_clean="${latest_xray#v}"
-    if [[ -n "$latest_xray_clean" && "$current_xray" != "$latest_xray_clean" ]]; then
+    if [[ -n "$latest_xray_clean" && -n "$current_xray" && "$current_xray" != "$latest_xray_clean" ]]; then
         print_info "Xray update: v${current_xray} → ${latest_xray}"
         ARCH=$(uname -m)
         case "$ARCH" in
@@ -183,11 +183,11 @@ else
     else
         print_ok "Xray-core sudah terbaru (v${current_xray}), skip"
     fi
-    # Pastikan config Xray sudah punya HandlerService
+    # Pastikan config Xray sudah punya HandlerService — hanya tulis ulang config, bukan install ulang binary
     if ! grep -q "HandlerService" /usr/local/etc/xray/config.json 2>/dev/null; then
         print_info "Menambahkan HandlerService ke config Xray..."
         source /etc/zv-manager/services/xray/install.sh
-        install_xray
+        _write_xray_config
         print_ok "Xray config diperbarui"
     fi
 fi

@@ -86,13 +86,14 @@ def text_server_list(title: str, proto: str = "ssh") -> str:
 
 def text_akun_info(tipe: str, username: str, password: str, domain: str,
                    exp_display: str, limit: str, server_label: str,
-                   days: int = 0, total: int = 0) -> str:
+                   days: int = 0, total: int = 0, isp: str = "") -> str:
     if tipe == "TRIAL":
         header = "🎁 <b>Akun Trial SSH — 30 Menit</b>"
     else:
         header = "🛒 <b>Akun SSH Berhasil Dibuat</b>"
 
     harga_line = f"\n💸 Dibayar   : <b>Rp{fmt(total)}</b>" if tipe == "BELI" else ""
+    isp_line   = f"\n🏢 ISP       : {isp}" if isp else ""
 
     return (
         f"{header}\n"
@@ -100,7 +101,7 @@ def text_akun_info(tipe: str, username: str, password: str, domain: str,
         f"👤 Username : <code>{username}</code>\n"
         f"🔑 Password : <code>{password}</code>\n"
         f"🌐 Host     : <code>{domain}</code>\n"
-        f"🖥 Server   : {server_label}\n"
+        f"🖥 Server   : {server_label}{isp_line}\n"
         f"📅 Expired  : {exp_display}\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
         f"📡 <b>Port</b>\n"
@@ -143,7 +144,7 @@ def _fmt_bw(used_bytes: int, limit_gb: int) -> str:
 def text_vmess_info(tipe: str, username: str, uuid: str, domain: str,
                     exp_display: str, server_label: str,
                     days: int = 0, total: int = 0,
-                    dashboard_url: str = "") -> str:
+                    dashboard_url: str = "", isp: str = "") -> str:
     """Pesan info akun VMess — semua dalam 1 pesan termasuk URL."""
     from utils import fmt
     is_trial  = (tipe == "TRIAL")
@@ -155,6 +156,10 @@ def text_vmess_info(tipe: str, username: str, uuid: str, domain: str,
         "━━━━━━━━━━━━━━━━━━━",
         f"⚡ Username : <code>{username}</code>",
         f"🌐 Server   : {server_label}",
+    ]
+    if isp:
+        lines.append(f"🏢 ISP      : {isp}")
+    lines += [
         f"🔑 UUID     : <code>{uuid}</code>",
         "━━━━━━━━━━━━━━━━━━━",
         "📡 Port TLS  : 443 (WS + gRPC)",

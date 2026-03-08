@@ -273,7 +273,7 @@ async def cb_vs_trial(cb: CallbackQuery):
     zv_log(f"VMESS_TRIAL: {uid} server={sname} user={username}")
     await cb.message.answer(
         text_vmess_info("TRIAL", username, new_uuid, domain, exp_disp,
-                        tg["TG_SERVER_LABEL"]),
+                        tg["TG_SERVER_LABEL"], isp=sconf.get("ISP","")),
         parse_mode="HTML", reply_markup=kb_after_buy("vmess")
     )
 
@@ -393,7 +393,7 @@ async def cb_konfirm_vmess(cb: CallbackQuery):
     await cb.message.edit_text("✅ Akun VMess sedang dibuat...")
     await cb.message.answer(
         text_vmess_info("BELI", username, new_uuid, domain, exp_disp,
-                        tg["TG_SERVER_LABEL"], days, total, dashboard_url),
+                        tg["TG_SERVER_LABEL"], days, total, dashboard_url, isp=sconf.get("ISP","")),
         parse_mode="HTML", reply_markup=kb_after_buy("vmess")
     )
 
@@ -504,7 +504,7 @@ async def cb_s_trial(cb: CallbackQuery):
     zv_log(f"TRIAL: {uid} server={sname} user={username}")
     await cb.message.answer(
         text_akun_info("TRIAL", username, password, domain,
-                       exp_display, tg["TG_LIMIT_IP"], tg["TG_SERVER_LABEL"]),
+                       exp_display, tg["TG_LIMIT_IP"], tg["TG_SERVER_LABEL"], isp=sconf.get("ISP","")),
         parse_mode="HTML", reply_markup=kb_after_buy("ssh")
     )
 
@@ -1447,6 +1447,6 @@ async def cb_konfirm(cb: CallbackQuery):
     await cb.message.edit_text("✅ Akun sedang dibuat...")
     await cb.message.answer(
         text_akun_info("BELI", username, password, domain, exp_display,
-                       tg["TG_LIMIT_IP"], tg["TG_SERVER_LABEL"], days, total),
+                       tg["TG_LIMIT_IP"], tg["TG_SERVER_LABEL"], days, total, isp=sconf.get("ISP","")),
         parse_mode="HTML", reply_markup=kb_after_buy("ssh")
     )
