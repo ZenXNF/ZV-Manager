@@ -550,3 +550,214 @@ async def cb_adm_online_vmess(cb: CallbackQuery):
             InlineKeyboardButton(text="↩ Kembali", callback_data="m_admin"),
         ]])
     )
+
+# ── Admin: Kelola VMess ───────────────────────────────────────
+VMESS_DIR_ADMIN = "/etc/zv-manager/accounts/vmess"
+
+def _load_vmess_list():
+    """Return list dict dari semua conf VMess di brain."""
+    items = []
+    p = Path(VMESS_DIR_ADMIN)
+    if not p.exists():
+        return items
+    for conf in sorted(p.glob("*.conf")):
+        d = {}
+        for line in conf.read_text().splitlines():
+            if "=" in line:
+                k, _, v = line.partition("=")
+                d[k.strip()] = v.strip().strip('"')
+        if d.get("USERNAME"):
+            items.append(d)
+    return items
+
+def _vmess_agent_admin(sname: str, *args) -> str:
+    cmd = " ".join(str(a) for a in args)
+    srv = sname if sname and sname != "local" else "local"
+    result = subprocess.run(
+        ["/bin/bash", "-c",
+         f"source /etc/zv-manager/utils/remote.sh && remote_vmess_agent {srv} {cmd}"],
+        capture_output=True, text=True
+    )
+    return result.stdout.strip()
+
+@router.callback_query(F.data == "adm_vmess_menu")
+async def cb_adm_vmess_menu(cb: CallbackQuery):
+    uid = cb.from_user.id
+    if uid != ADMIN_ID:
+        await cb.answer("❌ Akses ditolak"); return
+    await cb.answer()
+    items = _load_vmess_list()
+    total = len(items)
+    aktif = sum(1 for i in items if int(i.get("EXPIRED_TS","0") or "0") > int(__import__("time").time()))
+    await cb.message.edit_text(
+        f"⚡ <b>Kelola VMess</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"📊 Total akun : {total}\n"
+        f"✅ Aktif      : {aktif}\n"
+        f"━━━━━━━━━━━━━━━━━━━",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🗑️ Hapus Akun VMess",  callback_data="adm_vmess_hapus")],
+            [InlineKeyboardButton(text="🔄 Renew Akun VMess",  callback_data="adm_vmess_renew")],
+            [InlineKeyboardButton(text="🔇 Disable Akun",      callback_data="adm_vmess_disable")],
+            [InlineKeyboardButton(text="🔊 Enable Akun",       callback_data="adm_vmess_enable")],
+            [InlineKeyboardButton(text="↩ Kembali",            callback_data="m_admin")],
+        ])
+    )
+
+def _vmess_list_keyboard(prefix: str, back: str = "adm_vmess_menu") -> InlineKeyboardMarkup:
+    items = _load_vmess_list()
+    b = InlineKeyboardBuilder()
+    for i in items:
+        uname = i.get("USERNAME","?")
+        sname = i.get("SERVER","local")
+        exp   = i.get("EXPIRED_DATE","?")
+        b.row(InlineKeyboardButton(
+            text=f"{uname} [{sname}] — {exp}",
+            callback_data=f"{prefix}|{uname}"
+        ))
+    b.row(InlineKeyboardButton(text="↩ Kembali", callback_data=back))
+    return b.as_markup()
+
+@router.callback_query(F.data == "adm_vmess_hapus")
+async def cb_adm_vmess_hapus(cb: CallbackQuery):
+    if cb.from_user.id != ADMIN_ID:
+        await cb.answer("❌"); return
+    await cb.answer()
+    await cb.message.edit_text(
+        "🗑️ <b>Hapus Akun VMess</b>\n━━━━━━━━━━━━━━━━━━━\nPilih akun yang ingin dihapus:",
+        parse_mode="HTML", reply_markup=_vmess_list_keyboard("adm_vdel")
+    )
+
+@router.callback_query(F.data.startswith("adm_vdel|"))
+async def cb_adm_vdel_exec(cb: CallbackQuery):
+    if cb.from_user.id != ADMIN_ID:
+        await cb.answer("❌"); return
+    username = cb.data.split("|", 1)[1]
+    conf_path = Path(f"{VMESS_DIR_ADMIN}/{username}.conf")
+    sname = "local"
+    if conf_path.exists():
+        for line in conf_path.read_text().splitlines():
+            if line.startswith("SERVER="):
+                sname = line.split("=",1)[1].strip().strip('"')
+    result = _vmess_agent_admin(sname, "del", username)
+    conf_path.unlink(missing_ok=True)
+    zv_log(f"ADM_VMESS_DEL: {username} server={sname}")
+    await cb.answer("✅ Dihapus!")
+    await cb.message.edit_text(
+        f"✅ Akun VMess <code>{username}</code> berhasil dihapus.\nAgent: {result}",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="↩ Kembali", callback_data="adm_vmess_menu")
+        ]])
+    )
+
+@router.callback_query(F.data == "adm_vmess_renew")
+async def cb_adm_vmess_renew(cb: CallbackQuery):
+    if cb.from_user.id != ADMIN_ID:
+        await cb.answer("❌"); return
+    await cb.answer()
+    await cb.message.edit_text(
+        "🔄 <b>Renew Akun VMess</b>\n━━━━━━━━━━━━━━━━━━━\nPilih akun:",
+        parse_mode="HTML", reply_markup=_vmess_list_keyboard("adm_vrenew")
+    )
+
+@router.callback_query(F.data.startswith("adm_vrenew|"))
+async def cb_adm_vrenew_pick(cb: CallbackQuery):
+    if cb.from_user.id != ADMIN_ID:
+        await cb.answer("❌"); return
+    username = cb.data.split("|", 1)[1]
+    uid = cb.from_user.id
+    state_set(uid, "STATE", "adm_vmess_renew_days")
+    state_set(uid, "ADM_VMESS_USER", username)
+    await cb.answer()
+    await cb.message.edit_text(
+        f"🔄 <b>Renew</b> <code>{username}</code>\n━━━━━━━━━━━━━━━━━━━\nKetik jumlah hari perpanjangan:",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="❌ Batal", callback_data="adm_vmess_menu")
+        ]])
+    )
+
+@router.callback_query(F.data == "adm_vmess_disable")
+async def cb_adm_vmess_disable(cb: CallbackQuery):
+    if cb.from_user.id != ADMIN_ID:
+        await cb.answer("❌"); return
+    await cb.answer()
+    await cb.message.edit_text(
+        "🔇 <b>Disable Akun VMess</b>\n━━━━━━━━━━━━━━━━━━━\nPilih akun:",
+        parse_mode="HTML", reply_markup=_vmess_list_keyboard("adm_vdisable")
+    )
+
+@router.callback_query(F.data.startswith("adm_vdisable|"))
+async def cb_adm_vdisable_exec(cb: CallbackQuery):
+    if cb.from_user.id != ADMIN_ID:
+        await cb.answer("❌"); return
+    username = cb.data.split("|", 1)[1]
+    conf_path = Path(f"{VMESS_DIR_ADMIN}/{username}.conf")
+    sname = "local"
+    if conf_path.exists():
+        for line in conf_path.read_text().splitlines():
+            if line.startswith("SERVER="):
+                sname = line.split("=",1)[1].strip().strip('"')
+    result = _vmess_agent_admin(sname, "disable", username)
+    if conf_path.exists():
+        conf_path.rename(f"{VMESS_DIR_ADMIN}/{username}.disabled")
+    await cb.answer("✅ Dinonaktifkan!")
+    await cb.message.edit_text(
+        f"🔇 Akun <code>{username}</code> dinonaktifkan.\nAgent: {result}",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="↩ Kembali", callback_data="adm_vmess_menu")
+        ]])
+    )
+
+@router.callback_query(F.data == "adm_vmess_enable")
+async def cb_adm_vmess_enable(cb: CallbackQuery):
+    if cb.from_user.id != ADMIN_ID:
+        await cb.answer("❌"); return
+    await cb.answer()
+    # List dari .disabled
+    items = []
+    p = Path(VMESS_DIR_ADMIN)
+    if p.exists():
+        for f in sorted(p.glob("*.disabled")):
+            items.append(f.stem)
+    if not items:
+        await cb.message.edit_text(
+            "✅ Tidak ada akun VMess yang dinonaktifkan.",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                InlineKeyboardButton(text="↩ Kembali", callback_data="adm_vmess_menu")
+            ]])
+        ); return
+    b = InlineKeyboardBuilder()
+    for uname in items:
+        b.row(InlineKeyboardButton(text=uname, callback_data=f"adm_venable|{uname}"))
+    b.row(InlineKeyboardButton(text="↩ Kembali", callback_data="adm_vmess_menu"))
+    await cb.message.edit_text(
+        "🔊 <b>Enable Akun VMess</b>\n━━━━━━━━━━━━━━━━━━━\nPilih akun:",
+        parse_mode="HTML", reply_markup=b.as_markup()
+    )
+
+@router.callback_query(F.data.startswith("adm_venable|"))
+async def cb_adm_venable_exec(cb: CallbackQuery):
+    if cb.from_user.id != ADMIN_ID:
+        await cb.answer("❌"); return
+    username = cb.data.split("|", 1)[1]
+    disabled_path = Path(f"{VMESS_DIR_ADMIN}/{username}.disabled")
+    conf_path     = Path(f"{VMESS_DIR_ADMIN}/{username}.conf")
+    sname = "local"
+    if disabled_path.exists():
+        for line in disabled_path.read_text().splitlines():
+            if line.startswith("SERVER="):
+                sname = line.split("=",1)[1].strip().strip('"')
+        disabled_path.rename(conf_path)
+    result = _vmess_agent_admin(sname, "enable", username)
+    await cb.answer("✅ Diaktifkan!")
+    await cb.message.edit_text(
+        f"🔊 Akun <code>{username}</code> diaktifkan.\nAgent: {result}",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="↩ Kembali", callback_data="adm_vmess_menu")
+        ]])
+    )

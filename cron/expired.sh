@@ -135,34 +135,42 @@ _sweep_remote() {
 
 
 # ============================================================
-# VMESS LOCAL: hapus akun VMess expired
+# VMESS: hapus akun VMess expired (lokal + remote via agent)
 # ============================================================
-_sweep_vmess_local() {
+_sweep_vmess() {
     local vmess_dir="/etc/zv-manager/accounts/vmess"
     [[ -d "$vmess_dir" ]] || return
+    source /etc/zv-manager/utils/remote.sh 2>/dev/null
     local count=0
+    local now_ts; now_ts=$(date +%s)
     for conf_file in "$vmess_dir"/*.conf; do
         [[ -f "$conf_file" ]] || continue
         unset USERNAME EXPIRED_TS TG_USER_ID IS_TRIAL SERVER
         source "$conf_file"
         [[ -z "$EXPIRED_TS" ]] && continue
-        if [[ "$EXPIRED_TS" -lt "$(date +%s)" ]]; then
-            # Hapus conf
+        if [[ "$EXPIRED_TS" -lt "$now_ts" ]]; then
+            local sname="${SERVER:-local}"
+            # Hapus dari Xray via agent (lokal/remote)
+            local result
+            result=$(remote_vmess_agent "$sname" del "$USERNAME" 2>/dev/null)
+            _log "VMESS [$sname]: Auto-deleted expired: $USERNAME ($result)"
+            # Hapus conf lokal di brain
             rm -f "$conf_file"
-            # Kirim notif (hanya akun premium, trial tidak perlu)
-            if [[ "$IS_TRIAL" != "1" && -n "$TG_USER_ID" ]]; then
-                _tg_send "$TG_USER_ID" "🗑️ <b>Akun VMess Dihapus</b>\n\nUsername : <code>${USERNAME}</code>\n\nAkun VMess kamu sudah expired dan telah dihapus otomatis.\nBuat akun baru lewat bot."
+            rm -f "/tmp/zv-tg-state/vmess_${USERNAME}.notified"
+            # Notif ke user (hanya akun premium)
+            if [[ "$IS_TRIAL" != "1" && -n "$TG_USER_ID" && "$TG_USER_ID" != "0" ]]; then
+                _tg_send "$TG_USER_ID" "🗑️ <b>Akun VMess Dihapus</b>
+
+Username : <code>${USERNAME}</code>
+Server   : ${sname}
+
+Akun VMess kamu sudah expired dan telah dihapus otomatis.
+Buat akun baru lewat bot."
             fi
-            _log "VMESS: Auto-deleted expired: $USERNAME"
             count=$((count + 1))
         fi
     done
-    # Reload xray setelah hapus
-    if [[ $count -gt 0 ]]; then
-        source /etc/zv-manager/services/xray/install.sh 2>/dev/null
-        reload_xray 2>/dev/null
-        _log "VMESS: Reload xray setelah hapus $count akun"
-    fi
+    [[ $count -gt 0 ]] && _log "VMESS: Total dihapus: $count akun"
 }
 
 # ============================================================
@@ -171,5 +179,5 @@ _sweep_vmess_local() {
 _log "=== Mulai cron expired sweep ==="
 _sweep_local
 _sweep_remote
-_sweep_vmess_local
+_sweep_vmess
 _log "=== Selesai ==="

@@ -568,22 +568,28 @@ async def cb_akun_saya(cb: CallbackQuery):
             for vf in vmess_dir_path.glob("*.conf"):
                 vc = load_vmess_conf(vf.stem)
                 if str(vc.get("TG_USER_ID","")).strip() != str(uid): continue
-                vuname  = vc.get("USERNAME","")
-                vuuid   = vc.get("UUID","")
-                vdomain = vc.get("DOMAIN","")
-                vexp_ts = vc.get("EXPIRED_TS","")
+                vuname    = vc.get("USERNAME","")
+                vuuid     = vc.get("UUID","")
+                vdomain   = vc.get("DOMAIN","")
+                vexp_ts   = vc.get("EXPIRED_TS","")
+                vsname    = vc.get("SERVER","")
                 is_vtrial = vc.get("IS_TRIAL","0") == "1"
                 if not vuname: continue
+                # Label server dari tg.conf
+                vtg = load_tg_server_conf(vsname) if vsname else {}
+                server_label = vtg.get("TG_SERVER_LABEL","") or vsname or vdomain
                 if vexp_ts and vexp_ts.isdigit():
                     vexp = int(vexp_ts)
                     vsisa = vexp - now_ts
                     vexp_disp = ts_to_wib(vexp)
                     if vsisa <= 0:
-                        continue  # skip expired
+                        vstatus = "❌ Expired"; vsisa_label = "Sudah habis"
                     elif vsisa < 3600:
                         vstatus = "⚠️ Aktif"; vsisa_label = "Kurang dari 1 jam"
+                    elif vsisa < 86400:
+                        vstatus = "⚠️ Aktif"; vsisa_label = f"{vsisa//3600} jam lagi"
                     else:
-                        vstatus = "✅ Aktif"; vsisa_label = f"{vsisa//86400} hari lagi" if vsisa >= 86400 else f"{vsisa//3600} jam lagi"
+                        vstatus = "✅ Aktif"; vsisa_label = f"{vsisa//86400} hari lagi"
                 else:
                     vexp_disp = "-"; vstatus = "✅ Aktif"; vsisa_label = "-"
                 vtipe = "Trial VMess" if is_vtrial else "VMess Premium"
@@ -591,14 +597,14 @@ async def cb_akun_saya(cb: CallbackQuery):
                 bw_limit = int(vc.get("BW_LIMIT_GB","0") or "0")
                 bw_used  = int(vc.get("BW_USED_BYTES","0") or "0")
                 from texts import _fmt_bw
-                bw_line  = f"\n📶 Bandwidth: {_fmt_bw(bw_used, bw_limit)}" if bw_limit > 0 else ""
+                bw_line = f"\n📶 Bandwidth : {_fmt_bw(bw_used, bw_limit)}" if bw_limit > 0 else ""
                 found = True
                 out += (
                     f"\n⚡ <b>{vuname}</b> <i>({vtipe})</i>\n"
-                    f"🌐 Server : {vc.get('DOMAIN', vdomain)}\n"
-                    f"🔑 UUID   : <code>{vuuid[:18]}...</code>\n"
-                    f"⏳ Expired: {vexp_disp} · {vsisa_label}\n"
-                    f"📊 Status : {vstatus}"
+                    f"🌐 Server   : {server_label}\n"
+                    f"🔑 UUID     : <code>{vuuid}</code>\n"
+                    f"⏳ Expired  : {vexp_disp} · {vsisa_label}\n"
+                    f"📊 Status   : {vstatus}"
                     f"{bw_line}\n"
                     f"━━━━━━━━━━━━━━━━━━━"
                 )

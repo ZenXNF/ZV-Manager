@@ -195,6 +195,51 @@ async def handle_message(msg: Message):
         await do_hapus_akun(msg, text, uid)
         return
 
+    # ── Admin: renew VMess ─────────────────────────────────
+    if state == "adm_vmess_renew_days":
+        if uid != ADMIN_ID:
+            state_clear(uid); return
+        if not re.match(r"^\d+$", text) or int(text) < 1:
+            await msg.answer("❌ Jumlah hari tidak valid.\n\nKetik jumlah hari:"); return
+        days = int(text)
+        username = state_get(uid, "ADM_VMESS_USER")
+        state_clear(uid)
+        conf_path = Path(f"/etc/zv-manager/accounts/vmess/{username}.conf")
+        sname = "local"
+        if conf_path.exists():
+            for line in conf_path.read_text().splitlines():
+                if line.startswith("SERVER="):
+                    sname = line.split("=",1)[1].strip().strip('"')
+        result = subprocess.run(
+            ["/bin/bash", "-c",
+             f"source /etc/zv-manager/utils/remote.sh && remote_vmess_agent {sname} renew {username} {days}"],
+            capture_output=True, text=True
+        ).stdout.strip()
+        if result.startswith("RENEW-OK"):
+            new_exp = result.split("|")[2] if "|" in result else "?"
+            # Update conf lokal
+            if conf_path.exists():
+                import time as _time
+                try:
+                    new_ts = int(__import__("datetime").datetime.strptime(new_exp, "%Y-%m-%d").timestamp())
+                except Exception:
+                    new_ts = 0
+                c = conf_path.read_text()
+                c = re.sub(r"^EXPIRED_DATE=.*", f'EXPIRED_DATE="{new_exp}"', c, flags=re.M)
+                c = re.sub(r"^EXPIRED_TS=.*",   f'EXPIRED_TS="{new_ts}"',   c, flags=re.M)
+                conf_path.write_text(c)
+            await msg.answer(
+                f"✅ <b>VMess Diperpanjang</b>\n"
+                f"━━━━━━━━━━━━━━━━━━━\n"
+                f"👤 Akun   : <code>{username}</code>\n"
+                f"📅 Expired: {new_exp}\n"
+                f"⏱️ Tambah : {days} hari",
+                parse_mode="HTML"
+            )
+        else:
+            await msg.answer(f"❌ Gagal renew: {result}")
+        return
+
     # ── Admin: cek user ────────────────────────────────────
     if state == "adm_cek_uid":
         if uid != ADMIN_ID:

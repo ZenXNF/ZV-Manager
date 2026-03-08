@@ -1,159 +1,128 @@
 #!/bin/bash
 # ============================================================
-#   ZV-Manager - Bandwidth Monitor VMess (Xray Stats API)
-#   Cron: setiap 5 menit (sama dengan bw-check.sh SSH)
+#   ZV-Manager - Bandwidth Monitor VMess (via zv-vmess-agent)
+#   Cron: setiap 5 menit
 # ============================================================
-
 VMESS_DIR="/etc/zv-manager/accounts/vmess"
-XRAY_BIN="/usr/local/bin/xray"
-API_ADDR="127.0.0.1:10085"
 LOG="/var/log/zv-manager/bw-vmess.log"
 TG_STATE_DIR="/tmp/zv-tg-state"
-
 mkdir -p "$TG_STATE_DIR"
 
-# Load Telegram notif function
-source /etc/zv-manager/services/telegram/bot.sh 2>/dev/null || true
+source /etc/zv-manager/utils/remote.sh 2>/dev/null
 
 _log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOG"; }
 
-# Query bytes dari Xray stats API per user
-# Xray stats name format: "user>>>USERNAME@vmess>>>traffic>>>uplink"
-_query_xray_bytes() {
-    local username="$1"
-
-    # Output JSON: {"stat":[{"name":"user>>>X@vmess>>>traffic>>>uplink","value":123},...]}
-    local tmpout
-    tmpout=$(mktemp)
-    "$XRAY_BIN" api statsquery \
-        -s "$API_ADDR" \
-        -pattern "user>>>${username}@vmess" \
-        2>/dev/null > "$tmpout" || true
-
-    local total
-    total=$(python3 - "$tmpout" << 'PYEOF'
-import json, sys
-try:
-    with open(sys.argv[1]) as f:
-        data = json.load(f)
-    print(sum(int(s.get("value",0)) for s in data.get("stat",[])))
-except Exception:
-    print(0)
-PYEOF
-)
-    rm -f "$tmpout"
-    echo "${total:-0}"
+_bot_token() {
+    grep "^TG_TOKEN=" /etc/zv-manager/telegram.conf 2>/dev/null | cut -d= -f2 | tr -d '"'
 }
 
-# Kirim notif Telegram ke user
-_tg_notify_bw() {
-    local tg_uid="$1" username="$2" used_gb="$3" limit_gb="$4"
+_server_label() {
+    local sname="$1"
+    local tg_conf="/etc/zv-manager/servers/${sname}.tg.conf"
+    if [[ -f "$tg_conf" ]]; then
+        grep "^TG_SERVER_LABEL=" "$tg_conf" | cut -d= -f2 | tr -d '"'
+    else
+        echo "$sname"
+    fi
+}
+
+_tg_send() {
+    local tg_uid="$1" msg="$2"
     [[ -z "$tg_uid" || "$tg_uid" == "0" ]] && return
-
-    local bot_token server_name
-    bot_token=$(grep "^TG_TOKEN=" /etc/zv-manager/telegram.conf 2>/dev/null | cut -d= -f2 | tr -d '"')
-    server_name=$(cat /etc/zv-manager/servers/*.tg.conf 2>/dev/null | grep "^TG_SERVER_LABEL=" | head -1 | cut -d= -f2 | tr -d '"')
+    local bot_token; bot_token=$(_bot_token)
     [[ -z "$bot_token" ]] && return
+    printf '%b' "$msg" | curl -s -X POST \
+        "https://api.telegram.org/bot${bot_token}/sendMessage" \
+        -F "chat_id=${tg_uid}" \
+        -F "parse_mode=HTML" \
+        -F "text=<-" --max-time 10 &>/dev/null
+}
 
-    local flag_file="${TG_STATE_DIR}/bw_notif_${username}"
-    [[ -f "$flag_file" ]] && return  # sudah pernah notif
-
-    local msg
-    msg="⚠️ <b>Bandwidth VMess Hampir Habis!</b>%0A"
-    msg+="━━━━━━━━━━━━━━━━━━━%0A"
-    msg+="👤 Username : <code>${username}</code>%0A"
-    msg+="🌐 Server   : ${server_name}%0A"
-    msg+="📶 Terpakai : ${used_gb} GB / ${limit_gb} GB%0A"
-    msg+="━━━━━━━━━━━━━━━━━━━%0A"
-    msg+="Segera perpanjang akun Anda!"
-
-    curl -s -X POST "https://api.telegram.org/bot${bot_token}/sendMessage" \
-        -d "chat_id=${tg_uid}&text=${msg}&parse_mode=HTML" &>/dev/null
-
-    touch "$flag_file"
+_tg_notify_bw_warn() {
+    local tg_uid="$1" username="$2" used_gb="$3" limit_gb="$4" sname="$5"
+    local flag="${TG_STATE_DIR}/bw_notif_${username}"
+    [[ -f "$flag" ]] && return
+    local label; label=$(_server_label "$sname")
+    _tg_send "$tg_uid" "⚠️ <b>Bandwidth VMess Hampir Habis!</b>
+━━━━━━━━━━━━━━━━━━━
+👤 Username : <code>${username}</code>
+🌐 Server   : ${label}
+📶 Terpakai : ${used_gb} GB / ${limit_gb} GB
+━━━━━━━━━━━━━━━━━━━
+Segera perpanjang akun Anda!"
+    touch "$flag"
 }
 
 _tg_notify_bw_habis() {
-    local tg_uid="$1" username="$2"
-    [[ -z "$tg_uid" || "$tg_uid" == "0" ]] && return
-
-    local bot_token server_name
-    bot_token=$(grep "^TG_TOKEN=" /etc/zv-manager/telegram.conf 2>/dev/null | cut -d= -f2 | tr -d '"')
-    server_name=$(cat /etc/zv-manager/servers/*.tg.conf 2>/dev/null | grep "^TG_SERVER_LABEL=" | head -1 | cut -d= -f2 | tr -d '"')
-    [[ -z "$bot_token" ]] && return
-
-    local msg
-    msg="🚫 <b>Bandwidth VMess Habis!</b>%0A"
-    msg+="━━━━━━━━━━━━━━━━━━━%0A"
-    msg+="👤 Username : <code>${username}</code>%0A"
-    msg+="🌐 Server   : ${server_name}%0A"
-    msg+="❌ Akun dinonaktifkan sementara.%0A"
-    msg+="━━━━━━━━━━━━━━━━━━━%0A"
-    msg+="Hubungi admin untuk reset bandwidth."
-
-    curl -s -X POST "https://api.telegram.org/bot${bot_token}/sendMessage" \
-        -d "chat_id=${tg_uid}&text=${msg}&parse_mode=HTML" &>/dev/null
+    local tg_uid="$1" username="$2" sname="$3"
+    local label; label=$(_server_label "$sname")
+    _tg_send "$tg_uid" "🚫 <b>Bandwidth VMess Habis!</b>
+━━━━━━━━━━━━━━━━━━━
+👤 Username : <code>${username}</code>
+🌐 Server   : ${label}
+❌ Akun dinonaktifkan sementara.
+━━━━━━━━━━━━━━━━━━━
+Hubungi admin untuk reset bandwidth."
 }
 
 _main() {
     [[ ! -d "$VMESS_DIR" ]] && exit 0
 
-    local any=0
     for conf in "${VMESS_DIR}"/*.conf; do
         [[ -f "$conf" ]] || continue
+        unset USERNAME UUID TG_USER_ID BW_LIMIT_GB BW_USED_BYTES IS_TRIAL SERVER
+        source "$conf"
 
-        local username uuid tg_uid bw_limit_gb bw_used_bytes is_trial
-        username=$(grep "^USERNAME=" "$conf" | cut -d= -f2 | tr -d '"')
-        uuid=$(grep "^UUID=" "$conf" | cut -d= -f2 | tr -d '"')
-        tg_uid=$(grep "^TG_USER_ID=" "$conf" | cut -d= -f2 | tr -d '"')
-        bw_limit_gb=$(grep "^BW_LIMIT_GB=" "$conf" | cut -d= -f2 | tr -d '"')
-        bw_used_bytes=$(grep "^BW_USED_BYTES=" "$conf" | cut -d= -f2 | tr -d '"')
-        is_trial=$(grep "^IS_TRIAL=" "$conf" | cut -d= -f2 | tr -d '"')
+        BW_LIMIT_GB="${BW_LIMIT_GB:-0}"
+        BW_USED_BYTES="${BW_USED_BYTES:-0}"
 
-        bw_limit_gb=${bw_limit_gb:-0}
-        bw_used_bytes=${bw_used_bytes:-0}
+        # Skip unlimited atau trial
+        [[ "$BW_LIMIT_GB" == "0" || "$IS_TRIAL" == "1" ]] && continue
 
-        # Skip jika unlimited (0) atau trial
-        [[ "$bw_limit_gb" == "0" || "$is_trial" == "1" ]] && continue
-        any=1
+        local sname="${SERVER:-local}"
 
-        # Query traffic baru dari Xray stats API
+        # Query bytes via agent
+        local bw_result
+        bw_result=$(remote_vmess_agent "$sname" bw "$USERNAME" 2>/dev/null)
+        # Format: BW-OK|username|bytes_used|limit_gb
+        if ! echo "$bw_result" | grep -q "^BW-OK"; then
+            _log "$USERNAME [$sname]: Gagal query BW — $bw_result"
+            continue
+        fi
+
         local new_bytes
-        new_bytes=$(_query_xray_bytes "$username")
+        new_bytes=$(echo "$bw_result" | cut -d'|' -f3)
+        new_bytes="${new_bytes:-0}"
 
-        # Akumulasi (Xray reset tiap restart, jadi tambahkan ke existing)
-        local total_bytes=$(( bw_used_bytes + new_bytes ))
+        # Akumulasi
+        local total_bytes=$(( BW_USED_BYTES + new_bytes ))
 
-        # Update conf
-        local tmpf
-        tmpf=$(mktemp)
+        # Update conf lokal di brain
+        local tmpf; tmpf=$(mktemp)
         grep -v "^BW_USED_BYTES=\|^BW_LAST_CHECK=" "$conf" > "$tmpf"
         echo "BW_USED_BYTES=\"${total_bytes}\"" >> "$tmpf"
         echo "BW_LAST_CHECK=\"$(date +%s)\"" >> "$tmpf"
         mv "$tmpf" "$conf"
 
-        # Hitung dalam GB
         local used_gb
         used_gb=$(python3 -c "print(round(${total_bytes}/1073741824, 2))")
-        local limit_bytes=$(( bw_limit_gb * 1073741824 ))
+        local limit_bytes=$(( BW_LIMIT_GB * 1073741824 ))
 
-        _log "$username: ${used_gb} GB / ${bw_limit_gb} GB"
+        _log "$USERNAME [$sname]: ${used_gb} GB / ${BW_LIMIT_GB} GB"
 
-        # Cek 80% warning
+        # 80% warning
         local warn_bytes=$(( limit_bytes * 80 / 100 ))
         if (( total_bytes >= warn_bytes && total_bytes < limit_bytes )); then
-            _tg_notify_bw "$tg_uid" "$username" "$used_gb" "$bw_limit_gb"
+            _tg_notify_bw_warn "$TG_USER_ID" "$USERNAME" "$used_gb" "$BW_LIMIT_GB" "$sname"
         fi
 
-        # Cek habis → nonaktifkan
+        # Habis → disable via agent
         if (( total_bytes >= limit_bytes )); then
-            _log "$username BANDWIDTH HABIS — disable"
-            _tg_notify_bw_habis "$tg_uid" "$username"
-            # Rename conf → .disabled sehingga tidak masuk xray config
+            _log "$USERNAME [$sname]: BANDWIDTH HABIS — disable"
+            remote_vmess_agent "$sname" disable "$USERNAME" &>/dev/null
+            # Tandai conf lokal sebagai disabled
             mv "$conf" "${conf%.conf}.disabled"
-            # Reload xray
-            source /etc/zv-manager/services/xray/install.sh 2>/dev/null
-            reload_xray
+            _tg_notify_bw_habis "$TG_USER_ID" "$USERNAME" "$sname"
         fi
     done
 }

@@ -102,6 +102,9 @@ def kb_admin_panel() -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="🟢 Online VMess",      callback_data="adm_online_vmess")
     )
     b.row(
+        InlineKeyboardButton(text="⚡ Kelola VMess",      callback_data="adm_vmess_menu")
+    )
+    b.row(
         InlineKeyboardButton(text="🏠 Menu Utama",        callback_data="home")
     )
     return b.as_markup()
