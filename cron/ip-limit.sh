@@ -116,7 +116,7 @@ _tg_notify_ip() {
         (( $(date +%s) - last < 300 )) && return
     fi
     local bot_token server_name
-    bot_token=$(grep "^BOT_TOKEN=" /etc/zv-manager/servers/*.tg.conf 2>/dev/null | head -1 | cut -d= -f2 | tr -d '"')
+    bot_token=$(grep "^TG_TOKEN=" /etc/zv-manager/telegram.conf 2>/dev/null | cut -d= -f2 | tr -d '"')
     server_name=$(grep "^TG_SERVER_LABEL=" /etc/zv-manager/servers/*.tg.conf 2>/dev/null | head -1 | cut -d= -f2 | tr -d '"')
     [[ -z "$bot_token" ]] && return
     local msg="⚠️ <b>Limit IP VMess Terlampaui!</b>%0A"

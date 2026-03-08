@@ -51,7 +51,7 @@ _tg_notify_bw() {
     [[ -z "$tg_uid" || "$tg_uid" == "0" ]] && return
 
     local bot_token server_name
-    bot_token=$(grep "^BOT_TOKEN=" /etc/zv-manager/servers/*.tg.conf 2>/dev/null | head -1 | cut -d= -f2 | tr -d '"')
+    bot_token=$(grep "^TG_TOKEN=" /etc/zv-manager/telegram.conf 2>/dev/null | cut -d= -f2 | tr -d '"')
     server_name=$(cat /etc/zv-manager/servers/*.tg.conf 2>/dev/null | grep "^TG_SERVER_LABEL=" | head -1 | cut -d= -f2 | tr -d '"')
     [[ -z "$bot_token" ]] && return
 
@@ -78,7 +78,7 @@ _tg_notify_bw_habis() {
     [[ -z "$tg_uid" || "$tg_uid" == "0" ]] && return
 
     local bot_token server_name
-    bot_token=$(grep "^BOT_TOKEN=" /etc/zv-manager/servers/*.tg.conf 2>/dev/null | head -1 | cut -d= -f2 | tr -d '"')
+    bot_token=$(grep "^TG_TOKEN=" /etc/zv-manager/telegram.conf 2>/dev/null | cut -d= -f2 | tr -d '"')
     server_name=$(cat /etc/zv-manager/servers/*.tg.conf 2>/dev/null | grep "^TG_SERVER_LABEL=" | head -1 | cut -d= -f2 | tr -d '"')
     [[ -z "$bot_token" ]] && return
 
