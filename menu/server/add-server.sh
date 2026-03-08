@@ -43,27 +43,6 @@ add_server() {
         return
     fi
 
-    # --- Pilih tipe server ---
-    echo -e "${BCYAN}  ┌─────────────────────────────────────────────┐${NC}"
-    echo -e "  │            ${BWHITE}TIPE SERVER${NC}                      │"
-    echo -e "${BCYAN}  └─────────────────────────────────────────────┘${NC}"
-    echo ""
-    echo -e "  ${BWHITE}[1]${NC} SSH only   — muncul di menu SSH"
-    echo -e "  ${BWHITE}[2]${NC} VMess only — muncul di menu VMess"
-    echo -e "  ${BWHITE}[3]${NC} Keduanya   — muncul di SSH + VMess"
-    echo ""
-    local server_type_choice
-    while true; do
-        read -rp "  Pilih tipe [1/2/3]: " server_type_choice
-        case "$server_type_choice" in
-            1) server_type="ssh";   break ;;
-            2) server_type="vmess"; break ;;
-            3) server_type="both";  break ;;
-            *) echo -e "  ${BRED}Pilih 1, 2, atau 3${NC}" ;;
-        esac
-    done
-    echo ""
-
     # --- Verifikasi domain → IP ---
     if [[ "$domain" != "$ip" ]]; then
         print_info "Memverifikasi domain ${domain}..."
@@ -130,6 +109,27 @@ add_server() {
         return
     fi
     print_ok "Koneksi SSH berhasil!"
+    echo ""
+
+    # --- Pilih tipe server ---
+    echo -e "${BCYAN}  ┌─────────────────────────────────────────────┐${NC}"
+    echo -e "  │            ${BWHITE}TIPE SERVER${NC}                      │"
+    echo -e "${BCYAN}  └─────────────────────────────────────────────┘${NC}"
+    echo ""
+    echo -e "  ${BWHITE}[1]${NC} SSH only   — muncul di menu SSH"
+    echo -e "  ${BWHITE}[2]${NC} VMess only — muncul di menu VMess"
+    echo -e "  ${BWHITE}[3]${NC} Keduanya   — muncul di SSH + VMess"
+    echo ""
+    local server_type_choice
+    while true; do
+        read -rp "  Pilih tipe [1/2/3]: " server_type_choice
+        case "$server_type_choice" in
+            1) server_type="ssh";   break ;;
+            2) server_type="vmess"; break ;;
+            3) server_type="both";  break ;;
+            *) echo -e "  ${BRED}Pilih 1, 2, atau 3${NC}" ;;
+        esac
+    done
     echo ""
 
     # --- Simpan ke file conf ---

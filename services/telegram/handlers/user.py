@@ -163,10 +163,8 @@ async def cb_proto_trial_ssh(cb: CallbackQuery):
 # ── VMess — pilih server ──────────────────────────────────────
 @router.callback_query(F.data == "proto_buat_vmess")
 async def cb_proto_buat_vmess(cb: CallbackQuery):
-    from storage import get_server_list, local_ip
-    lip = local_ip()
-    servers = [s for s in get_server_list() if s.get("IP","") == lip]
-    if not servers:
+    from storage import get_server_list_by_type
+    if not get_server_list_by_type("vmess"):
         await cb.message.edit_text("❌ Belum ada server VMess tersedia.", reply_markup=kb_back())
         await cb.answer(); return
     await cb.message.edit_text(text_server_list("Buat Akun VMess", proto="vmess"), parse_mode="HTML",
@@ -175,10 +173,8 @@ async def cb_proto_buat_vmess(cb: CallbackQuery):
 
 @router.callback_query(F.data == "proto_trial_vmess")
 async def cb_proto_trial_vmess(cb: CallbackQuery):
-    from storage import get_server_list, local_ip
-    lip = local_ip()
-    servers = [s for s in get_server_list() if s.get("IP","") == lip]
-    if not servers:
+    from storage import get_server_list_by_type
+    if not get_server_list_by_type("vmess"):
         await cb.message.edit_text("❌ Belum ada server VMess tersedia.", reply_markup=kb_back())
         await cb.answer(); return
     await cb.message.edit_text(text_server_list("Trial VMess Gratis", proto="vmess"), parse_mode="HTML",
@@ -378,8 +374,8 @@ async def cb_konfirm_vmess(cb: CallbackQuery):
     )
 
 def load_server_list_safe() -> bool:
-    from storage import get_server_list
-    return bool(get_server_list())
+    from storage import get_server_list_by_type
+    return bool(get_server_list_by_type("ssh"))
 
 # Pagination
 @router.callback_query(F.data.startswith("page_"))
