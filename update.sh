@@ -132,48 +132,131 @@ source /etc/zv-manager/utils/colors.sh
 source /etc/zv-manager/utils/logger.sh
 source /etc/zv-manager/config.conf
 
-print_section "Apply Config Terbaru"
+print_section "Cek & Update Komponen"
 
-# --- Nginx ---
-print_info "Apply config nginx..."
-source /etc/zv-manager/services/nginx/install.sh
-install_nginx
-print_ok "Nginx config diterapkan"
+# ── Helper cek versi ──────────────────────────────────────────
+_pkg_installed() { dpkg -l "$1" 2>/dev/null | grep -q "^ii"; }
 
-# --- WebSocket + Stunnel ---
-print_info "Apply config WebSocket..."
+_xray_latest_version() {
+    curl -s --max-time 10 \
+        "https://api.github.com/repos/XTLS/Xray-core/releases/latest" \
+        | grep '"tag_name"' | head -1 | grep -oP 'v[\d.]+' || echo ""
+}
+
+_xray_current_version() {
+    /usr/local/bin/xray version 2>/dev/null | grep -oP 'Xray \K[\d.]+' | head -1 || echo ""
+}
+
+# ── 1. Xray-core ─────────────────────────────────────────────
+print_info "Mengecek Xray-core..."
+if [[ ! -f "/usr/local/bin/xray" ]]; then
+    print_info "Xray belum ada, menginstall..."
+    source /etc/zv-manager/services/xray/install.sh
+    install_xray
+    print_ok "Xray-core terinstall"
+else
+    current_xray=$(_xray_current_version)
+    latest_xray=$(_xray_latest_version)
+    # Strip 'v' prefix untuk perbandingan
+    latest_xray_clean="${latest_xray#v}"
+    if [[ -n "$latest_xray_clean" && "$current_xray" != "$latest_xray_clean" ]]; then
+        print_info "Xray update: v${current_xray} → ${latest_xray}"
+        ARCH=$(uname -m)
+        case "$ARCH" in
+            x86_64)  ARCH_TAG="64" ;;
+            aarch64) ARCH_TAG="arm64-v8a" ;;
+            *)       ARCH_TAG="64" ;;
+        esac
+        tmpdir=$(mktemp -d)
+        dl_url="https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-${ARCH_TAG}.zip"
+        if wget -q --show-progress -O "${tmpdir}/xray.zip" "$dl_url"; then
+            apt-get install -y unzip &>/dev/null
+            unzip -q "${tmpdir}/xray.zip" -d "${tmpdir}/xray"
+            systemctl stop zv-xray 2>/dev/null
+            install -m 755 "${tmpdir}/xray/xray" /usr/local/bin/xray
+            systemctl start zv-xray 2>/dev/null
+            print_ok "Xray-core diupdate ke ${latest_xray}"
+        else
+            print_info "Gagal download Xray, skip update"
+        fi
+        rm -rf "$tmpdir"
+    else
+        print_ok "Xray-core sudah terbaru (v${current_xray}), skip"
+    fi
+    # Pastikan config Xray sudah punya HandlerService
+    if ! grep -q "HandlerService" /usr/local/etc/xray/config.json 2>/dev/null; then
+        print_info "Menambahkan HandlerService ke config Xray..."
+        source /etc/zv-manager/services/xray/install.sh
+        install_xray
+        print_ok "Xray config diperbarui"
+    fi
+fi
+
+# ── 2. BadVPN UDPGW ──────────────────────────────────────────
+print_info "Mengecek BadVPN UDPGW..."
+source /etc/zv-manager/services/badvpn/install.sh
+if [[ ! -f "/usr/local/bin/badvpn-udpgw" ]]; then
+    print_info "BadVPN belum ada, menginstall..."
+    install_badvpn
+    print_ok "BadVPN terinstall"
+else
+    print_ok "BadVPN sudah ada, skip"
+fi
+
+# ── 3. Nginx ─────────────────────────────────────────────────
+print_info "Mengecek Nginx..."
+if ! _pkg_installed nginx; then
+    print_info "Nginx belum ada, menginstall..."
+    source /etc/zv-manager/services/nginx/install.sh
+    install_nginx
+    print_ok "Nginx terinstall"
+else
+    print_ok "Nginx sudah ada, apply config terbaru..."
+    source /etc/zv-manager/services/nginx/install.sh
+    install_nginx
+fi
+
+# ── 4. Dropbear ───────────────────────────────────────────────
+print_info "Mengecek Dropbear..."
+if ! _pkg_installed dropbear; then
+    print_info "Dropbear belum ada, menginstall..."
+    source /etc/zv-manager/services/dropbear/install.sh
+    install_dropbear
+    print_ok "Dropbear terinstall"
+else
+    print_ok "Dropbear sudah ada, apply config terbaru..."
+    source /etc/zv-manager/services/dropbear/install.sh
+    install_dropbear
+fi
+
+# ── 5. WebSocket + Stunnel ────────────────────────────────────
+print_info "Mengecek WebSocket/Stunnel..."
 source /etc/zv-manager/services/websocket/install.sh
 install_websocket
 print_ok "WebSocket config diterapkan"
 
-# --- SSH ---
+# ── 6. SSH ────────────────────────────────────────────────────
 print_info "Apply config SSH..."
 source /etc/zv-manager/services/ssh/install.sh
 install_ssh
 print_ok "SSH config diterapkan"
 
-# --- Dropbear ---
-print_info "Apply config Dropbear..."
-source /etc/zv-manager/services/dropbear/install.sh
-install_dropbear
-print_ok "Dropbear config diterapkan"
-
-# --- UDP Custom ---
-print_info "Apply UDP Custom..."
+# ── 7. UDP Custom ─────────────────────────────────────────────
+print_info "Mengecek UDP Custom..."
 source /etc/zv-manager/services/udp/install.sh
 install_udp_custom
 print_ok "UDP Custom diterapkan"
 
-# --- BadVPN UDPGW ---
-print_info "Apply BadVPN UDPGW..."
-source /etc/zv-manager/services/badvpn/install.sh
-install_badvpn
-
-# Reload xray config jika terinstall
-if [[ -f "/usr/local/bin/xray" ]]; then
-    source /etc/zv-manager/services/xray/install.sh
-    reload_xray
-    print_ok "Xray config di-reload"
+# ── 8. Python aiogram ─────────────────────────────────────────
+print_info "Mengecek aiogram (Python)..."
+current_aiogram=$(pip3 show aiogram 2>/dev/null | grep "^Version:" | awk '{print $2}')
+if [[ -z "$current_aiogram" ]]; then
+    print_info "aiogram belum ada, menginstall..."
+    pip3 install -q "aiogram==3.*" --break-system-packages 2>/dev/null || \
+    pip3 install -q "aiogram==3.*" 2>/dev/null
+    print_ok "aiogram terinstall"
+else
+    print_ok "aiogram sudah ada (v${current_aiogram}), skip"
 fi
 
 # --- Cron jobs ---
@@ -231,18 +314,20 @@ echo -e "${BCYAN}  ╔═══════════════════�
 echo -e "${BCYAN}  ║      UPDATE SELESAI!                 ║${NC}"
 echo -e "${BCYAN}  ╚══════════════════════════════════════╝${NC}"
 echo ""
-echo -e "  ${BWHITE}Yang diperbarui:${NC}"
+echo -e "  ${BWHITE}Yang dicek & diperbarui:${NC}"
 echo -e "  ${BGREEN}✔${NC} Script (menu, services, utils, core)"
-echo -e "  ${BGREEN}✔${NC} Config Nginx, Stunnel SSL, WebSocket"
-echo -e "  ${BGREEN}✔${NC} Config SSH, Dropbear, UDP Custom"
-echo -e "  ${BGREEN}✔${NC} Binary zv-checker (sistem izin)"
-echo -e "  ${BGREEN}✔${NC} zv-agent (manajemen remote server)"
+echo -e "  ${BGREEN}✔${NC} Xray-core (cek versi, auto update jika ada)"
+echo -e "  ${BGREEN}✔${NC} BadVPN UDPGW (install jika belum ada)"
+echo -e "  ${BGREEN}✔${NC} Nginx, Stunnel SSL, WebSocket"
+echo -e "  ${BGREEN}✔${NC} SSH, Dropbear, UDP Custom"
+echo -e "  ${BGREEN}✔${NC} aiogram Python (install jika belum ada)"
+echo -e "  ${BGREEN}✔${NC} Binary zv-agent, zv-vmess-agent, zv-checker"
 echo ""
 echo -e "  ${BWHITE}Yang tidak tersentuh:${NC}"
-echo -e "  ${BYELLOW}✔${NC} Akun SSH yang sudah dibuat"
-echo -e "  ${BYELLOW}✔${NC} Daftar server"
-echo -e "  ${BYELLOW}✔${NC} Sertifikat SSL"
-echo -e "  ${BYELLOW}✔${NC} Domain"
+echo -e "  ${BYELLOW}–${NC} Akun SSH & VMess yang sudah dibuat"
+echo -e "  ${BYELLOW}–${NC} Daftar server"
+echo -e "  ${BYELLOW}–${NC} Sertifikat SSL"
+echo -e "  ${BYELLOW}–${NC} Domain & konfigurasi Telegram"
 echo ""
 echo -e "  ${BYELLOW}Ketik 'menu' untuk membuka ZV-Manager${NC}"
 echo ""

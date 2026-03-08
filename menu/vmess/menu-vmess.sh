@@ -28,8 +28,7 @@ menu_vmess() {
 
         echo -e "  ${BGREEN}[1]${NC} Buat Akun          ${BGREEN}[2]${NC} List Akun"
         echo -e "  ${BGREEN}[3]${NC} Hapus Akun         ${BGREEN}[4]${NC} Detail Akun"
-        echo -e "  ${BGREEN}[5]${NC} Edit Akun          ${BGREEN}[6]${NC} Install Xray"
-        echo -e "  ${BGREEN}[7]${NC} Restart Xray"
+        echo -e "  ${BGREEN}[5]${NC} Edit Akun          ${BGREEN}[6]${NC} Restart Xray"
         echo ""
         echo -e "  ${BRED}[0]${NC} Kembali"
         echo ""
@@ -42,11 +41,6 @@ menu_vmess() {
             4) bash /etc/zv-manager/menu/vmess/detail-vmess.sh ;;
             5) bash /etc/zv-manager/menu/vmess/edit-vmess.sh ;;
             6)
-                source /etc/zv-manager/services/xray/install.sh
-                install_xray
-                press_any_key
-                ;;
-            7)
                 systemctl restart zv-xray &>/dev/null
                 echo -e "  ${BGREEN}✔${NC} Xray di-restart."
                 sleep 1

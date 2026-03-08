@@ -203,6 +203,9 @@ install_udp_custom
 source "$INSTALL_DIR/services/badvpn/install.sh"
 install_badvpn
 
+source "$INSTALL_DIR/services/xray/install.sh"
+install_xray
+
 # --- Setup Cron Jobs ---
 print_section "Setup Cron Jobs"
 

@@ -111,7 +111,7 @@ main_menu() {
         echo -e "  ${BGREEN}[1]${NC} Manajemen SSH        ${BGREEN}[2]${NC} Manajemen Server"
         echo -e "  ${BGREEN}[3]${NC} Informasi Server     ${BGREEN}[4]${NC} System & Services"
         echo -e "  ${BGREEN}[5]${NC} Statistik Penjualan  ${BGREEN}[6]${NC} Update Script"
-        echo -e "  ${BGREEN}[7]${NC} Manajemen VMess"
+        echo -e "  ${BGREEN}[7]${NC} Manajemen VMess      ${BRED}[8]${NC} Uninstall"
         echo ""
         echo -e "  ${BYELLOW}[r]${NC} Restart Services     ${BRED}[0]${NC} Keluar"
         echo ""
@@ -124,6 +124,13 @@ main_menu() {
             4) bash /etc/zv-manager/menu/system/menu-system.sh ;;
             5) bash /etc/zv-manager/menu/info/statistik.sh ;;
             7) bash /etc/zv-manager/menu/vmess/menu-vmess.sh ;;
+            8)
+                echo ""
+                echo -e "  ${BRED}⚠  PERINGATAN: Ini akan menghapus semua komponen ZV-Manager!${NC}"
+                echo ""
+                bash /etc/zv-manager/uninstall.sh
+                exit 0
+                ;;
             6)
                 echo ""
                 echo -e "  ${BYELLOW}Menjalankan update...${NC}"

@@ -124,7 +124,7 @@ if not clients:
 cfg = {
   "log": {"loglevel": "info", "access": "/var/log/xray-access.log", "error": "/var/log/xray-error.log"},
   "stats": {},
-  "api": {"tag": "api", "services": ["StatsService"]},
+  "api": {"tag": "api", "services": ["StatsService", "HandlerService", "LoggerService"]},
   "policy": {
     "levels": {"0": {"statsUserUplink": True, "statsUserDownlink": True, "statsUserOnline": True}},
     "system": {"statsInboundUplink": True, "statsInboundDownlink": True,

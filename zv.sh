@@ -1,7 +1,7 @@
 #!/bin/bash
 # ============================================================
 #   ZV-Manager - One-liner Installer
-#   wget -q https://raw.githubusercontent.com/ZenXNF/ZV-Manager/main/zv.sh && chmod +x zv.sh && bash zv.sh
+#   wget -qO zv.sh https://raw.githubusercontent.com/ZenXNF/ZV-Manager/main/zv.sh && bash zv.sh
 # ============================================================
 
 if [[ "$EUID" -ne 0 ]]; then
@@ -21,6 +21,9 @@ if ! command -v git &>/dev/null; then
     echo "[ INFO ] Menginstall git..."
     apt-get install -y git &>/dev/null
 fi
+
+# Hapus file installer lama supaya tidak ada duplikat
+rm -f /root/zv.sh /root/zv.sh.1 /root/zv.sh.2 2>/dev/null
 
 # Hapus folder lama kalau ada
 rm -rf /root/ZV-Manager
