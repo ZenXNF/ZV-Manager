@@ -127,6 +127,17 @@ def vmess_build_urls(username: str, uuid: str, domain: str):
         _url(443, "tls",  "grpc", "vmess-grpc", f"{username}-gRPC"),
     )
 
+
+def _fmt_bw(used_bytes: int, limit_gb: int) -> str:
+    """Format bandwidth usage untuk display."""
+    if limit_gb == 0:
+        return "Unlimited"
+    used_gb = used_bytes / 1073741824
+    pct = min(int(used_gb / limit_gb * 100), 100)
+    bar_filled = pct // 10
+    bar = "█" * bar_filled + "░" * (10 - bar_filled)
+    return f"{used_gb:.1f}/{limit_gb} GB [{bar}] {pct}%"
+
 def text_vmess_info(tipe: str, username: str, uuid: str, domain: str,
                     exp_display: str, server_label: str,
                     days: int = 0, total: int = 0,

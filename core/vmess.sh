@@ -47,6 +47,22 @@ vmess_create() {
     local domain
     domain=$(cat /etc/zv-manager/domain 2>/dev/null)
 
+    # Ambil quota bandwidth dari server TG conf
+    local bw_limit_gb=0
+    local tg_conf_dir="/etc/zv-manager/servers"
+    local local_ip
+    local_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null)
+    for sc in "${tg_conf_dir}"/*.tg.conf; do
+        [[ -f "$sc" ]] || continue
+        local sc_ip
+        sc_ip=$(grep "^IP=" "$sc" | cut -d= -f2 | tr -d '"')
+        if [[ "$sc_ip" == "$local_ip" || -z "$local_ip" ]]; then
+            bw_limit_gb=$(grep "^TG_BW_PER_HARI=" "$sc" | cut -d= -f2 | tr -d '"')
+            bw_limit_gb=$(( ${bw_limit_gb:-0} * exp_days ))
+            break
+        fi
+    done
+
     cat > "${VMESS_DIR}/${username}.conf" <<EOF
 USERNAME="${username}"
 UUID="${uuid}"
@@ -56,6 +72,9 @@ EXPIRED_DATE="${exp_date}"
 CREATED="${created}"
 IS_TRIAL="${is_trial}"
 TG_USER_ID="${tg_uid}"
+BW_LIMIT_GB="${bw_limit_gb}"
+BW_USED_BYTES="0"
+BW_LAST_CHECK="0"
 EOF
 
     # Reload xray config

@@ -565,13 +565,19 @@ async def cb_akun_saya(cb: CallbackQuery):
                 else:
                     vexp_disp = "-"; vstatus = "✅ Aktif"; vsisa_label = "-"
                 vtipe = "Trial VMess" if is_vtrial else "VMess Premium"
+                # Bandwidth info
+                bw_limit = int(vc.get("BW_LIMIT_GB","0") or "0")
+                bw_used  = int(vc.get("BW_USED_BYTES","0") or "0")
+                from texts import _fmt_bw
+                bw_line  = f"\n📶 Bandwidth: {_fmt_bw(bw_used, bw_limit)}" if bw_limit > 0 else ""
                 found = True
                 out += (
                     f"\n⚡ <b>{vuname}</b> <i>({vtipe})</i>\n"
-                    f"🌐 Domain : <code>{vdomain}</code>\n"
+                    f"🌐 Server : {vc.get('DOMAIN', vdomain)}\n"
                     f"🔑 UUID   : <code>{vuuid[:18]}...</code>\n"
-                    f"⏳ Expired: {vexp_disp}\n"
-                    f"📊 Status : {vstatus} · {vsisa_label}\n"
+                    f"⏳ Expired: {vexp_disp} · {vsisa_label}\n"
+                    f"📊 Status : {vstatus}"
+                    f"{bw_line}\n"
                     f"━━━━━━━━━━━━━━━━━━━"
                 )
     except Exception as ve:

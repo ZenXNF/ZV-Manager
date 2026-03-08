@@ -94,64 +94,82 @@ SVCEOF
 }
 
 _write_xray_config() {
-    # Kumpulkan semua akun VMess yang sudah ada
-    local clients_json=""
-    for conf in "${XRAY_ACCT_DIR}"/*.conf; do
-        [[ -f "$conf" ]] || continue
-        local uuid
-        uuid=$(grep "^UUID=" "$conf" | cut -d= -f2 | tr -d '"')
-        [[ -z "$uuid" ]] && continue
-        [[ -n "$clients_json" ]] && clients_json+=","
-        clients_json+="{\"id\":\"${uuid}\",\"alterId\":0}"
-    done
-    [[ -z "$clients_json" ]] && clients_json='{"id":"00000000-0000-0000-0000-000000000000","alterId":0}'
+    local tmppy
+    tmppy=$(mktemp /tmp/xray_cfg_XXXXXX.py)
 
-    cat > "${XRAY_DIR}/config.json" <<JSONEOF
-{
-  "log": {
-    "loglevel": "warning",
-    "error": "/var/log/xray-error.log"
+    cat > "$tmppy" << 'PYEOF2'
+import json, glob
+
+acct_dir = "/etc/zv-manager/accounts/vmess"
+clients  = []
+for conf in sorted(glob.glob(f"{acct_dir}/*.conf")):
+    d = {}
+    with open(conf) as f:
+        for line in f:
+            line = line.strip()
+            if "=" in line:
+                k, _, v = line.partition("=")
+                d[k] = v.strip('"')
+    if d.get("UUID") and d.get("USERNAME"):
+        clients.append({
+            "id":      d["UUID"],
+            "alterId": 0,
+            "email":   f"{d['USERNAME']}@vmess"
+        })
+
+if not clients:
+    clients = [{"id": "00000000-0000-0000-0000-000000000000",
+                "alterId": 0, "email": "placeholder@vmess"}]
+
+cfg = {
+  "log": {"loglevel": "warning", "error": "/var/log/xray-error.log"},
+  "stats": {},
+  "api": {"tag": "api", "services": ["StatsService"]},
+  "policy": {
+    "levels": {"0": {"statsUserUplink": True, "statsUserDownlink": True}},
+    "system": {"statsInboundUplink": True, "statsInboundDownlink": True,
+               "statsOutboundUplink": True, "statsOutboundDownlink": True}
   },
   "inbounds": [
     {
+      "tag": "api-in",
+      "listen": "127.0.0.1", "port": 10085,
+      "protocol": "dokodemo-door",
+      "settings": {"address": "127.0.0.1"},
+      "streamSettings": {"network": "tcp"}
+    },
+    {
       "tag": "vmess-ws",
-      "listen": "127.0.0.1",
-      "port": 10001,
+      "listen": "127.0.0.1", "port": 10001,
       "protocol": "vmess",
-      "settings": {
-        "clients": [${clients_json}]
-      },
-      "streamSettings": {
-        "network": "ws",
-        "wsSettings": {
-          "path": "/vmess"
-        }
-      }
+      "settings": {"clients": clients},
+      "streamSettings": {"network": "ws", "wsSettings": {"path": "/vmess"}}
     },
     {
       "tag": "vmess-grpc",
-      "listen": "127.0.0.1",
-      "port": 10002,
+      "listen": "127.0.0.1", "port": 10002,
       "protocol": "vmess",
-      "settings": {
-        "clients": [${clients_json}]
-      },
-      "streamSettings": {
-        "network": "grpc",
-        "grpcSettings": {
-          "serviceName": "vmess-grpc"
-        }
-      }
+      "settings": {"clients": clients},
+      "streamSettings": {"network": "grpc",
+                         "grpcSettings": {"serviceName": "vmess-grpc"}}
     }
   ],
   "outbounds": [
-    {
-      "tag": "direct",
-      "protocol": "freedom"
-    }
-  ]
+    {"tag": "direct",  "protocol": "freedom"},
+    {"tag": "api-out", "protocol": "freedom"}
+  ],
+  "routing": {
+    "rules": [
+      {"type": "field", "inboundTag": ["api-in"], "outboundTag": "api-out"}
+    ]
+  }
 }
-JSONEOF
+with open("/usr/local/etc/xray/config.json", "w") as f:
+    json.dump(cfg, f, indent=2)
+PYEOF2
+
+    python3 "$tmppy"
+    rm -f "$tmppy"
 }
 
 

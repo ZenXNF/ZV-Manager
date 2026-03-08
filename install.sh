@@ -239,8 +239,10 @@ cat > /etc/cron.d/zv-watchdog <<'CRONEOF'
 CRONEOF
 
 cat > /etc/cron.d/zv-bw-check <<'CRONEOF'
-# ZV-Manager - Bandwidth Check tiap 5 menit
+# ZV-Manager - Bandwidth Check tiap 5 menit (SSH)
 */5 * * * * root /bin/bash /etc/zv-manager/cron/bw-check.sh
+# ZV-Manager - Bandwidth Monitor VMess tiap 5 menit
+*/5 * * * * root /bin/bash /etc/zv-manager/cron/bw-vmess.sh
 CRONEOF
 
 cat > /etc/cron.d/zv-backup <<'CRONEOF'
