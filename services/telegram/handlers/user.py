@@ -37,30 +37,36 @@ from storage import (
 )
 from texts import text_akun_info, text_home, text_server_list, text_vmess_info, vmess_url_messages, generate_dashboard_html
 
-# ── VMess remote agent helper ─────────────────────────────────
-def _vmess_agent(sname: str, *args) -> str:
-    """Panggil zv-vmess-agent di server lokal/remote."""
-    import subprocess
-    from storage import get_server_conf_raw
+# ── VMess remote agent helper (async, non-blocking) ──────────
+async def _vmess_agent(sname: str, *args) -> str:
+    """Panggil zv-vmess-agent di server lokal/remote (async, tidak block event loop)."""
     local_ip_str = local_ip()
     sconf = load_server_conf(sname) or {}
     srv_ip = sconf.get("IP", "")
     cmd_args = " ".join(str(a) for a in args)
+
     if srv_ip == local_ip_str or not srv_ip:
-        result = subprocess.run(
-            ["/bin/bash", "-c", f"zv-vmess-agent {cmd_args}"],
-            capture_output=True, text=True
-        )
-        return result.stdout.strip()
+        cmd = f"zv-vmess-agent {cmd_args}"
+        timeout_sec = 15
     else:
-        # Remote via SSH
-        import shlex
-        result = subprocess.run(
-            ["/bin/bash", "-c",
-             f"source /etc/zv-manager/utils/remote.sh && remote_vmess_agent {sname} {cmd_args}"],
-            capture_output=True, text=True
+        cmd = f"source /etc/zv-manager/utils/remote.sh && remote_vmess_agent {sname} {cmd_args}"
+        timeout_sec = 30
+
+    try:
+        proc = await asyncio.create_subprocess_shell(
+            cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            executable="/bin/bash"
         )
-        return result.stdout.strip()
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout_sec)
+        return stdout.decode().strip()
+    except asyncio.TimeoutError:
+        try: proc.kill()
+        except Exception: pass
+        return "AGENT-ERR|Timeout"
+    except Exception as e:
+        return f"AGENT-ERR|{e}"
 
 
 from utils import backup_realtime, fmt, fmt_bytes, tail_log, ts_to_wib, zv_log
@@ -265,18 +271,15 @@ async def cb_vs_trial(cb: CallbackQuery):
         "SERVER":       sname,
     })
     # Tambah ke Xray via agent (lokal/remote)
-    _vmess_agent(sname, "add", username, new_uuid, "1", "0", uid)
+    await _vmess_agent(sname, "add", username, new_uuid, "1", "0", uid)
 
     mark_trial_vmess(uid, sname)
     zv_log(f"VMESS_TRIAL: {uid} server={sname} user={username}")
     await cb.message.answer(
         text_vmess_info("TRIAL", username, new_uuid, domain, exp_disp,
                         tg["TG_SERVER_LABEL"]),
-        parse_mode="HTML"
+        parse_mode="HTML", reply_markup=kb_home_btn()
     )
-    # Kirim semua URL dalam 1 pesan + tombol SALIN KODE per URL
-    # URL sudah include di text_vmess_info — langsung kirim dengan tombol home
-    pass
 
 # ── Pilih server VMess → Buat (input durasi) ──────────────────
 @router.callback_query(F.data.startswith("vs_buat_"))
@@ -359,7 +362,7 @@ async def cb_konfirm_vmess(cb: CallbackQuery):
         "BW_LAST_CHECK":"0",
     })
     # Tambah ke Xray via agent (lokal/remote)
-    _vmess_agent(sname, "add", username, new_uuid, days, bw_limit, uid)
+    await _vmess_agent(sname, "add", username, new_uuid, days, bw_limit, uid)
 
     state_clear(uid)
     zv_log(f"VMESS_BELI: {uid} server={sname} user={username} days={days} total={total}")
@@ -622,7 +625,6 @@ async def cb_akun_saya(cb: CallbackQuery):
 async def cb_perpanjang(cb: CallbackQuery):
     uid       = cb.from_user.id
     akun_list = []
-    vakun_list = []
     await cb.answer()
     # SSH
     try:
@@ -726,7 +728,7 @@ async def cb_konfirm_vrenew(cb: CallbackQuery):
     save_vmess_conf(username, vc)
     # Perpanjang via agent (lokal/remote)
     sname_renew = vc.get("SERVER", "local")
-    _vmess_agent(sname_renew, "renew", username, days)
+    await _vmess_agent(sname_renew, "renew", username, days)
     # Hapus marker notified
     try:
         Path(f"{NOTIFY_DIR}/vmess_{username}.notified").unlink(missing_ok=True)

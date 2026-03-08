@@ -570,15 +570,26 @@ def _load_vmess_list():
             items.append(d)
     return items
 
-def _vmess_agent_admin(sname: str, *args) -> str:
-    cmd = " ".join(str(a) for a in args)
+async def _vmess_agent_admin(sname: str, *args) -> str:
+    import asyncio
+    cmd_parts = " ".join(str(a) for a in args)
     srv = sname if sname and sname != "local" else "local"
-    result = subprocess.run(
-        ["/bin/bash", "-c",
-         f"source /etc/zv-manager/utils/remote.sh && remote_vmess_agent {srv} {cmd}"],
-        capture_output=True, text=True
-    )
-    return result.stdout.strip()
+    cmd = f"source /etc/zv-manager/utils/remote.sh && remote_vmess_agent {srv} {cmd_parts}"
+    try:
+        proc = await asyncio.create_subprocess_shell(
+            cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            executable="/bin/bash"
+        )
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=30)
+        return stdout.decode().strip()
+    except asyncio.TimeoutError:
+        try: proc.kill()
+        except Exception: pass
+        return "AGENT-ERR|Timeout"
+    except Exception as e:
+        return f"AGENT-ERR|{e}"
 
 @router.callback_query(F.data == "adm_vmess_menu")
 async def cb_adm_vmess_menu(cb: CallbackQuery):
@@ -640,7 +651,7 @@ async def cb_adm_vdel_exec(cb: CallbackQuery):
         for line in conf_path.read_text().splitlines():
             if line.startswith("SERVER="):
                 sname = line.split("=",1)[1].strip().strip('"')
-    result = _vmess_agent_admin(sname, "del", username)
+    result = await _vmess_agent_admin(sname, "del", username)
     conf_path.unlink(missing_ok=True)
     zv_log(f"ADM_VMESS_DEL: {username} server={sname}")
     await cb.answer("✅ Dihapus!")
@@ -700,7 +711,7 @@ async def cb_adm_vdisable_exec(cb: CallbackQuery):
         for line in conf_path.read_text().splitlines():
             if line.startswith("SERVER="):
                 sname = line.split("=",1)[1].strip().strip('"')
-    result = _vmess_agent_admin(sname, "disable", username)
+    result = await _vmess_agent_admin(sname, "disable", username)
     if conf_path.exists():
         conf_path.rename(f"{VMESS_DIR_ADMIN}/{username}.disabled")
     await cb.answer("✅ Dinonaktifkan!")
@@ -752,7 +763,7 @@ async def cb_adm_venable_exec(cb: CallbackQuery):
             if line.startswith("SERVER="):
                 sname = line.split("=",1)[1].strip().strip('"')
         disabled_path.rename(conf_path)
-    result = _vmess_agent_admin(sname, "enable", username)
+    result = await _vmess_agent_admin(sname, "enable", username)
     await cb.answer("✅ Diaktifkan!")
     await cb.message.edit_text(
         f"🔊 Akun <code>{username}</code> diaktifkan.\nAgent: {result}",

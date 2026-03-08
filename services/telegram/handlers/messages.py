@@ -6,10 +6,11 @@
 
 import re
 import subprocess
+from pathlib import Path
 from aiogram import Router
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 
-from config import ADMIN_ID, VMESS_DIR
+from config import ADMIN_ID, VMESS_DIR, log
 from keyboards import kb_confirm, kb_home_btn
 from storage import (
     load_vmess_conf, save_vmess_conf,
@@ -36,6 +37,24 @@ async def handle_message(msg: Message):
     if not state:
         return
 
+    try:
+        await _handle_state(msg, uid, text, state)
+    except Exception as e:
+        log.error(f"handle_message error uid={uid} state={state} err={e}", exc_info=True)
+        zv_log(f"MSG_ERROR: uid={uid} state={state} err={e}")
+        state_clear(uid)
+        try:
+            await msg.answer(
+                "❌ Terjadi error. Silakan mulai ulang dari /start.",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                    InlineKeyboardButton(text="🏠 Menu Utama", callback_data="home")
+                ]])
+            )
+        except Exception:
+            pass
+
+
+async def _handle_state(msg: Message, uid: int, text: str, state: str):
     # ── Broadcast teks ─────────────────────────────────────
     if state == "broadcast_msg":
         if uid != ADMIN_ID:
