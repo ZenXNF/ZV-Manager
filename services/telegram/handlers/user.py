@@ -36,6 +36,33 @@ from storage import (
     state_clear, state_get, state_set
 )
 from texts import text_akun_info, text_home, text_server_list, text_vmess_info, vmess_url_messages, generate_dashboard_html
+
+# ── VMess remote agent helper ─────────────────────────────────
+def _vmess_agent(sname: str, *args) -> str:
+    """Panggil zv-vmess-agent di server lokal/remote."""
+    import subprocess
+    from storage import get_server_conf_raw
+    local_ip_str = local_ip()
+    sconf = load_server_conf(sname) or {}
+    srv_ip = sconf.get("IP", "")
+    cmd_args = " ".join(str(a) for a in args)
+    if srv_ip == local_ip_str or not srv_ip:
+        result = subprocess.run(
+            ["/bin/bash", "-c", f"zv-vmess-agent {cmd_args}"],
+            capture_output=True, text=True
+        )
+        return result.stdout.strip()
+    else:
+        # Remote via SSH
+        import shlex
+        result = subprocess.run(
+            ["/bin/bash", "-c",
+             f"source /etc/zv-manager/utils/remote.sh && remote_vmess_agent {sname} {cmd_args}"],
+            capture_output=True, text=True
+        )
+        return result.stdout.strip()
+
+
 from utils import backup_realtime, fmt, fmt_bytes, tail_log, ts_to_wib, zv_log
 
 router = Router()
@@ -212,10 +239,6 @@ async def cb_vs_trial(cb: CallbackQuery):
         await cb.message.answer("❌ Server tidak ditemukan."); return
 
     tg     = load_tg_server_conf(sname)
-    lip    = local_ip()
-    if sconf.get("IP","") != lip:
-        await cb.message.answer("❌ VMess hanya tersedia di server utama."); return
-    # Selalu pakai domain utama VPS untuk VMess URL
     try:
         domain = Path("/etc/zv-manager/domain").read_text().strip() or sconf.get("IP","")
     except Exception:
@@ -229,6 +252,7 @@ async def cb_vs_trial(cb: CallbackQuery):
     exp_date = datetime.fromtimestamp(exp_ts).strftime("%Y-%m-%d")
     exp_disp = ts_to_wib(exp_ts)
 
+    # Simpan conf di brain server (untuk tracking)
     save_vmess_conf(username, {
         "USERNAME":     username,
         "UUID":         new_uuid,
@@ -240,10 +264,8 @@ async def cb_vs_trial(cb: CallbackQuery):
         "TG_USER_ID":   str(uid),
         "SERVER":       sname,
     })
-    # Reload xray
-    _sp.run(["/bin/bash", "-c",
-        "source /etc/zv-manager/services/xray/install.sh && reload_xray"],
-        capture_output=True)
+    # Tambah ke Xray via agent (lokal/remote)
+    _vmess_agent(sname, "add", username, new_uuid, "1", "0", uid)
 
     mark_trial_vmess(uid, sname)
     zv_log(f"VMESS_TRIAL: {uid} server={sname} user={username}")
@@ -265,8 +287,6 @@ async def cb_vs_buat(cb: CallbackQuery):
     sconf = load_server_conf(sname)
     if not sconf:
         await cb.answer("❌ Server tidak ditemukan"); return
-    if sconf.get("IP","") != local_ip():
-        await cb.answer("❌ VMess hanya tersedia di server utama"); return
     tg    = load_tg_server_conf(sname)
     harga = int(tg.get("TG_HARGA_VMESS_HARI","0") or tg.get("TG_HARGA_HARI","0"))
     hh    = f"Rp{fmt(harga)}/hari" if harga > 0 else "Gratis"
@@ -320,6 +340,10 @@ async def cb_konfirm_vmess(cb: CallbackQuery):
     exp_date = datetime.fromtimestamp(exp_ts).strftime("%Y-%m-%d")
     exp_disp = ts_to_wib(exp_ts)
 
+    bw_per_hari = int(tg.get("TG_BW_PER_HARI","0") or "0")
+    bw_limit    = bw_per_hari * days
+
+    # Simpan conf di brain server (untuk tracking)
     save_vmess_conf(username, {
         "USERNAME":     username,
         "UUID":         new_uuid,
@@ -330,10 +354,12 @@ async def cb_konfirm_vmess(cb: CallbackQuery):
         "IS_TRIAL":     "0",
         "TG_USER_ID":   str(uid),
         "SERVER":       sname,
+        "BW_LIMIT_GB":  str(bw_limit),
+        "BW_USED_BYTES":"0",
+        "BW_LAST_CHECK":"0",
     })
-    _sp.run(["/bin/bash", "-c",
-        "source /etc/zv-manager/services/xray/install.sh && reload_xray"],
-        capture_output=True)
+    # Tambah ke Xray via agent (lokal/remote)
+    _vmess_agent(sname, "add", username, new_uuid, days, bw_limit, uid)
 
     state_clear(uid)
     zv_log(f"VMESS_BELI: {uid} server={sname} user={username} days={days} total={total}")
@@ -692,6 +718,9 @@ async def cb_konfirm_vrenew(cb: CallbackQuery):
     vc["EXPIRED_TS"]   = str(new_exp_ts)
     vc["EXPIRED_DATE"] = new_exp_date
     save_vmess_conf(username, vc)
+    # Perpanjang via agent (lokal/remote)
+    sname_renew = vc.get("SERVER", "local")
+    _vmess_agent(sname_renew, "renew", username, days)
     # Hapus marker notified
     try:
         Path(f"{NOTIFY_DIR}/vmess_{username}.notified").unlink(missing_ok=True)
