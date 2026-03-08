@@ -31,15 +31,16 @@ _query_xray_bytes() {
         2>/dev/null > "$tmpout" || true
 
     local total
-    total=$(python3 -c "
+    total=$(python3 - "$tmpout" << 'PYEOF'
 import json, sys
 try:
-    with open('${tmpout}') as f:
+    with open(sys.argv[1]) as f:
         data = json.load(f)
-    print(sum(int(s.get('value',0)) for s in data.get('stat',[])))
+    print(sum(int(s.get("value",0)) for s in data.get("stat",[])))
 except Exception:
     print(0)
-")
+PYEOF
+)
     rm -f "$tmpout"
     echo "${total:-0}"
 }
