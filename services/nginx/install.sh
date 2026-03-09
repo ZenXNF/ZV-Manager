@@ -1,48 +1,87 @@
 #!/bin/bash
 # ============================================================
 #   ZV-Manager - Nginx Installer & Configurator
-#   Port 80  : SSH WS + VMess WS (non-SSL)
-#   Port 443 : SSH WS + VMess WS/gRPC + Status/API (SSL)
-#   Stunnel dihapus — nginx langsung handle SSL di 443
+#
+#   Arsitektur baru:
+#   Port 80  (stream/TCP) → ws-proxy:8880  ← HTTP Custom non-SSL
+#   Port 443 (stream/TCP+TLS) → ws-proxy:8880 ← HTTP Custom SSL
+#   Port 8080 (HTTP) → VMess WS + Status Page (non-SSL)
+#   Port 8443 (HTTPS) → VMess WS/gRPC + Status Page (SSL)
+#
+#   Kenapa stream?
+#   nginx proxy_pass (HTTP layer) memblokir method CONNECT yang
+#   dibutuhkan HTTP Custom. Stream module forward raw TCP langsung
+#   ke ws-proxy sehingga CONNECT bisa diproses dengan benar.
 # ============================================================
 
 source /etc/zv-manager/utils/colors.sh
 source /etc/zv-manager/utils/logger.sh
 source /etc/zv-manager/config.conf
 
-WS_PORT=${WS_PORT:-80}
-WSS_PORT=${WSS_PORT:-443}
 SSL_CERT="/etc/zv-manager/ssl/cert.pem"
 SSL_KEY="/etc/zv-manager/ssl/key.pem"
 
 install_nginx() {
     print_section "Install & Konfigurasi Nginx"
 
-    apt-get install -y nginx &>/dev/null
+    apt-get install -y nginx libnginx-mod-stream &>/dev/null
     systemctl stop nginx &>/dev/null
 
     local domain
-    domain=$(cat /etc/zv-manager/domain)
+    domain=$(cat /etc/zv-manager/domain 2>/dev/null)
 
     rm -f /etc/nginx/sites-enabled/default
     rm -f /etc/nginx/sites-available/default
     rm -f /etc/nginx/conf.d/*.conf
 
-    # Buat direktori web
     mkdir -p /var/www/zv-manager/api
     chown -R www-data:www-data /var/www/zv-manager
 
-    cat > /etc/nginx/nginx.conf <<NGINXMAIN
+    # Cek apakah stream module tersedia
+    local stream_mod=""
+    if [[ -f /usr/lib/nginx/modules/ngx_stream_module.so ]]; then
+        stream_mod="load_module modules/ngx_stream_module.so;"
+    fi
+
+    cat > /etc/nginx/nginx.conf << NGINXMAIN
 user www-data;
 worker_processes auto;
 pid /var/run/nginx.pid;
 include /etc/nginx/modules-enabled/*.conf;
+${stream_mod}
 
 events {
     worker_connections 1024;
     multi_accept on;
 }
 
+# ── STREAM: Port 80 & 443 — raw TCP ke ws-proxy ──────────────
+# nginx tidak parsing HTTP di level ini — CONNECT method lewat
+stream {
+    # Port 80 → ws-proxy (non-SSL, HTTP Custom tanpa SSL)
+    server {
+        listen 80;
+        proxy_pass 127.0.0.1:8880;
+        proxy_timeout 3600s;
+        proxy_connect_timeout 10s;
+    }
+
+    # Port 443 → ws-proxy (nginx terminasi TLS dulu, lalu TCP ke ws-proxy)
+    server {
+        listen 443 ssl;
+        ssl_certificate     ${SSL_CERT};
+        ssl_certificate_key ${SSL_KEY};
+        ssl_protocols       TLSv1.2 TLSv1.3;
+        ssl_ciphers         HIGH:!aNULL:!MD5;
+        ssl_session_cache   shared:SSLSTREAM:10m;
+        ssl_session_timeout 10m;
+        proxy_pass          127.0.0.1:8880;
+        proxy_timeout       3600s;
+        proxy_connect_timeout 10s;
+    }
+}
+
+# ── HTTP: Port 8080 & 8443 — VMess WS/gRPC + Status Page ─────
 http {
     sendfile on;
     tcp_nopush on;
@@ -68,14 +107,28 @@ http {
         ''      close;
     }
 
-    # ──────────────────────────────────────────────────────
-    # Port 80 — non-SSL (SSH WS + VMess WS)
-    # catch-all untuk bug host / wildcard host
-    # ──────────────────────────────────────────────────────
+    # ── Port 8080 — VMess WS (non-SSL) + Status Page ─────────
     server {
-        listen ${WS_PORT} default_server;
+        listen 8080 default_server;
         server_name _;
 
+        # Status page
+        location /status {
+            root /var/www/zv-manager;
+            try_files /index.html =404;
+            add_header Cache-Control "no-cache";
+        }
+        location = / {
+            root /var/www/zv-manager;
+            index index.html;
+            try_files /index.html =404;
+        }
+        location = /favicon.ico {
+            root /var/www/zv-manager;
+            log_not_found off;
+        }
+
+        # VMess WebSocket
         location /vmess {
             proxy_pass http://127.0.0.1:10001;
             proxy_http_version 1.1;
@@ -87,38 +140,11 @@ http {
             proxy_send_timeout 3600s;
             proxy_buffering off;
         }
-
-        # ── Status Page via HTTP ────────────────────────────
-        location /status {
-            root /var/www/zv-manager;
-            try_files /index.html =404;
-            add_header Cache-Control "no-cache";
-        }
-
-        location = /favicon.ico {
-            root /var/www/zv-manager;
-            log_not_found off;
-        }
-
-        location / {
-            proxy_pass http://127.0.0.1:8880;
-            proxy_http_version 1.1;
-            proxy_set_header Upgrade \$http_upgrade;
-            proxy_set_header Connection \$connection_upgrade;
-            proxy_set_header Host \$host;
-            proxy_set_header X-Real-IP \$remote_addr;
-            proxy_read_timeout 3600s;
-            proxy_send_timeout 3600s;
-            proxy_buffering off;
-        }
     }
 
-    # ──────────────────────────────────────────────────────
-    # Port 443 — SSL (SSH WS + VMess WS/gRPC + Status + API)
-    # Menggantikan: stunnel port 443 + nginx port 8443 + nginx port 81
-    # ──────────────────────────────────────────────────────
+    # ── Port 8443 — VMess WS/gRPC (SSL) + Status Page ────────
     server {
-        listen ${WSS_PORT} ssl http2 default_server;
+        listen 8443 ssl http2 default_server;
         server_name ${domain} _;
 
         ssl_certificate     ${SSL_CERT};
@@ -128,15 +154,19 @@ http {
         ssl_session_cache   shared:SSL:10m;
         ssl_session_timeout 10m;
 
-        # ── VMess gRPC ──────────────────────────────────
-        location /vmess-grpc {
-            grpc_pass grpc://127.0.0.1:10002;
-            grpc_set_header Host \$host;
-            grpc_read_timeout 3600s;
-            grpc_send_timeout 3600s;
+        # Status page
+        location /status {
+            root /var/www/zv-manager;
+            try_files /index.html =404;
+            add_header Cache-Control "no-cache";
+        }
+        location = / {
+            root /var/www/zv-manager;
+            index index.html;
+            try_files /index.html =404;
         }
 
-        # ── VMess WebSocket (TLS) ───────────────────────
+        # VMess WebSocket (TLS)
         location /vmess {
             proxy_pass http://127.0.0.1:10001;
             proxy_http_version 1.1;
@@ -149,37 +179,18 @@ http {
             proxy_buffering off;
         }
 
-        # ── Status Page — akses via root / maupun /status ──
-        location /status {
-            alias /var/www/zv-manager/;
-            index index.html;
-            try_files \$uri \$uri/ index.html;
+        # VMess gRPC (TLS)
+        location /vmess-grpc {
+            grpc_pass grpc://127.0.0.1:10002;
+            grpc_set_header Host \$host;
+            grpc_read_timeout 3600s;
+            grpc_send_timeout 3600s;
         }
 
-        location = / {
-            root /var/www/zv-manager;
-            index index.html;
-            try_files /index.html =404;
-            add_header Cache-Control "no-cache";
-        }
-
-        # ── Dashboard Akun VMess ─────────────────────────
+        # Dashboard API
         location /api/ {
             alias /var/www/zv-manager/api/;
             add_header Content-Type text/html;
-        }
-
-        # ── SSH WebSocket (TLS) — catch-all ─────────────
-        location / {
-            proxy_pass http://127.0.0.1:8880;
-            proxy_http_version 1.1;
-            proxy_set_header Upgrade \$http_upgrade;
-            proxy_set_header Connection \$connection_upgrade;
-            proxy_set_header Host \$host;
-            proxy_set_header X-Real-IP \$remote_addr;
-            proxy_read_timeout 3600s;
-            proxy_send_timeout 3600s;
-            proxy_buffering off;
         }
     }
 }
@@ -188,12 +199,9 @@ NGINXMAIN
     if nginx -t &>/dev/null; then
         systemctl enable nginx &>/dev/null
         systemctl start nginx &>/dev/null
-
-        # Nonaktifkan stunnel — nginx sudah handle 443
         systemctl stop zv-stunnel &>/dev/null
         systemctl disable zv-stunnel &>/dev/null
-
-        print_success "Nginx (SSH+VMess WS port ${WS_PORT} | SSH+VMess WS/gRPC+Status+API port ${WSS_PORT} SSL)"
+        print_success "Nginx (SSH stream :80/:443 | VMess+Status HTTP :8080/:8443)"
     else
         print_error "Nginx config error! Cek: nginx -t"
         nginx -t

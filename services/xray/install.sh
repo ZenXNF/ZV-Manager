@@ -5,9 +5,9 @@
 #   Arsitektur:
 #     - Xray inbound WS  : 127.0.0.1:10001 (non-TLS, internal)
 #     - Xray inbound gRPC: 127.0.0.1:10002 (non-TLS, internal)
-#     - Nginx port 80    : /vmess → 10001
-#     - Stunnel port 443 → nginx 80 → 10001 (TLS)
-#     - Nginx port 443   : gRPC /vmess-grpc → 10002 (via h2)
+#     - Nginx port 8080  : /vmess → 10001 (HTTP)
+#     - Nginx port 8443  : /vmess → 10001, /vmess-grpc → 10002 (HTTPS)
+#     - Port 80/443      : stream TCP → ws-proxy:8880 (untuk SSH HTTP Custom)
 # ============================================================
 
 source /etc/zv-manager/utils/colors.sh
