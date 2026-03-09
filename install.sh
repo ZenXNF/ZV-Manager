@@ -253,35 +253,59 @@ echo -e "\033[33m  ────────────────────�
 echo ""
 {
 cat > /etc/cron.d/zv-autokill <<'CRONEOF'
+# ZV-Manager - Auto Kill Multi-Login
 */1 * * * * root /bin/bash /etc/zv-manager/cron/autokill.sh
 CRONEOF
+
 cat > /etc/cron.d/zv-trial <<'CRONEOF'
+# ZV-Manager - Trial Account Cleanup
 */1 * * * * root /bin/bash /etc/zv-manager/cron/trial-cleanup.sh
 CRONEOF
+
 cat > /etc/cron.d/zv-tg-notify <<'CRONEOF'
+# ZV-Manager - Notifikasi Telegram (tiap jam)
 0 * * * * root /bin/bash /etc/zv-manager/cron/tg-notify.sh
 CRONEOF
+
 cat > /etc/cron.d/zv-expired <<'CRONEOF'
+# ZV-Manager - Auto Delete Expired Users
 2 0 * * * root /bin/bash /etc/zv-manager/cron/expired.sh
 CRONEOF
+
 cat > /etc/cron.d/zv-license <<'CRONEOF'
+# ZV-Manager - Cek Izin Harian + Laporan Harian
 5 0 * * * root /bin/bash /etc/zv-manager/cron/license-check.sh
 0 7 * * * root /bin/bash /etc/zv-manager/cron/daily-report.sh
 CRONEOF
-cat > /etc/cron.d/zv-check-update <<'CRONEOF'
-0 6 * * * root /bin/bash /etc/zv-manager/cron/check-update.sh
-CRONEOF
-cat > /etc/cron.d/zv-watchdog <<'CRONEOF'
-*/5 * * * * root /bin/bash /etc/zv-manager/cron/watchdog.sh
-CRONEOF
+
 cat > /etc/cron.d/zv-bw-check <<'CRONEOF'
+# ZV-Manager - Bandwidth SSH + VMess + IP Limit
 */5 * * * * root /bin/bash /etc/zv-manager/cron/bw-check.sh
 */5 * * * * root /bin/bash /etc/zv-manager/cron/bw-vmess.sh
 * * * * * root /bin/bash /etc/zv-manager/cron/ip-limit.sh
 CRONEOF
+
+cat > /etc/cron.d/zv-watchdog <<'CRONEOF'
+# ZV-Manager - Watchdog: auto-restart service
+*/5 * * * * root /bin/bash /etc/zv-manager/cron/watchdog.sh
+CRONEOF
+
+cat > /etc/cron.d/zv-status-page <<'CRONEOF'
+# ZV-Manager - Generate Status Page
+*/5 * * * * root /bin/bash /etc/zv-manager/cron/status-page.sh
+CRONEOF
+
 cat > /etc/cron.d/zv-backup <<'CRONEOF'
+# ZV-Manager - Daily Backup jam 02:00
 0 2 * * * root /bin/bash /etc/zv-manager/cron/backup.sh
 CRONEOF
+
+cat > /etc/cron.d/zv-check-update <<'CRONEOF'
+# ZV-Manager - Cek update GitHub jam 06:00
+0 6 * * * root /bin/bash /etc/zv-manager/cron/check-update.sh
+CRONEOF
+
+mkdir -p /var/lib/zv-manager/status
 service cron restart &>/dev/null
 /bin/bash /etc/zv-manager/cron/check-update.sh &>/dev/null &
 } >> "$_INSTALL_LOG" 2>&1

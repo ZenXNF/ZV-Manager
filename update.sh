@@ -62,6 +62,7 @@ chmod +x /etc/zv-manager/services/telegram/bot.py 2>/dev/null || true
 cp config.conf /etc/zv-manager/
 cp install.sh /etc/zv-manager/
 cp update.sh /etc/zv-manager/
+cp uninstall.sh /etc/zv-manager/
 cp zv-agent.sh /etc/zv-manager/
 cp zv-vmess-agent.sh /etc/zv-manager/
 NEW_HASH=$(git -C /root/ZV-Manager rev-parse --short HEAD 2>/dev/null || echo "unknown")
@@ -260,12 +261,15 @@ cat > /etc/cron.d/zv-autokill <<'CRONEOF'
 */1 * * * * root /bin/bash /etc/zv-manager/cron/autokill.sh
 CRONEOF
 
-cat > /etc/cron.d/zv-status-page <<'CRONEOF'
-# ZV-Manager - Generate Status Page
-*/5 * * * * root /bin/bash /etc/zv-manager/cron/status-page.sh
+cat > /etc/cron.d/zv-trial <<'CRONEOF'
+# ZV-Manager - Trial Account Cleanup
+*/1 * * * * root /bin/bash /etc/zv-manager/cron/trial-cleanup.sh
 CRONEOF
 
-mkdir -p /var/lib/zv-manager/status
+cat > /etc/cron.d/zv-tg-notify <<'CRONEOF'
+# ZV-Manager - Notifikasi Telegram (tiap jam)
+0 * * * * root /bin/bash /etc/zv-manager/cron/tg-notify.sh
+CRONEOF
 
 cat > /etc/cron.d/zv-expired <<'CRONEOF'
 # ZV-Manager - Auto Delete Expired Users
@@ -273,24 +277,26 @@ cat > /etc/cron.d/zv-expired <<'CRONEOF'
 CRONEOF
 
 cat > /etc/cron.d/zv-license <<'CRONEOF'
-# ZV-Manager - Cek Izin Harian
+# ZV-Manager - Cek Izin Harian + Laporan Harian
 5 0 * * * root /bin/bash /etc/zv-manager/cron/license-check.sh
 0 7 * * * root /bin/bash /etc/zv-manager/cron/daily-report.sh
 CRONEOF
 
-cat > /etc/cron.d/zv-bandwidth <<'CRONEOF'
-# ZV-Manager - Cek Bandwidth
+cat > /etc/cron.d/zv-bw-check <<'CRONEOF'
+# ZV-Manager - Bandwidth SSH + VMess + IP Limit
 */5 * * * * root /bin/bash /etc/zv-manager/cron/bw-check.sh
-CRONEOF
-
-cat > /etc/cron.d/zv-tg-notify <<'CRONEOF'
-# ZV-Manager - Notifikasi Telegram
-0 * * * * root /bin/bash /etc/zv-manager/cron/tg-notify.sh
-CRONEOF
-
-cat > /etc/cron.d/zv-bw-vmess <<'CRONEOF'
-# ZV-Manager - BW VMess
 */5 * * * * root /bin/bash /etc/zv-manager/cron/bw-vmess.sh
+* * * * * root /bin/bash /etc/zv-manager/cron/ip-limit.sh
+CRONEOF
+
+cat > /etc/cron.d/zv-watchdog <<'CRONEOF'
+# ZV-Manager - Watchdog: auto-restart service
+*/5 * * * * root /bin/bash /etc/zv-manager/cron/watchdog.sh
+CRONEOF
+
+cat > /etc/cron.d/zv-status-page <<'CRONEOF'
+# ZV-Manager - Generate Status Page
+*/5 * * * * root /bin/bash /etc/zv-manager/cron/status-page.sh
 CRONEOF
 
 cat > /etc/cron.d/zv-backup <<'CRONEOF'
@@ -303,6 +309,7 @@ cat > /etc/cron.d/zv-check-update <<'CRONEOF'
 0 6 * * * root /bin/bash /etc/zv-manager/cron/check-update.sh
 CRONEOF
 
+mkdir -p /var/lib/zv-manager/status
 service cron restart &>/dev/null
 } >> "$_UPDATE_LOG" 2>&1
 printf "  \033[32m+\033[0m  \033[1m%-35s\033[0m  %s\n" "Cron jobs" "semua cron diperbarui"
