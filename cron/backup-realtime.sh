@@ -64,8 +64,14 @@ fi
 [[ ! -f "$CONF" ]] && exit 0
 
 # Baca saldo user (kalau ada TG_USER_ID)
-unset TG_USER_ID EXPIRED LIMIT SERVER
+unset TG_USER_ID EXPIRED EXPIRED_TS LIMIT SERVER
 source "$CONF" 2>/dev/null
+
+# VMess pakai EXPIRED_TS (unix timestamp), SSH pakai EXPIRED (date string)
+if [[ -z "$EXPIRED" && -n "$EXPIRED_TS" && "$EXPIRED_TS" =~ ^[0-9]+$ ]]; then
+    EXPIRED=$(date -d "@${EXPIRED_TS}" "+%Y-%m-%d" 2>/dev/null || \
+              python3 -c "import datetime; print(datetime.datetime.fromtimestamp(${EXPIRED_TS}).strftime('%Y-%m-%d'))" 2>/dev/null)
+fi
 
 SALDO="0"
 [[ -n "$TG_USER_ID" && -f "${SALDO_DIR}/${TG_USER_ID}.saldo" ]] && \

@@ -39,14 +39,78 @@ _read()   {
 _xray_add() {
     local user="$1" uuid="$2"
     local j="{\"vmess\":{\"id\":\"${uuid}\",\"email\":\"${user}@vmess\",\"alterId\":0}}"
+    # Inject ke Xray runtime (live, tanpa restart)
     "$XRAY_BIN" api adu -s "$API_ADDR" -inbound "vmess-ws"   -user "$j" &>/dev/null || true
     "$XRAY_BIN" api adu -s "$API_ADDR" -inbound "vmess-grpc" -user "$j" &>/dev/null || true
+    # Persist ke config.json supaya tidak hilang saat Xray restart
+    _xray_config_rebuild
 }
 
 _xray_del() {
     local user="$1"
     "$XRAY_BIN" api rmu -s "$API_ADDR" -inbound "vmess-ws"   -email "${user}@vmess" &>/dev/null || true
     "$XRAY_BIN" api rmu -s "$API_ADDR" -inbound "vmess-grpc" -email "${user}@vmess" &>/dev/null || true
+    # Persist ke config.json
+    _xray_config_rebuild
+}
+
+# ── Rebuild config.json dari semua .conf aktif ───────────────
+# Dipanggil setiap add/del/renew supaya config persist
+_xray_config_rebuild() {
+    local conf_dir="/etc/zv-manager/accounts/vmess"
+    local config_file="${XRAY_DIR}/config.json"
+    local now_ts; now_ts=$(date +%s)
+
+    # Kumpulkan semua UUID akun yang belum expired
+    local clients_ws="" clients_grpc=""
+    for f in "${conf_dir}"/*.conf; do
+        [[ -f "$f" ]] || continue
+        unset USERNAME UUID EXPIRED_TS SERVER
+        source "$f" 2>/dev/null
+        [[ -z "$UUID" || -z "$USERNAME" ]] && continue
+        # Skip expired
+        [[ -n "$EXPIRED_TS" && "$EXPIRED_TS" -lt "$now_ts" ]] && continue
+        local entry="{\"id\":\"${UUID}\",\"alterId\":0,\"email\":\"${USERNAME}@vmess\"}"
+        clients_ws="${clients_ws}${entry},"
+        clients_grpc="${clients_grpc}${entry},"
+    done
+    # Hapus trailing koma
+    clients_ws="${clients_ws%,}"
+    clients_grpc="${clients_grpc%,}"
+
+    # Tulis ulang config.json via python3 (aman untuk JSON)
+    python3 - "$config_file" "$clients_ws" "$clients_grpc" << 'PYEOF'
+import sys, json
+
+config_file = sys.argv[1]
+clients_ws_raw   = sys.argv[2]
+clients_grpc_raw = sys.argv[3]
+
+import json as _json
+
+def parse_clients(raw):
+    if not raw.strip():
+        return []
+    try:
+        return _json.loads(f"[{raw}]")
+    except Exception:
+        return []
+
+clients_ws   = parse_clients(clients_ws_raw)
+clients_grpc = parse_clients(clients_grpc_raw)
+
+with open(config_file) as f:
+    cfg = json.load(f)
+
+for inbound in cfg.get("inbounds", []):
+    if inbound.get("tag") == "vmess-ws":
+        inbound["settings"]["clients"] = clients_ws
+    elif inbound.get("tag") == "vmess-grpc":
+        inbound["settings"]["clients"] = clients_grpc
+
+with open(config_file, "w") as f:
+    json.dump(cfg, f, indent=2)
+PYEOF
 }
 
 # ── ping ─────────────────────────────────────────────────────

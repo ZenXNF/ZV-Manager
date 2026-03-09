@@ -22,7 +22,7 @@ from config import ACCOUNT_DIR, ADMIN_ID, NOTIFY_DIR, USERS_DIR, log
 from keyboards import kb_admin_panel, kb_home_btn
 from storage import (
     load_account_conf, load_server_conf, load_user_info,
-    saldo_get, state_clear, state_set
+    saldo_get, state_clear, state_set, invalidate_account_cache
 )
 from utils import fmt, tail_log, zv_log
 
@@ -72,6 +72,7 @@ async def do_hapus_akun(msg: Message, username: str, admin_uid: int):
         try: os.remove(extra)
         except Exception: pass
 
+    invalidate_account_cache(srv_ip, "ssh")
     zv_log(f"ADM_HAPUS: admin={admin_uid} username={username}")
 
     from utils import backup_realtime
@@ -653,6 +654,9 @@ async def cb_adm_vdel_exec(cb: CallbackQuery):
                 sname = line.split("=",1)[1].strip().strip('"')
     result = await _vmess_agent_admin(sname, "del", username)
     conf_path.unlink(missing_ok=True)
+    # Invalidate cache supaya slot langsung terupdate
+    sconf = load_server_conf(sname)
+    invalidate_account_cache(sconf.get("IP", ""), "vmess")
     zv_log(f"ADM_VMESS_DEL: {username} server={sname}")
     await cb.answer("✅ Dihapus!")
     await cb.message.edit_text(
