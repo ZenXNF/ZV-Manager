@@ -75,13 +75,17 @@ def text_server_list(title: str, proto: str = "ssh") -> str:
         bw_hr = int(tg.get("TG_BW_PER_HARI", "5") or "5")
         bw_30 = bw_hr * 30
         bandwidth = f"{bw_hr} GB/hari · {bw_30} GB/30hr" if bw_hr > 0 else "Unlimited"
+        max_akun = int(tg.get("TG_MAX_AKUN", "500") or "500")
+        is_full  = cnt >= max_akun
         # Label total akun sesuai proto
-        if proto == "vmess":
-            akun_label = f"👥 Total VMess: {cnt}/{tg['TG_MAX_AKUN']}"
+        if is_full:
+            akun_label = f"👥 {'VMess' if proto == 'vmess' else 'SSH'}: <b>🔴 TERJUAL HABIS ({cnt}/{max_akun})</b>"
+        elif proto == "vmess":
+            akun_label = f"👥 Total VMess: {cnt}/{max_akun}"
         else:
-            akun_label = f"👥 Total SSH: {cnt}/{tg['TG_MAX_AKUN']}"
+            akun_label = f"👥 Total SSH: {cnt}/{max_akun}"
         out += (
-            f"🌐 <b>{tg['TG_SERVER_LABEL']}</b>\n"
+            f"🌐 <b>{tg['TG_SERVER_LABEL']}</b>{'  🔴 Penuh' if is_full else ''}\n"
             f"💰 Harga/hari: {hh}\n"
             f"📅 Harga/30hr: {hb}\n"
             f"📶 Bandwidth: {bandwidth}\n"

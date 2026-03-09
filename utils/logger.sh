@@ -3,8 +3,6 @@
 #   ZV-Manager - Logger / Print Functions
 # ============================================================
 
-source "$(dirname "$0")/../../utils/colors.sh" 2>/dev/null || \
-source "$(dirname "$0")/../utils/colors.sh" 2>/dev/null || \
 source "/etc/zv-manager/utils/colors.sh" 2>/dev/null
 
 LOG_FILE="/var/log/zv-manager/install.log"
