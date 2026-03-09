@@ -39,16 +39,12 @@ install_nginx() {
 
     # Cek apakah stream module tersedia
     local stream_mod=""
-    if [[ -f /usr/lib/nginx/modules/ngx_stream_module.so ]]; then
-        stream_mod="load_module modules/ngx_stream_module.so;"
-    fi
 
     cat > /etc/nginx/nginx.conf << NGINXMAIN
 user www-data;
 worker_processes auto;
 pid /var/run/nginx.pid;
 include /etc/nginx/modules-enabled/*.conf;
-${stream_mod}
 
 events {
     worker_connections 1024;
