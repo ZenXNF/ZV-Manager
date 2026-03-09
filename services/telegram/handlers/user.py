@@ -392,9 +392,19 @@ async def cb_konfirm_vmess(cb: CallbackQuery):
         html_fname = f"vmess-{username}-{new_uuid}.html"
         html_path  = f"/var/www/zv-manager/api/{html_fname}"
         html_content = generate_dashboard_html(
-            username, new_uuid, domain, exp_disp, tg["TG_SERVER_LABEL"]
+            username, new_uuid, domain, exp_disp, tg["TG_SERVER_LABEL"],
+            is_trial=False,
+            bw_limit_gb=bw_limit,
+            bw_used_bytes=0,
+            ip_limit=2,
+            created=datetime.now().strftime("%Y-%m-%d")
         )
         with open(html_path, "w") as _hf: _hf.write(html_content)
+        # Buat file JSON online counter awal
+        import json as _json
+        online_path = f"/var/www/zv-manager/api/online-{username}.json"
+        with open(online_path, "w") as _of:
+            _json.dump({"online": 0, "username": username}, _of)
         dashboard_url = f"https://{domain}/api/{html_fname}"
     except Exception as _e:
         pass

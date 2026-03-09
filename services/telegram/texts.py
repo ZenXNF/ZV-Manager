@@ -209,98 +209,352 @@ def vmess_url_messages(username: str, uuid: str, domain: str) -> list:
 
 def generate_dashboard_html(username: str, uuid: str, domain: str,
                              exp_display: str, server_label: str,
-                             is_trial: bool = False) -> str:
+                             is_trial: bool = False,
+                             bw_limit_gb: int = 0,
+                             bw_used_bytes: int = 0,
+                             ip_limit: int = 2,
+                             created: str = "") -> str:
     """Generate HTML dashboard akun VMess."""
     url_tls, url_http, url_grpc = vmess_build_urls(username, uuid, domain)
-    trial_badge = ' <span style="background:#f97316;color:#fff;padding:2px 8px;border-radius:20px;font-size:12px">TRIAL</span>' if is_trial else ""
+
+    # Hitung bandwidth
+    bw_used_gb  = round(bw_used_bytes / 1073741824, 2) if bw_used_bytes else 0
+    bw_limit_str = f"{bw_limit_gb} GB" if bw_limit_gb else "Unlimited"
+    bw_used_str  = f"{bw_used_gb} GB"
+    bw_pct       = min(int(bw_used_gb / bw_limit_gb * 100), 100) if bw_limit_gb else 0
+    bw_bar_color = "#ef4444" if bw_pct >= 80 else "#f97316" if bw_pct >= 50 else "#22c55e"
+
+    trial_banner = f"""
+    <div class="trial-banner">
+      <span>⚠️</span>
+      <div><b>TRIAL ACCOUNT</b> — Akun ini akan expired dalam 60 menit. Beli akun full untuk akses unlimited.</div>
+    </div>""" if is_trial else ""
+
+    created_line = created if created else "—"
+
     return f"""<!DOCTYPE html>
 <html lang="id">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>VMess Info — {username}</title>
+<title>VMess — {username}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Sora:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
+  :root {{
+    --bg:       #0a0f1e;
+    --surface:  #111827;
+    --surface2: #1a2235;
+    --border:   #1f2d45;
+    --accent:   #3b82f6;
+    --accent2:  #06b6d4;
+    --text:     #f1f5f9;
+    --text2:    #94a3b8;
+    --text3:    #475569;
+    --green:    #22c55e;
+    --red:      #ef4444;
+    --orange:   #f97316;
+  }}
   * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-  body {{ background: #0f172a; color: #e2e8f0; font-family: system-ui, sans-serif;
-         min-height: 100vh; padding: 20px; }}
-  .card {{ background: #1e293b; border-radius: 16px; padding: 24px;
-           max-width: 600px; margin: 0 auto; box-shadow: 0 4px 24px rgba(0,0,0,.4); }}
-  h1 {{ font-size: 20px; color: #38bdf8; margin-bottom: 4px; }}
-  .badge {{ display: inline-block; background: #6366f1; color: #fff;
-            padding: 2px 10px; border-radius: 20px; font-size: 12px; margin-bottom: 16px; }}
-  .section {{ margin: 16px 0; }}
-  .section h2 {{ font-size: 13px; color: #94a3b8; text-transform: uppercase;
-                letter-spacing: 1px; margin-bottom: 8px; }}
-  .row {{ display: flex; justify-content: space-between; align-items: center;
-          padding: 8px 0; border-bottom: 1px solid #334155; gap: 8px; }}
-  .row:last-child {{ border-bottom: none; }}
-  .label {{ color: #94a3b8; font-size: 13px; flex-shrink: 0; }}
-  .val {{ font-family: monospace; font-size: 13px; color: #f1f5f9;
-          word-break: break-all; text-align: right; }}
-  .url-block {{ background: #0f172a; border-radius: 10px; padding: 12px; margin: 8px 0; }}
-  .url-label {{ font-size: 12px; color: #38bdf8; margin-bottom: 6px; }}
-  .url-text {{ font-family: monospace; font-size: 11px; color: #a5f3fc;
-               word-break: break-all; }}
-  .copy-btn {{ display: block; width: 100%; margin-top: 8px; padding: 8px;
-               background: #0ea5e9; color: #fff; border: none; border-radius: 8px;
-               cursor: pointer; font-size: 13px; }}
-  .copy-btn:active {{ background: #0284c7; }}
-  .expired {{ color: #fb923c; font-weight: 600; }}
-  footer {{ text-align: center; margin-top: 24px; color: #475569; font-size: 12px; }}
+  body {{
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Sora', sans-serif;
+    min-height: 100vh;
+    padding: 0 0 40px;
+  }}
+
+  /* Header */
+  .header {{
+    background: linear-gradient(135deg, #1e3a5f 0%, #0f2040 100%);
+    padding: 28px 20px 24px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+    overflow: hidden;
+  }}
+  .header::before {{
+    content: '';
+    position: absolute;
+    top: -40px; left: -40px;
+    width: 200px; height: 200px;
+    background: radial-gradient(circle, rgba(59,130,246,.15) 0%, transparent 70%);
+    pointer-events: none;
+  }}
+  .header-icon {{
+    width: 52px; height: 52px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 14px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 22px; margin-bottom: 12px;
+    box-shadow: 0 0 24px rgba(59,130,246,.4);
+  }}
+  .header h1 {{ font-size: 18px; font-weight: 700; color: var(--text); }}
+  .header p  {{ font-size: 13px; color: var(--text2); margin-top: 4px; }}
+  .trial-badge {{
+    display: inline-block;
+    background: var(--orange); color: #fff;
+    font-size: 11px; font-weight: 700;
+    padding: 2px 10px; border-radius: 20px;
+    margin-top: 8px; letter-spacing: .5px;
+  }}
+
+  .wrap {{ max-width: 480px; margin: 0 auto; padding: 0 16px; }}
+
+  /* Trial banner */
+  .trial-banner {{
+    background: rgba(249,115,22,.1);
+    border: 1px solid rgba(249,115,22,.3);
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin: 16px 0 0;
+    display: flex; gap: 10px; align-items: flex-start;
+    font-size: 13px; color: #fdba74;
+  }}
+
+  /* Section card */
+  .card {{
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    margin-top: 16px;
+    overflow: hidden;
+  }}
+  .card-title {{
+    font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 1px;
+    color: var(--text3);
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid var(--border);
+  }}
+
+  /* Info rows */
+  .info-row {{
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 11px 16px;
+    border-bottom: 1px solid var(--border);
+    gap: 12px;
+  }}
+  .info-row:last-child {{ border-bottom: none; }}
+  .info-label {{
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; color: var(--text2);
+    flex-shrink: 0;
+  }}
+  .info-label .ico {{ font-size: 15px; }}
+  .info-val {{
+    font-size: 13px; font-weight: 600; color: var(--text);
+    text-align: right; word-break: break-all;
+    font-family: 'JetBrains Mono', monospace;
+  }}
+  .info-val.mono {{ font-size: 12px; color: var(--text2); }}
+
+  /* Status badge */
+  .status-badge {{
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px; border-radius: 20px;
+    font-size: 12px; font-weight: 700;
+    font-family: 'Sora', sans-serif;
+  }}
+  .status-badge.online  {{ background: rgba(34,197,94,.15);  color: #4ade80; }}
+  .status-badge.offline {{ background: rgba(239,68,68,.15);  color: #f87171; }}
+  .status-dot {{ width: 6px; height: 6px; border-radius: 50%; background: currentColor; }}
+  .status-badge.online .status-dot {{ animation: pulse 2s infinite; }}
+  @keyframes pulse {{
+    0%,100% {{ opacity: 1; }} 50% {{ opacity: .3; }}
+  }}
+
+  /* Bandwidth bar */
+  .bw-section {{ padding: 12px 16px; }}
+  .bw-header {{ display: flex; justify-content: space-between; margin-bottom: 8px; }}
+  .bw-label {{ font-size: 12px; color: var(--text2); }}
+  .bw-val   {{ font-size: 12px; font-weight: 600; color: var(--text); font-family: 'JetBrains Mono', monospace; }}
+  .bw-bar-bg {{
+    height: 8px; background: var(--border);
+    border-radius: 99px; overflow: hidden;
+  }}
+  .bw-bar-fill {{
+    height: 100%; border-radius: 99px;
+    background: {bw_bar_color};
+    width: {bw_pct}%;
+    transition: width .6s ease;
+  }}
+  .bw-note {{ font-size: 11px; color: var(--text3); margin-top: 6px; text-align: right; }}
+
+  /* URL blocks */
+  .url-item {{ padding: 12px 16px; border-bottom: 1px solid var(--border); }}
+  .url-item:last-child {{ border-bottom: none; }}
+  .url-type {{
+    font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .5px;
+    margin-bottom: 6px;
+  }}
+  .url-type.tls   {{ color: #60a5fa; }}
+  .url-type.http  {{ color: #34d399; }}
+  .url-type.grpc  {{ color: #a78bfa; }}
+  .url-text {{
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; color: var(--text2);
+    word-break: break-all; line-height: 1.5;
+    background: var(--surface2);
+    border-radius: 8px; padding: 8px 10px;
+    margin-bottom: 8px;
+  }}
+  .copy-btn {{
+    width: 100%; padding: 9px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text2); font-size: 13px;
+    cursor: pointer; font-family: 'Sora', sans-serif;
+    transition: all .15s;
+  }}
+  .copy-btn:hover {{ background: var(--border); color: var(--text); }}
+  .copy-btn.copied {{ border-color: var(--green); color: var(--green); }}
+
+  /* Refresh button */
+  .refresh-btn {{
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    width: 100%; padding: 13px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border: none; border-radius: 12px;
+    color: #fff; font-size: 14px; font-weight: 600;
+    cursor: pointer; margin-top: 16px;
+    font-family: 'Sora', sans-serif;
+    box-shadow: 0 4px 16px rgba(59,130,246,.3);
+    transition: opacity .15s;
+  }}
+  .refresh-btn:active {{ opacity: .8; }}
+
+  footer {{ text-align: center; margin-top: 24px; font-size: 11px; color: var(--text3); }}
 </style>
 </head>
 <body>
-<div class="card">
-  <h1>⚡ VMess Account{trial_badge}</h1>
-  <div class="badge">{server_label}</div>
 
-  <div class="section">
-    <h2>Informasi Akun</h2>
-    <div class="row"><span class="label">Username</span><span class="val">{username}</span></div>
-    <div class="row"><span class="label">UUID</span><span class="val">{uuid}</span></div>
-    <div class="row"><span class="label">Domain</span><span class="val">{domain}</span></div>
-    <div class="row"><span class="label">Expired</span><span class="val expired">{exp_display}</span></div>
-  </div>
-
-  <div class="section">
-    <h2>Konfigurasi</h2>
-    <div class="row"><span class="label">Port TLS</span><span class="val">443</span></div>
-    <div class="row"><span class="label">Port HTTP</span><span class="val">80</span></div>
-    <div class="row"><span class="label">Network</span><span class="val">WebSocket / gRPC</span></div>
-    <div class="row"><span class="label">Path WS</span><span class="val">/vmess</span></div>
-    <div class="row"><span class="label">Path gRPC</span><span class="val">vmess-grpc</span></div>
-    <div class="row"><span class="label">Alter ID</span><span class="val">0</span></div>
-    <div class="row"><span class="label">TLS</span><span class="val">TLS</span></div>
-  </div>
-
-  <div class="section">
-    <h2>Import URL</h2>
-    <div class="url-block">
-      <div class="url-label">🔐 VMess TLS (WS)</div>
-      <div class="url-text" id="u1">{url_tls}</div>
-      <button class="copy-btn" onclick="cp('u1',this)">📋 Salin</button>
-    </div>
-    <div class="url-block">
-      <div class="url-label">🔓 VMess HTTP (WS)</div>
-      <div class="url-text" id="u2">{url_http}</div>
-      <button class="copy-btn" onclick="cp('u2',this)">📋 Salin</button>
-    </div>
-    <div class="url-block">
-      <div class="url-label">🔒 VMess gRPC</div>
-      <div class="url-text" id="u3">{url_grpc}</div>
-      <button class="copy-btn" onclick="cp('u3',this)">📋 Salin</button>
-    </div>
-  </div>
+<div class="header">
+  <div class="header-icon">⚡</div>
+  <h1>VMess Configuration</h1>
+  <p>Your secure access account</p>
+  {f'<div class="trial-badge">TRIAL</div>' if is_trial else ""}
 </div>
+
+<div class="wrap">
+  {trial_banner}
+
+  <!-- Account Info -->
+  <div class="card">
+    <div class="card-title">Account Information</div>
+
+    <div class="info-row">
+      <span class="info-label"><span class="ico">👤</span> Username</span>
+      <span class="info-val">{username}</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label"><span class="ico">🌐</span> Domain</span>
+      <span class="info-val mono">{domain}</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label"><span class="ico">📡</span> Status</span>
+      <span class="info-val">
+        <span class="status-badge online" id="status-badge">
+          <span class="status-dot"></span> Online
+        </span>
+      </span>
+    </div>
+    <div class="info-row">
+      <span class="info-label"><span class="ico">📅</span> Expired Date</span>
+      <span class="info-val" style="color:#fb923c">{exp_display}</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label"><span class="ico">🕐</span> Created</span>
+      <span class="info-val mono">{created_line}</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label"><span class="ico">🔒</span> IP Limit</span>
+      <span class="info-val">{ip_limit}</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label"><span class="ico">👥</span> Online Users</span>
+      <span class="info-val" id="online-count">—</span>
+    </div>
+  </div>
+
+  <!-- Bandwidth -->
+  <div class="card">
+    <div class="card-title">Quota Usage</div>
+    <div class="bw-section">
+      <div class="bw-header">
+        <span class="bw-label">Used</span>
+        <span class="bw-val">{bw_used_str} / {bw_limit_str}</span>
+      </div>
+      <div class="bw-bar-bg">
+        <div class="bw-bar-fill"></div>
+      </div>
+      <div class="bw-note">{bw_pct}% used</div>
+    </div>
+  </div>
+
+  <!-- Configuration Links -->
+  <div class="card">
+    <div class="card-title">Configuration Links</div>
+    <div class="url-item">
+      <div class="url-type tls">🔐 VMess TLS (WebSocket)</div>
+      <div class="url-text" id="u1">{url_tls}</div>
+      <button class="copy-btn" onclick="cp('u1',this)">📋 Copy</button>
+    </div>
+    <div class="url-item">
+      <div class="url-type http">🔓 VMess Non-TLS (WebSocket)</div>
+      <div class="url-text" id="u2">{url_http}</div>
+      <button class="copy-btn" onclick="cp('u2',this)">📋 Copy</button>
+    </div>
+    <div class="url-item">
+      <div class="url-type grpc">⚡ VMess gRPC</div>
+      <div class="url-text" id="u3">{url_grpc}</div>
+      <button class="copy-btn" onclick="cp('u3',this)">📋 Copy</button>
+    </div>
+  </div>
+
+  <button class="refresh-btn" onclick="location.reload()">
+    🔄 Refresh
+  </button>
+</div>
+
 <footer>ZV-Manager • {domain}</footer>
+
 <script>
-function cp(id,btn){{
-  var t=document.getElementById(id).innerText;
-  navigator.clipboard.writeText(t).then(function(){{
-    btn.textContent='✅ Tersalin!';
-    setTimeout(function(){{btn.textContent='📋 Salin';}},2000);
+// Copy to clipboard
+function cp(id, btn) {{
+  var t = document.getElementById(id).innerText;
+  navigator.clipboard.writeText(t).then(function() {{
+    btn.textContent = '✅ Copied!';
+    btn.classList.add('copied');
+    setTimeout(function() {{
+      btn.textContent = '📋 Copy';
+      btn.classList.remove('copied');
+    }}, 2000);
   }});
 }}
+
+// Fetch online users dari Xray API via endpoint
+async function fetchOnline() {{
+  try {{
+    var r = await fetch('/api/online-{username}.json', {{cache:'no-store'}});
+    if (r.ok) {{
+      var d = await r.json();
+      document.getElementById('online-count').textContent = d.online ?? '0';
+      var badge = document.getElementById('status-badge');
+      if (d.online > 0) {{
+        badge.className = 'status-badge online';
+        badge.innerHTML = '<span class="status-dot"></span> Online';
+      }} else {{
+        badge.className = 'status-badge offline';
+        badge.innerHTML = '<span class="status-dot"></span> Offline';
+      }}
+    }}
+  }} catch(e) {{}}
+}}
+fetchOnline();
+setInterval(fetchOnline, 10000);
 </script>
 </body>
 </html>"""
