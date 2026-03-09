@@ -21,11 +21,15 @@ MAX_WORKERS    = 200
 LISTEN_BACKLOG = 50
 logging.disable(logging.CRITICAL)
 
+# Port SSH yang valid — semua diarahkan ke loopback
+# 22/500/40000 = OpenSSH, 109/143 = Dropbear
+SSH_PORTS = {22, 109, 143, 500, 40000}
+
 WS_RESPONSE      = "HTTP/1.1 101 Switching Protocols\r\nContent-Length: 0\r\n\r\nHTTP/1.1 200 ZV-Manager\r\n\r\n"
 CONNECT_RESPONSE = "HTTP/1.1 200 Connection Established\r\n\r\n"
 
 def handle_connection(client_sock):
-    target   = None
+    target = None
     try:
         client_sock.settimeout(30)
         raw = b''
@@ -44,6 +48,7 @@ def handle_connection(client_sock):
 
         client_sock.settimeout(None)
 
+        # ── Koneksi SSH langsung (tanpa HTTP header) ─────────
         if raw.startswith(b'SSH-'):
             target = socket.create_connection((DEFAULT_HOST, DEFAULT_PORT), timeout=10)
             target.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
@@ -60,19 +65,26 @@ def handle_connection(client_sock):
         first_line  = data.split('\r\n')[0]
 
         if first_line.upper().startswith('CONNECT'):
-            parts  = first_line.split()
-            tgt    = parts[1] if len(parts) >= 2 else ''
-            host, port = (tgt.rsplit(':', 1) if ':' in tgt else (tgt, str(DEFAULT_PORT)))
-            try: port = int(port)
-            except ValueError: port = DEFAULT_PORT
-            if host not in ('127.0.0.1', 'localhost'):
-                host, port = DEFAULT_HOST, DEFAULT_PORT
-            target = socket.create_connection((host, port), timeout=10)
+            # Format: CONNECT host:port HTTP/1.1
+            parts = first_line.split()
+            tgt   = parts[1] if len(parts) >= 2 else ''
+            if ':' in tgt:
+                h, p = tgt.rsplit(':', 1)
+                try:
+                    p = int(p)
+                except ValueError:
+                    p = DEFAULT_PORT
+            else:
+                h, p = tgt, DEFAULT_PORT
+
+            # Selalu arahkan ke loopback — port dipertahankan kalau valid SSH
+            target_port = p if p in SSH_PORTS else DEFAULT_PORT
+            target = socket.create_connection((DEFAULT_HOST, target_port), timeout=10)
             target.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             client_sock.sendall(CONNECT_RESPONSE.encode())
             _relay(client_sock, target, leftover)
         else:
-            # WebSocket / fallback
+            # WebSocket / fallback → SSH default
             target = socket.create_connection((DEFAULT_HOST, DEFAULT_PORT), timeout=10)
             target.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             client_sock.sendall(WS_RESPONSE.encode())
@@ -91,8 +103,8 @@ def _relay(client, target, leftover=b''):
     if leftover:
         try: target.sendall(leftover)
         except Exception: return
-    socs = [client, target]
-    idle = 0
+    socs  = [client, target]
+    idle  = 0
     while True:
         idle += 1
         try:
@@ -123,7 +135,8 @@ def main():
     srv.settimeout(2)
     srv.bind((LISTENING_ADDR, LISTENING_PORT))
     srv.listen(LISTEN_BACKLOG)
-    print(f"[ZV] Proxy :{LISTENING_PORT} → SSH {DEFAULT_HOST}:{DEFAULT_PORT} (max {MAX_WORKERS} threads)")
+    ports_str = ', '.join(str(p) for p in sorted(SSH_PORTS))
+    print(f"[ZV] Proxy :{LISTENING_PORT} → SSH {DEFAULT_HOST} ports [{ports_str}] (max {MAX_WORKERS} threads)")
 
     def _stop(sig, frame):
         print("\n[ZV] Proxy stopped.")
