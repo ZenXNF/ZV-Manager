@@ -7,31 +7,28 @@ from pathlib import Path
 from storage import get_server_list, get_server_list_by_type, saldo_get, load_tg_server_conf, count_ssh_accounts, count_vmess_accounts
 from utils import fmt, fmt_bytes
 
-def _status_url() -> str:
+def _status_url() -> tuple:
     """
-    Baca dari /etc/zv-manager/web-host (dibuat setup-web.sh).
-    - File tidak ada → web belum diinstall, tidak tampil
-    - Isi IP (x.x.x.x) → http://x.x.x.x
-    - Isi domain (mis. status.zenxu.my.id) → https://status.zenxu.my.id
+    Baca dari /etc/zv-manager/web-host.
+    Return (url, label) — url untuk href, label untuk teks ditampilkan.
+    - File tidak ada → ("", "")
+    - IP  → ("https://IP", "IP")
+    - Domain → ("https://domain", "domain")
     """
     try:
         val = Path("/etc/zv-manager/web-host").read_text().strip()
         if not val:
-            return ""
-        import re as _re
-        if _re.match(r"^\d{1,3}(\.\d{1,3}){3}$", val):
-            return f"http://{val}"
-        # Domain custom — tampilkan apa adanya sebagai subdomain
-        return f"https://{val}"
+            return ("", "")
+        return (f"https://{val}", val)
     except Exception:
-        return ""
+        return ("", "")
 
 
 def text_home(fname: str, uid: int) -> str:
     servers  = get_server_list()
     saldo    = saldo_get(uid)
-    url      = _status_url()
-    cek_line = f"\n🖥️ Cek server: {url}" if url else ""
+    url, label = _status_url()
+    cek_line = f"\n🖥️ Cek server: <a href=\"{url}\">{label}</a>" if url else ""
     return (
         f"⚡ <b>ZV-Manager SSH Tunnel</b>\n"
         f"━━━━━━━━━━━━━━━━━━━\n"

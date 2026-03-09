@@ -88,12 +88,6 @@ http {
             proxy_buffering off;
         }
 
-        location /status {
-            alias /var/www/zv-manager/;
-            index index.html;
-            try_files \$uri \$uri/ /status/index.html;
-        }
-
         location / {
             proxy_pass http://127.0.0.1:8880;
             proxy_http_version 1.1;
@@ -143,11 +137,16 @@ http {
             proxy_buffering off;
         }
 
-        # ── Status Page ─────────────────────────────────
+        # ── Status Page — akses via root / maupun /status ──
         location /status {
             alias /var/www/zv-manager/;
             index index.html;
-            try_files \$uri \$uri/ /status/index.html;
+            try_files \$uri \$uri/ index.html;
+        }
+
+        location = / {
+            alias /var/www/zv-manager/;
+            index index.html;
         }
 
         # ── Dashboard Akun VMess ─────────────────────────
