@@ -136,8 +136,8 @@ def vmess_build_urls(username: str, uuid: str, domain: str):
                "host":domain if net=="ws" else "","path":path,"tls":tls}
         return "vmess://" + base64.b64encode(json.dumps(obj).encode()).decode()
     return (
-        _url(8443, "tls",  "ws",   "/vmess",     f"{username}-TLS"),
-        _url(8080, "none", "ws",   "/vmess",     f"{username}-HTTP"),
+        _url(443,  "tls",  "ws",   "/vmess",     f"{username}-TLS"),
+        _url(80,   "none", "ws",   "/vmess",     f"{username}-HTTP"),
         _url(8443, "tls",  "grpc", "vmess-grpc", f"{username}-gRPC"),
     )
 
