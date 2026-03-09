@@ -98,17 +98,24 @@ def handle_connection(client_sock):
         # ── WebSocket GET /vmess → Xray VMess ────────────────
         elif first_line.startswith('GET'):
             path = _parse_path(data)
-            if path.startswith('/vmess'):
+            is_ws = 'upgrade' in data.lower() and 'websocket' in data.lower()
+            if path.startswith('/vmess') and is_ws:
                 # Forward seluruh WS upgrade request ke Xray
                 target = socket.create_connection((DEFAULT_HOST, XRAY_PORT), timeout=10)
                 target.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
                 target.sendall(raw)
                 _relay(client_sock, target, leftover)
-            else:
+            elif is_ws:
                 # WebSocket biasa → SSH
                 target = socket.create_connection((DEFAULT_HOST, DEFAULT_PORT), timeout=10)
                 target.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
                 client_sock.sendall(WS_RESPONSE.encode())
+                _relay(client_sock, target, leftover)
+            else:
+                # Browser biasa (GET tanpa Upgrade) → forward ke nginx:8080
+                target = socket.create_connection((DEFAULT_HOST, 8080), timeout=10)
+                target.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+                target.sendall(raw)
                 _relay(client_sock, target, leftover)
 
         # ── Fallback → SSH ────────────────────────────────────
