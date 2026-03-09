@@ -79,7 +79,7 @@ def text_server_list(title: str, proto: str = "ssh") -> str:
         is_full  = cnt >= max_akun
         # Label total akun sesuai proto
         if is_full:
-            akun_label = f"👥 {'VMess' if proto == 'vmess' else 'SSH'}: <b>🔴 TERJUAL HABIS ({cnt}/{max_akun})</b>"
+            akun_label = f"👥 {'VMess' if proto == 'vmess' else 'SSH'}: <b>🔴 TERJUAL HABIS</b>"
         elif proto == "vmess":
             akun_label = f"👥 Total VMess: {cnt}/{max_akun}"
         else:

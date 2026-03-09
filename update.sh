@@ -132,53 +132,55 @@ source /etc/zv-manager/utils/colors.sh
 source /etc/zv-manager/utils/logger.sh
 source /etc/zv-manager/config.conf
 
-print_section "Cek & Update Komponen"
-echo "" > "$_UPDATE_LOG"
+echo ""
+echo -e "${BYELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${BWHITE}  🔧 Cek & Update Komponen${NC}"
+echo -e "${BYELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
 
-# ── Helper cek versi ──────────────────────────────────────────
+_UPDATE_LOG="/tmp/zv-update-detail.log"
+> "$_UPDATE_LOG"
+
 _pkg_installed() { dpkg -l "$1" 2>/dev/null | grep -q "^ii"; }
 
 _xray_latest_version() {
-    curl -s --max-time 10 \
-        "https://api.github.com/repos/XTLS/Xray-core/releases/latest" \
-        | grep '"tag_name"' | head -1 | grep -oP 'v[\d.]+' || echo ""
+    local raw
+    raw=$(curl -s --max-time 10 "https://api.github.com/repos/XTLS/Xray-core/releases/latest" 2>/dev/null)
+    echo "$raw" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tag_name','').lstrip('v'))" 2>/dev/null || \
+    echo "$raw" | grep -m1 '"tag_name"' | grep -oP '(?<="v)[^"]+' | head -1
 }
 
 _xray_current_version() {
-    /usr/local/bin/xray version 2>/dev/null | grep -oP 'Xray \K[\d.]+' | head -1 || echo ""
+    /usr/local/bin/xray version 2>/dev/null | grep -m1 "^Xray" | grep -oP '\d+\.\d+\.\d+' | head -1 || echo ""
 }
 
-# ── Helper: jalankan diam-diam, tampilkan 1 baris hasil ─────
-_UPDATE_LOG="/tmp/zv-update-detail.log"
-_run_silent() {
-    # $1 = label, $2+ = command
-    local label="$1"; shift
-    printf "  %-40s" "${label}..."
+# Tampilkan spinner di baris saat ini (tanpa newline), setelah selesai overwrite jadi 1 baris hasil
+_run_task() {
+    local name="$1" ok_msg="$2"; shift 2
+    printf "  \033[33m>\033[0m  %-38s\r" "$name"
     if "$@" >> "$_UPDATE_LOG" 2>&1; then
-        echo -e " ${BGREEN}✔${NC}"
+        printf "\033[2K"
+        printf "  \033[32m+\033[0m  \033[1m%-35s\033[0m  %s\n" "$name" "$ok_msg"
     else
-        echo -e " ${BRED}✘ (lihat $_UPDATE_LOG)${NC}"
+        printf "\033[2K"
+        printf "  \033[31m!\033[0m  \033[1m%-35s\033[0m  \033[31mgagal (lihat /tmp/zv-update-detail.log)\033[0m\n" "$name"
     fi
 }
 
-_source_silent() {
-    # source file tanpa output, simpan ke log
-    "$@" >> "$_UPDATE_LOG" 2>&1
+_skip_task() {
+    local name="$1" msg="$2"
+    printf "  \033[33m-\033[0m  \033[1m%-35s\033[0m  \033[33m%s\033[0m\n" "$name" "$msg"
 }
 
 # ── 1. Xray-core ─────────────────────────────────────────────
-printf "  %-40s" "Xray-core (cek versi)..."
 if [[ ! -f "/usr/local/bin/xray" ]]; then
-    echo ""
-    source /etc/zv-manager/services/xray/install.sh >> "$_UPDATE_LOG" 2>&1
-    _run_silent "Xray-core (install)" install_xray
+    _run_task "Xray-core" "berhasil diinstall" \
+        bash -c "source /etc/zv-manager/services/xray/install.sh && install_xray"
 else
     current_xray=$(_xray_current_version)
     latest_xray=$(_xray_latest_version)
-    echo -e " ${BGREEN}✔${NC}"
     latest_xray_clean="${latest_xray#v}"
     if [[ -n "$latest_xray_clean" && -n "$current_xray" && "$current_xray" != "$latest_xray_clean" ]]; then
-        printf "  %-40s" "Xray-core (update v${current_xray}→${latest_xray})..."
         ARCH=$(uname -m)
         case "$ARCH" in
             x86_64)  ARCH_TAG="64" ;;
@@ -187,73 +189,72 @@ else
         esac
         tmpdir=$(mktemp -d)
         dl_url="https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-${ARCH_TAG}.zip"
-        if wget -q -O "${tmpdir}/xray.zip" "$dl_url" >> "$_UPDATE_LOG" 2>&1; then
-            apt-get install -y unzip >> "$_UPDATE_LOG" 2>&1
-            unzip -q "${tmpdir}/xray.zip" -d "${tmpdir}/xray" >> "$_UPDATE_LOG" 2>&1
-            systemctl stop zv-xray 2>/dev/null
-            install -m 755 "${tmpdir}/xray/xray" /usr/local/bin/xray
-            systemctl start zv-xray 2>/dev/null
-            echo -e " ${BGREEN}✔${NC}"
-        else
-            echo -e " ${BRED}✘ gagal download${NC}"
-        fi
+        _run_task "Xray-core  v${current_xray} -> v${latest_xray}" "diupdate ke v${latest_xray}" \
+            bash -c "wget -q -O '${tmpdir}/xray.zip' '$dl_url' 2>/dev/null \
+                && apt-get install -y unzip > /dev/null 2>&1 \
+                && unzip -q '${tmpdir}/xray.zip' -d '${tmpdir}/xray' \
+                && systemctl stop zv-xray 2>/dev/null \
+                ; install -m 755 '${tmpdir}/xray/xray' /usr/local/bin/xray \
+                && systemctl start zv-xray 2>/dev/null"
         rm -rf "$tmpdir"
     else
-        echo -e " ✔  Xray-core sudah terbaru (v${current_xray}), skip"
+        _skip_task "Xray-core" "sudah terbaru (v${current_xray})"
     fi
-    # Pastikan config Xray sudah punya HandlerService — hanya tulis ulang config
     if ! grep -q "HandlerService" /usr/local/etc/xray/config.json 2>/dev/null; then
-        source /etc/zv-manager/services/xray/install.sh >> "$_UPDATE_LOG" 2>&1
-        _run_silent "Xray config (HandlerService)" _write_xray_config
+        _run_task "Xray config" "HandlerService ditambahkan" \
+            bash -c "source /etc/zv-manager/services/xray/install.sh && _write_xray_config"
     fi
 fi
 
 # ── 2. BadVPN UDPGW ──────────────────────────────────────────
-source /etc/zv-manager/services/badvpn/install.sh >> "$_UPDATE_LOG" 2>&1
 if [[ ! -f "/usr/local/bin/badvpn-udpgw" ]]; then
-    _run_silent "BadVPN (install)" install_badvpn
+    _run_task "BadVPN UDPGW" "berhasil diinstall" \
+        bash -c "source /etc/zv-manager/services/badvpn/install.sh && install_badvpn"
 else
-    echo -e " ✔  BadVPN sudah ada, skip"
+    _skip_task "BadVPN UDPGW" "sudah ada"
 fi
 
 # ── 3. Nginx ─────────────────────────────────────────────────
-source /etc/zv-manager/services/nginx/install.sh >> "$_UPDATE_LOG" 2>&1
 if ! _pkg_installed nginx; then
-    _run_silent "Nginx (install)" install_nginx
+    _run_task "Nginx" "berhasil diinstall" \
+        bash -c "source /etc/zv-manager/services/nginx/install.sh && install_nginx"
 else
-    _run_silent "Nginx (apply config)" install_nginx
+    _run_task "Nginx" "config diperbarui" \
+        bash -c "source /etc/zv-manager/services/nginx/install.sh && install_nginx"
 fi
 
-# ── 4. Dropbear ───────────────────────────────────────────────
-source /etc/zv-manager/services/dropbear/install.sh >> "$_UPDATE_LOG" 2>&1
+# ── 4. Dropbear ──────────────────────────────────────────────
 if ! _pkg_installed dropbear; then
-    _run_silent "Dropbear (install)" install_dropbear
+    _run_task "Dropbear" "berhasil diinstall" \
+        bash -c "source /etc/zv-manager/services/dropbear/install.sh && install_dropbear"
 else
-    _run_silent "Dropbear (apply config)" install_dropbear
+    _run_task "Dropbear" "config diperbarui" \
+        bash -c "source /etc/zv-manager/services/dropbear/install.sh && install_dropbear"
 fi
 
 # ── 5. WebSocket ─────────────────────────────────────────────
-source /etc/zv-manager/services/websocket/install.sh >> "$_UPDATE_LOG" 2>&1
-_run_silent "WebSocket (apply config)" install_websocket
+_run_task "WebSocket Proxy" "config diperbarui" \
+    bash -c "source /etc/zv-manager/services/websocket/install.sh && install_websocket"
 
 # ── 6. SSH ───────────────────────────────────────────────────
-source /etc/zv-manager/services/ssh/install.sh >> "$_UPDATE_LOG" 2>&1
-_run_silent "SSH (apply config)" install_ssh
+_run_task "OpenSSH" "config diperbarui" \
+    bash -c "source /etc/zv-manager/services/ssh/install.sh && install_ssh"
 
 # ── 7. UDP Custom ────────────────────────────────────────────
-source /etc/zv-manager/services/udp/install.sh >> "$_UPDATE_LOG" 2>&1
-_run_silent "UDP Custom (apply config)" install_udp_custom
+_run_task "UDP Custom" "config diperbarui" \
+    bash -c "source /etc/zv-manager/services/udp/install.sh && install_udp_custom"
 
-# ── 8. Python aiogram ────────────────────────────────────────
+# ── 8. aiogram ───────────────────────────────────────────────
 current_aiogram=$(pip3 show aiogram 2>/dev/null | grep "^Version:" | awk '{print $2}')
 if [[ -z "$current_aiogram" ]]; then
-    _run_silent "aiogram (install)" pip3 install -q "aiogram==3.*" --break-system-packages
+    _run_task "aiogram (Python)" "berhasil diinstall" \
+        pip3 install -q "aiogram==3.*" --break-system-packages
 else
-    echo -e " ✔  aiogram sudah ada (v${current_aiogram}), skip"
+    _skip_task "aiogram (Python)" "sudah ada (v${current_aiogram})"
 fi
 
-# --- Cron jobs ---
-printf "  %-40s" "Cron jobs..."
+# ── 9. Cron jobs ─────────────────────────────────────────────
+{
 cat > /etc/cron.d/zv-autokill <<'CRONEOF'
 # ZV-Manager - Auto Kill Multi-Login
 */1 * * * * root /bin/bash /etc/zv-manager/cron/autokill.sh
@@ -272,31 +273,42 @@ cat > /etc/cron.d/zv-expired <<'CRONEOF'
 CRONEOF
 
 cat > /etc/cron.d/zv-license <<'CRONEOF'
-# ZV-Manager - Cek Izin Harian (jam 00:05)
+# ZV-Manager - Cek Izin Harian
 5 0 * * * root /bin/bash /etc/zv-manager/cron/license-check.sh
 0 7 * * * root /bin/bash /etc/zv-manager/cron/daily-report.sh
 CRONEOF
 
 cat > /etc/cron.d/zv-bandwidth <<'CRONEOF'
-# ZV-Manager - Cek Bandwidth tiap 5 menit
+# ZV-Manager - Cek Bandwidth
 */5 * * * * root /bin/bash /etc/zv-manager/cron/bw-check.sh
 CRONEOF
 
-cat > /etc/cron.d/zv-check-update <<'CRONEOF'
-# ZV-Manager - Cek Update sekali sehari jam 06:00
-0 6 * * * root /bin/bash /etc/zv-manager/cron/check-update.sh
+cat > /etc/cron.d/zv-tg-notify <<'CRONEOF'
+# ZV-Manager - Notifikasi Telegram
+0 * * * * root /bin/bash /etc/zv-manager/cron/tg-notify.sh
+CRONEOF
+
+cat > /etc/cron.d/zv-bw-vmess <<'CRONEOF'
+# ZV-Manager - BW VMess
+*/5 * * * * root /bin/bash /etc/zv-manager/cron/bw-vmess.sh
 CRONEOF
 
 cat > /etc/cron.d/zv-backup <<'CRONEOF'
-# ZV-Manager - Backup harian jam 02:00
+# ZV-Manager - Daily Backup jam 02:00
 0 2 * * * root /bin/bash /etc/zv-manager/cron/backup.sh
 CRONEOF
 
-service cron restart &>/dev/null
-# Jalankan cek update sekali sekarang (background, tidak blocking)
-/bin/bash /etc/zv-manager/cron/check-update.sh &>/dev/null &
-echo -e " ${BGREEN}✔${NC}"
+cat > /etc/cron.d/zv-check-update <<'CRONEOF'
+# ZV-Manager - Cek update GitHub jam 06:00
+0 6 * * * root /bin/bash /etc/zv-manager/cron/check-update.sh
+CRONEOF
 
+service cron restart &>/dev/null
+} >> "$_UPDATE_LOG" 2>&1
+printf "  \033[32m+\033[0m  \033[1m%-35s\033[0m  %s\n" "Cron jobs" "semua cron diperbarui"
+
+echo ""
+/bin/bash /etc/zv-manager/cron/check-update.sh &>/dev/null &
 
 # Pastikan menu command masih ada
 ln -sf /etc/zv-manager/menu/menu.sh /usr/local/bin/menu
