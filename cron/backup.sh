@@ -2,8 +2,8 @@
 # ============================================================
 #   ZV-Manager - Full Backup Harian
 #   Jalan tiap hari jam 02:00
-#   1. Backup otak (semua data)
-#   2. Backup per-server SSH (passwd + shadow)
+#   1. Backup otak (akun, config, SSL)
+#   2. Backup per-server tunneling (conf akun + xray config)
 #   3. Kirim semua ke Telegram admin
 #   4. Hapus file backup realtime (.conf individual)
 # ============================================================
@@ -41,59 +41,164 @@ _tg_msg() {
         --max-time 10 &>/dev/null
 }
 
-# ── 1. Backup Otak ────────────────────────────────────────
+# ── Format ukuran file (bytes → B/KB/MB) ──────────────────
+_fmt_size() {
+    local bytes
+    bytes=$(stat -c%s "$1" 2>/dev/null || echo 0)
+    if   [[ $bytes -ge 1048576 ]]; then printf "%.1f MB" "$(echo "scale=1; $bytes/1048576" | bc)"
+    elif [[ $bytes -ge 1024    ]]; then printf "%.1f KB" "$(echo "scale=1; $bytes/1024" | bc)"
+    else printf "%d B" "$bytes"
+    fi
+}
+
+# ── 1. Backup Otak ─────────────────────────────────────────
+# Yang di-backup:
+# - accounts/ssh/*.conf   → USERNAME, PASSWORD, EXPIRED → recreate akun Linux
+# - accounts/vmess/*.conf → USERNAME, UUID, EXPIRED, BW → inject ke Xray baru
+# - accounts/saldo/       → saldo user bot
+# - accounts/users/       → data user bot
+# - telegram.conf         → token bot, admin ID
+# - config.conf           → config global
+# - license.info          → lisensi
+# - ssl/cert.pem + key    → berguna jika domain sama setelah suspend
+# - domain, web-host      → info domain otak VPS
+# - servers/*.conf        → HANYA NAME+DOMAIN+ISP (strip IP/PORT/USER/PASS yang tidak valid)
+# TIDAK di-backup: log (tidak berguna untuk restore)
 backup_otak() {
     local dst="${TMP_DIR}/otak"
     mkdir -p "$dst"
+
+    # Akun semua — paling penting untuk restore
     [[ -d "${BASE_DIR}/accounts" ]] && cp -r "${BASE_DIR}/accounts" "$dst/"
-    [[ -d "${BASE_DIR}/servers"  ]] && cp -r "${BASE_DIR}/servers"  "$dst/"
+
+    # Server conf — strip IP/PORT/USER/PASS, simpan NAME/DOMAIN/ISP/TYPE saja
+    if [[ -d "${BASE_DIR}/servers" ]]; then
+        mkdir -p "${dst}/servers"
+        for sc in "${BASE_DIR}/servers"/*.conf; do
+            [[ -f "$sc" ]] || continue
+            local fname; fname=$(basename "$sc")
+            # Salin hanya field yang masih berguna setelah suspend
+            grep -E "^(NAME|DOMAIN|ISP|AUTH_TYPE|TG_SERVER_TYPE)=" "$sc" \
+                > "${dst}/servers/${fname}" 2>/dev/null
+            echo "# IP/PORT/USER/PASS tidak disimpan (tidak valid setelah suspend)" \
+                >> "${dst}/servers/${fname}"
+        done
+        # Salin .tg.conf apa adanya (berisi label, max akun, dll — tidak ada IP/PASS)
+        for tgsc in "${BASE_DIR}/servers"/*.tg.conf; do
+            [[ -f "$tgsc" ]] || continue
+            cp "$tgsc" "${dst}/servers/"
+        done
+        cat > "${dst}/servers/RESTORE-NOTE.txt" << 'NOTETXT'
+CATATAN RESTORE SERVER:
+- File .conf di sini hanya menyimpan NAME, DOMAIN, ISP sebagai referensi.
+- IP, PORT, USER, PASS tidak disimpan karena tidak valid setelah VPS suspend/ganti.
+- Saat restore ke VPS baru:
+  1. Tambah server baru via Menu Server → Tambah Server (IP/PASS baru)
+  2. Gunakan DOMAIN lama atau ganti domain di sini
+  3. Recreate akun SSH dari ssh-accounts/ di backup server (username+pass sama)
+  4. Recreate akun VMess dari vmess-accounts/ di backup server (UUID sama)
+NOTETXT
+    fi
+
+    # Config utama
     for f in telegram.conf config.conf license.info; do
         [[ -f "${BASE_DIR}/${f}" ]] && cp "${BASE_DIR}/${f}" "$dst/"
     done
+
+    # SSL cert + key (berguna jika domain sama setelah suspend)
     mkdir -p "${dst}/ssl"
     [[ -f "${BASE_DIR}/ssl/cert.pem" ]] && cp "${BASE_DIR}/ssl/cert.pem" "${dst}/ssl/"
-    local logf="/var/log/zv-manager/bot.log"
-    [[ -f "$logf" ]] && tail -n 200 "$logf" > "${dst}/bot-log-tail.txt"
+    [[ -f "${BASE_DIR}/ssl/key.pem"  ]] && cp "${BASE_DIR}/ssl/key.pem"  "${dst}/ssl/"
+
+    # Domain config
+    [[ -f "${BASE_DIR}/web-host" ]] && cp "${BASE_DIR}/web-host" "$dst/"
+    [[ -f "${BASE_DIR}/domain"   ]] && cp "${BASE_DIR}/domain"   "$dst/"
 }
 
-# ── 2. Backup per-server SSH ──────────────────────────────
+# ── 2. Backup per-server tunneling ─────────────────────────
+# Isi: conf akun SSH+VMess (dari brain) + xray config.json (dari remote)
+# TIDAK di-backup: passwd/shadow Linux (tidak berguna, VPS baru = OS baru)
+# DOMAIN di conf akun tidak diubah — user tinggal ganti domain via bot
 backup_server() {
     local sname="$1"
     local conf="${BASE_DIR}/servers/${sname}.conf"
     [[ -f "$conf" ]] || return
 
-    unset IP PORT USER PASS AUTH_TYPE SSH_KEY_PATH
+    unset IP PORT USER PASS AUTH_TYPE SSH_KEY_PATH NAME DOMAIN ISP
     source "$conf"
 
     local dst="${TMP_DIR}/ssh-${sname}"
     mkdir -p "$dst"
-    cp "$conf" "${dst}/server.conf"
 
+    # Simpan hanya info referensi server (bukan credential)
+    cat > "${dst}/server-info.txt" << SRVTXT
+SERVER: ${sname}
+DOMAIN: ${DOMAIN:-?}
+ISP   : ${ISP:-?}
+SRVTXT
+
+    # Conf akun SSH yang terkait server ini
+    local ssh_count=0
+    mkdir -p "${dst}/ssh-accounts"
+    for ac in "${BASE_DIR}/accounts/ssh"/*.conf; do
+        [[ -f "$ac" ]] || continue
+        local srv; srv=$(grep "^SERVER=" "$ac" | cut -d= -f2 | tr -d '"')
+        if [[ "$srv" == "$sname" ]]; then
+            cp "$ac" "${dst}/ssh-accounts/"
+            ssh_count=$((ssh_count + 1))
+        fi
+    done
+
+    # Conf akun VMess yang terkait server ini
+    local vmess_count=0
+    mkdir -p "${dst}/vmess-accounts"
+    for vc in "${BASE_DIR}/accounts/vmess"/*.conf; do
+        [[ -f "$vc" ]] || continue
+        local srv; srv=$(grep "^SERVER=" "$vc" | cut -d= -f2 | tr -d '"')
+        if [[ "$srv" == "$sname" ]]; then
+            cp "$vc" "${dst}/vmess-accounts/"
+            vmess_count=$((vmess_count + 1))
+        fi
+    done
+
+    # Ambil xray config.json dari remote (berisi UUID list aktif)
     local ssh_opts="-o StrictHostKeyChecking=no -o ConnectTimeout=10"
     local ok=true
-
     if [[ "${AUTH_TYPE}" == "key" && -f "${SSH_KEY_PATH}" ]]; then
-        ssh -i "$SSH_KEY_PATH" $ssh_opts -p "${PORT:-22}" "${USER:-root}@${IP}"             "cat /etc/passwd" > "${dst}/passwd" 2>/dev/null || ok=false
-        ssh -i "$SSH_KEY_PATH" $ssh_opts -p "${PORT:-22}" "${USER:-root}@${IP}"             "cat /etc/shadow" > "${dst}/shadow" 2>/dev/null || ok=false
+        ssh -i "$SSH_KEY_PATH" $ssh_opts -p "${PORT:-22}" "${USER:-root}@${IP}" \
+            "cat /usr/local/etc/xray/config.json" > "${dst}/xray-config.json" 2>/dev/null || ok=false
     else
-        sshpass -p "$PASS" ssh $ssh_opts -p "${PORT:-22}" "${USER:-root}@${IP}"             "cat /etc/passwd" > "${dst}/passwd" 2>/dev/null || ok=false
-        sshpass -p "$PASS" ssh $ssh_opts -p "${PORT:-22}" "${USER:-root}@${IP}"             "cat /etc/shadow" > "${dst}/shadow" 2>/dev/null || ok=false
+        sshpass -p "$PASS" ssh $ssh_opts -p "${PORT:-22}" "${USER:-root}@${IP}" \
+            "cat /usr/local/etc/xray/config.json" > "${dst}/xray-config.json" 2>/dev/null || ok=false
     fi
 
+    # Catatan restore
+    cat > "${dst}/RESTORE-NOTE.txt" << NOTETXT
+CATATAN RESTORE SERVER: ${sname}
+Domain lama: ${DOMAIN:-?}
+
+Langkah restore saat VPS di-suspend dan beli VPS baru:
+1. Install ZV-Manager di VPS baru
+2. Tambah server di Menu Server → Tambah Server (IP/PASS baru)
+3. Jika domain baru: ganti DNS record saja, user tinggal ganti domain di conf akun
+4. Recreate akun SSH: username + password sama (dari ssh-accounts/)
+5. Recreate akun VMess: UUID sama (dari vmess-accounts/)
+6. xray-config.json bisa dipakai untuk inject UUID langsung ke Xray baru
+NOTETXT
+
     [[ "$ok" == false ]] && echo "GAGAL: koneksi ke ${sname}" > "${dst}/error.txt"
-    echo "$ok"
+    echo "${ok}|${ssh_count}|${vmess_count}"
 }
 
-# ── Bersihkan backup lama (> 7 hari) ──────────────────────
+# ── Bersihkan backup lama (> 7 hari) ───────────────────────
 cleanup_old() {
     find "$BACKUP_DIR" -name "zv-backup-*.tar.gz" -mtime +7 -delete 2>/dev/null
     find "$BACKUP_DIR" -name "zv-ssh-*.tar.gz"    -mtime +7 -delete 2>/dev/null
 }
 
-# ── Hapus file realtime setelah backup full selesai ────────
+# ── Hapus file realtime setelah backup full selesai ─────────
 cleanup_realtime() {
     [[ -d "$REALTIME_DIR" ]] && rm -f "${REALTIME_DIR}"/*.conf 2>/dev/null
-    # Hapus juga notif realtime lama di backup dir
     find "$BACKUP_DIR" -name "*.conf" -mtime +1 -delete 2>/dev/null
 }
 
@@ -102,71 +207,73 @@ cleanup_realtime() {
 # ══════════════════════════════════════════════════════════
 zv_log "BACKUP: Mulai backup harian..." 2>/dev/null || true
 
-# Kirim header notif
-TOTAL_AKUN=$(ls /etc/zv-manager/accounts/ssh accounts/vmess/*.conf 2>/dev/null | wc -l)
-TOTAL_USER=$(ls /etc/zv-manager/accounts/users/*.user 2>/dev/null | wc -l)
-TOTAL_SRV=$(ls /etc/zv-manager/servers/*.conf 2>/dev/null | wc -l)
+TOTAL_SSH=$(ls "${BASE_DIR}/accounts/ssh/"*.conf 2>/dev/null | wc -l)
+TOTAL_VMESS=$(ls "${BASE_DIR}/accounts/vmess/"*.conf 2>/dev/null | wc -l)
+TOTAL_USER=$(ls "${BASE_DIR}/accounts/users/"*.user 2>/dev/null | wc -l)
+TOTAL_SRV=$(ls "${BASE_DIR}/servers/"*.conf 2>/dev/null | grep -v "\.tg\.conf" | wc -l)
 
 _tg_msg "🗄 <b>Backup Harian Dimulai</b>
 ━━━━━━━━━━━━━━━━━━━
-📅 Waktu     : $(TZ=\"Asia/Jakarta\" date +\"%Y-%m-%d %H:%M\") WIB
-👤 Akun SSH  : ${TOTAL_AKUN}
-👥 User Bot  : ${TOTAL_USER}
-🖥 Server    : ${TOTAL_SRV}
+📅 Waktu      : $(TZ=\"Asia/Jakarta\" date +\"%Y-%m-%d %H:%M\") WIB
+🔑 Akun SSH   : ${TOTAL_SSH}
+⚡ Akun VMess : ${TOTAL_VMESS}
+👥 User Bot   : ${TOTAL_USER}
+🖥 Server     : ${TOTAL_SRV}
 ━━━━━━━━━━━━━━━━━━━
 <i>Mengirim file backup...</i>"
 
-# ── Backup & kirim otak ────────────────────────────────────
+# ── Backup & kirim otak ─────────────────────────────────────
 backup_otak
 OTAK_FILE="${BACKUP_DIR}/zv-backup-otak-${DATE}.tar.gz"
 tar -czf "$OTAK_FILE" -C "${TMP_DIR}/otak" . 2>/dev/null
-OTAK_SIZE=$(du -sh "$OTAK_FILE" | cut -f1)
+OTAK_SIZE=$(_fmt_size "$OTAK_FILE")
 
 _tg_file "$OTAK_FILE" "🧠 <b>Backup Otak VPS</b>
 ━━━━━━━━━━━━━━━━━━━
 📅 ${DATE}
-📦 Ukuran : ${OTAK_SIZE}
-👤 Akun SSH  : ${TOTAL_AKUN}
-👥 User Bot  : ${TOTAL_USER}
+📦 Ukuran     : ${OTAK_SIZE}
+🔑 Akun SSH   : ${TOTAL_SSH}
+⚡ Akun VMess : ${TOTAL_VMESS}
+👥 User Bot   : ${TOTAL_USER}
 ━━━━━━━━━━━━━━━━━━━
-<i>Berisi: akun, saldo, config, server list, SSL</i>"
+<i>Berisi: akun SSH+VMess, saldo, config, SSL</i>
+<i>Server conf: hanya NAME+DOMAIN+ISP (IP/PASS tidak disimpan)</i>"
 
-# ── Backup & kirim per-server SSH ─────────────────────────
+# ── Backup & kirim per-server tunneling ─────────────────────
 for conf in "${BASE_DIR}/servers"/*.conf; do
     [[ -f "$conf" ]] || continue
-    # Skip file .tg.conf — bukan server config
     [[ "$conf" == *.tg.conf ]] && continue
     sname=$(basename "$conf" .conf)
 
     result=$(backup_server "$sname")
+    ok=$(echo "$result" | cut -d'|' -f1)
+    ssh_c=$(echo "$result" | cut -d'|' -f2)
+    vmess_c=$(echo "$result" | cut -d'|' -f3)
 
     SRV_FILE="${BACKUP_DIR}/zv-ssh-${sname}-${DATE}.tar.gz"
     tar -czf "$SRV_FILE" -C "${TMP_DIR}/ssh-${sname}" . 2>/dev/null
-    SRV_SIZE=$(du -sh "$SRV_FILE" | cut -f1)
+    SRV_SIZE=$(_fmt_size "$SRV_FILE")
 
-    # Hitung jumlah user SSH di server ini
-    USR_COUNT=$(grep -c "^" "${TMP_DIR}/ssh-${sname}/passwd" 2>/dev/null || echo "?")
-
-    if [[ "$result" == "true" ]]; then
+    if [[ "$ok" == "true" ]]; then
         STATUS="✅ Berhasil"
     else
-        STATUS="⚠️ Gagal konek (file mungkin kosong)"
+        STATUS="⚠️ Gagal konek (xray config tidak terambil)"
     fi
 
-    _tg_file "$SRV_FILE" "🖥 <b>Backup Server SSH: ${sname}</b>
+    _tg_file "$SRV_FILE" "🖥 <b>Backup Server: ${sname}</b>
 ━━━━━━━━━━━━━━━━━━━
 📅 ${DATE}
-📦 Ukuran   : ${SRV_SIZE}
-👥 User     : ${USR_COUNT} akun Linux
-📊 Status   : ${STATUS}
+📦 Ukuran     : ${SRV_SIZE}
+🔑 Akun SSH   : ${ssh_c}
+⚡ Akun VMess : ${vmess_c}
+📊 Status     : ${STATUS}
 ━━━━━━━━━━━━━━━━━━━
-<i>Berisi: passwd, shadow, server config</i>
-<i>Gunakan untuk restore ke VPS baru jika suspend</i>"
+<i>Berisi: conf akun SSH+VMess, xray UUID config</i>
+<i>Ganti domain saja saat restore, user+UUID tetap sama</i>"
 done
 
 rm -rf "$TMP_DIR"
 
-# ── Hapus realtime + backup lama ──────────────────────────
 cleanup_realtime
 cleanup_old
 
