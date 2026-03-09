@@ -147,25 +147,6 @@ cfg = {
       "streamSettings": {"network": "ws", "wsSettings": {"path": "/vmess"}}
     },
     {
-      "tag": "vmess-wss",
-      "listen": "0.0.0.0", "port": 10003,
-      "protocol": "vmess",
-      "settings": {"clients": clients},
-      "streamSettings": {
-        "network": "ws",
-        "security": "tls",
-        "tlsSettings": {
-          "certificates": [
-            {
-              "certificateFile": "/etc/zv-manager/ssl/cert.pem",
-              "keyFile": "/etc/zv-manager/ssl/key.pem"
-            }
-          ]
-        },
-        "wsSettings": {"path": "/vmess"}
-      }
-    },
-    {
       "tag": "vmess-grpc",
       "listen": "127.0.0.1", "port": 10002,
       "protocol": "vmess",

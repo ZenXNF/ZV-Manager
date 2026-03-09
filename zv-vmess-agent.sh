@@ -40,20 +40,15 @@ _read()   {
 _xray_add() {
     local user="$1" uuid="$2"
     local j="{\"vmess\":{\"id\":\"${uuid}\",\"email\":\"${user}@vmess\",\"alterId\":0}}"
-    # Inject ke Xray runtime (live, tanpa restart)
     "$XRAY_BIN" api adu -s "$API_ADDR" -inbound "vmess-ws"   -user "$j" &>/dev/null || true
-    "$XRAY_BIN" api adu -s "$API_ADDR" -inbound "vmess-wss"  -user "$j" &>/dev/null || true
     "$XRAY_BIN" api adu -s "$API_ADDR" -inbound "vmess-grpc" -user "$j" &>/dev/null || true
-    # Persist ke config.json supaya tidak hilang saat Xray restart
     _xray_config_rebuild
 }
 
 _xray_del() {
     local user="$1"
     "$XRAY_BIN" api rmu -s "$API_ADDR" -inbound "vmess-ws"   -email "${user}@vmess" &>/dev/null || true
-    "$XRAY_BIN" api rmu -s "$API_ADDR" -inbound "vmess-wss"  -email "${user}@vmess" &>/dev/null || true
     "$XRAY_BIN" api rmu -s "$API_ADDR" -inbound "vmess-grpc" -email "${user}@vmess" &>/dev/null || true
-    # Persist ke config.json
     _xray_config_rebuild
 }
 
@@ -106,7 +101,7 @@ with open(config_file) as f:
     cfg = json.load(f)
 
 for inbound in cfg.get("inbounds", []):
-    if inbound.get("tag") in ("vmess-ws", "vmess-wss"):
+    if inbound.get("tag") == "vmess-ws":
         inbound["settings"]["clients"] = clients_ws
     elif inbound.get("tag") == "vmess-grpc":
         inbound["settings"]["clients"] = clients_grpc

@@ -1,45 +1,49 @@
 #!/usr/bin/env python3
 # ============================================================
 #   ZV-Manager - WebSocket & HTTP CONNECT SSH Proxy
-#   Optimized: ThreadPoolExecutor (max 200) untuk VPS 512MB
-#   Routing:
+#   Port 8880 : plain TCP (dari nginx:18443 yang sudah TLS)
+#   Port 8881 : TLS langsung (dari nginx ssl_preread bug SNI)
+#   Routing (sama untuk keduanya setelah TLS):
 #     CONNECT host:PORT → SSH PORT (22/109/143/500/40000)
 #     GET /vmess (WS upgrade) → Xray VMess :10001
 #     GET / (WS upgrade) → SSH :22
-#     SSH- banner langsung → SSH :22
+#     GET biasa (browser) → nginx :8080
+#     SSH banner langsung → SSH :22
 # ============================================================
-
 import socket
 import select
 import signal
+import ssl
 import sys
+import os
 import logging
 from concurrent.futures import ThreadPoolExecutor
 
 LISTENING_ADDR = '0.0.0.0'
 LISTENING_PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8880
+TLS_PORT       = 8881
+SSL_CERT       = '/etc/zv-manager/ssl/cert.pem'
+SSL_KEY        = '/etc/zv-manager/ssl/key.pem'
 DEFAULT_HOST   = '127.0.0.1'
 DEFAULT_PORT   = 22
-XRAY_PORT      = 10001   # Xray VMess WebSocket internal
+XRAY_PORT      = 10001
+NGINX_PORT     = 8080
 BUFLEN         = 8192
 TIMEOUT        = 120
 MAX_WORKERS    = 200
 LISTEN_BACKLOG = 50
+
 logging.disable(logging.CRITICAL)
 
-# Port SSH valid — CONNECT ke port ini diteruskan ke loopback:port
 SSH_PORTS = {22, 109, 143, 500, 40000}
 
 WS_RESPONSE      = "HTTP/1.1 101 Switching Protocols\r\nContent-Length: 0\r\n\r\nHTTP/1.1 200 ZV-Manager\r\n\r\n"
 CONNECT_RESPONSE = "HTTP/1.1 200 Connection Established\r\n\r\n"
 
-
 def _parse_path(data: str) -> str:
-    """Ambil path dari request line pertama."""
     first = data.split('\r\n')[0]
     parts = first.split()
     return parts[1] if len(parts) >= 2 else '/'
-
 
 def handle_connection(client_sock):
     target = None
@@ -58,10 +62,9 @@ def handle_connection(client_sock):
                     break
         except Exception:
             return
-
         client_sock.settimeout(None)
 
-        # ── Koneksi SSH langsung (tanpa HTTP header) ─────────
+        # ── SSH banner langsung ──────────────────────────────
         if raw.startswith(b'SSH-'):
             target = socket.create_connection((DEFAULT_HOST, DEFAULT_PORT), timeout=10)
             target.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
@@ -77,7 +80,7 @@ def handle_connection(client_sock):
         data        = headers_raw.decode('utf-8', errors='ignore')
         first_line  = data.split('\r\n')[0].upper()
 
-        # ── HTTP CONNECT → SSH tunnel ─────────────────────────
+        # ── CONNECT → SSH tunnel ─────────────────────────────
         if first_line.startswith('CONNECT'):
             parts = first_line.split()
             tgt   = parts[1] if len(parts) >= 2 else ''
@@ -95,30 +98,28 @@ def handle_connection(client_sock):
             client_sock.sendall(CONNECT_RESPONSE.encode())
             _relay(client_sock, target, leftover)
 
-        # ── WebSocket GET /vmess → Xray VMess ────────────────
+        # ── GET → VMess WS / SSH WS / browser ───────────────
         elif first_line.startswith('GET'):
             path = _parse_path(data)
             is_ws = 'upgrade' in data.lower() and 'websocket' in data.lower()
             if path.startswith('/vmess') and is_ws:
-                # Forward seluruh WS upgrade request ke Xray
                 target = socket.create_connection((DEFAULT_HOST, XRAY_PORT), timeout=10)
                 target.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
                 target.sendall(raw)
                 _relay(client_sock, target, leftover)
             elif is_ws:
-                # WebSocket biasa → SSH
                 target = socket.create_connection((DEFAULT_HOST, DEFAULT_PORT), timeout=10)
                 target.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
                 client_sock.sendall(WS_RESPONSE.encode())
                 _relay(client_sock, target, leftover)
             else:
-                # Browser biasa (GET tanpa Upgrade) → forward ke nginx:8080
-                target = socket.create_connection((DEFAULT_HOST, 8080), timeout=10)
+                # Browser biasa → nginx status/api page
+                target = socket.create_connection((DEFAULT_HOST, NGINX_PORT), timeout=10)
                 target.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
                 target.sendall(raw)
                 _relay(client_sock, target, leftover)
 
-        # ── Fallback → SSH ────────────────────────────────────
+        # ── Fallback → SSH ───────────────────────────────────
         else:
             target = socket.create_connection((DEFAULT_HOST, DEFAULT_PORT), timeout=10)
             target.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
@@ -132,7 +133,6 @@ def handle_connection(client_sock):
             if s:
                 try: s.close()
                 except Exception: pass
-
 
 def _relay(client, target, leftover=b''):
     if leftover:
@@ -162,21 +162,47 @@ def _relay(client, target, leftover=b''):
         if idle >= TIMEOUT:
             break
 
-
-def main():
-    executor = ThreadPoolExecutor(max_workers=MAX_WORKERS)
+def _make_server(addr, port):
     srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     srv.settimeout(2)
-    srv.bind((LISTENING_ADDR, LISTENING_PORT))
+    srv.bind((addr, port))
     srv.listen(LISTEN_BACKLOG)
+    return srv
+
+def main():
+    executor = ThreadPoolExecutor(max_workers=MAX_WORKERS)
+
+    # Plain server (dari nginx:18443 yang sudah TLS terminate)
+    plain_srv = _make_server(LISTENING_ADDR, LISTENING_PORT)
+
+    # TLS server (dari nginx ssl_preread bug SNI — belum di-terminate)
+    tls_ctx = None
+    tls_srv = None
+    if os.path.exists(SSL_CERT) and os.path.exists(SSL_KEY):
+        try:
+            tls_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            tls_ctx.load_cert_chain(SSL_CERT, SSL_KEY)
+            tls_srv = _make_server(LISTENING_ADDR, TLS_PORT)
+        except Exception as e:
+            print(f"[ZV] TLS setup gagal: {e} — port {TLS_PORT} tidak aktif")
+    else:
+        print(f"[ZV] SSL cert tidak ditemukan — port {TLS_PORT} tidak aktif")
+
     ports_str = ', '.join(str(p) for p in sorted(SSH_PORTS))
-    print(f"[ZV] Proxy :{LISTENING_PORT} → SSH [{ports_str}] | VMess :{XRAY_PORT} (max {MAX_WORKERS} threads)")
+    tls_info  = f" | TLS :{TLS_PORT}" if tls_srv else ""
+    print(f"[ZV] Proxy :{LISTENING_PORT} → SSH [{ports_str}] | VMess :{XRAY_PORT} (max {MAX_WORKERS} threads){tls_info}")
+
+    servers = [plain_srv]
+    if tls_srv:
+        servers.append(tls_srv)
 
     def _stop(sig, frame):
         print("\n[ZV] Proxy stopped.")
         executor.shutdown(wait=False)
-        srv.close()
+        for s in servers:
+            try: s.close()
+            except Exception: pass
         sys.exit(0)
 
     signal.signal(signal.SIGINT,  _stop)
@@ -184,15 +210,27 @@ def main():
 
     while True:
         try:
-            client, _ = srv.accept()
-            client.setblocking(True)
-            client.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-            executor.submit(handle_connection, client)
-        except socket.timeout:
-            continue
+            readable, _, _ = select.select(servers, [], [], 2)
         except Exception:
             break
-
+        for srv in readable:
+            try:
+                client, _ = srv.accept()
+                client.setblocking(True)
+                client.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+                # Wrap TLS jika dari tls_srv
+                if tls_srv and srv is tls_srv:
+                    try:
+                        client = tls_ctx.wrap_socket(client, server_side=True)
+                    except ssl.SSLError:
+                        try: client.close()
+                        except Exception: pass
+                        continue
+                executor.submit(handle_connection, client)
+            except socket.timeout:
+                continue
+            except Exception:
+                continue
 
 if __name__ == '__main__':
     main()

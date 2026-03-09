@@ -2,16 +2,18 @@
 # ============================================================
 #   ZV-Manager - Nginx Installer & Configurator
 #
-#   Arsitektur baru:
-#   Port 80  (stream/TCP) → ws-proxy:8880  ← HTTP Custom non-SSL
-#   Port 443 (stream/TCP+TLS) → ws-proxy:8880 ← HTTP Custom SSL
-#   Port 8080 (HTTP) → VMess WS + Status Page (non-SSL)
-#   Port 8443 (HTTPS) → VMess WS/gRPC + Status Page (SSL)
+#   Arsitektur:
+#   Port 80  (stream TCP)  → ws-proxy:8880  ← HTTP Custom non-SSL
+#   Port 443 (ssl_preread) → ws-proxy:8881 (TLS, bug SNI SSH+VMess)
+#                          → nginx:18443 → ws-proxy:8880 (SNI domain)
+#   Port 8080 (HTTP)       → VMess WS + Status Page + /api/
+#   Port 8443 (HTTPS)      → VMess WS/gRPC + Status Page
+#   Port 18443 (TLS)       → ws-proxy:8880 (SSH via domain SNI)
 #
-#   Kenapa stream?
-#   nginx proxy_pass (HTTP layer) memblokir method CONNECT yang
-#   dibutuhkan HTTP Custom. Stream module forward raw TCP langsung
-#   ke ws-proxy sehingga CONNECT bisa diproses dengan benar.
+#   ws-proxy routing (setelah TLS):
+#     CONNECT       → SSH (port 22/109/143/500/40000)
+#     GET /vmess WS → Xray:10001
+#     GET browser   → nginx:8080
 # ============================================================
 
 source /etc/zv-manager/utils/colors.sh
@@ -62,11 +64,12 @@ stream {
     }
 
     # Port 443 → ssl_preread (TIDAK terminate TLS)
-    # SNI = domain server → nginx:18443 → ws-proxy → SSH
-    # SNI = lain (bug domain XL/dll) → Xray:10003 → VMess TLS
+    # SNI = domain server       → nginx:18443 → ws-proxy:8880 → SSH/VMess/browser
+    # SNI = status domain       → ws-proxy:8881 (TLS) → nginx:8080 status page
+    # SNI = lain (bug XL/dll)   → ws-proxy:8881 (TLS) → SSH atau VMess
     map \$ssl_preread_server_name \$backend_443 {
         ${domain}   127.0.0.1:18443;
-        default     127.0.0.1:10003;
+        default     127.0.0.1:8881;
     }
     server {
         listen 443;
