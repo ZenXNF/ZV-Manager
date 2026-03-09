@@ -244,7 +244,13 @@ async def cb_vs_trial(cb: CallbackQuery):
         await cb.message.answer("❌ Server tidak ditemukan."); return
 
     tg     = load_tg_server_conf(sname)
-    domain = sconf.get("DOMAIN") or sconf.get("IP","")
+    ip     = sconf.get("IP", "")
+    domain = sconf.get("DOMAIN") or ip
+
+    if count_vmess_accounts(ip) >= int(tg.get("TG_MAX_AKUN","500")):
+        await cb.message.answer(
+            f"❌ Server <b>{tg['TG_SERVER_LABEL']}</b> penuh.", parse_mode="HTML"
+        ); return
 
     suffix   = "".join(random.choices(string.digits, k=4))
     username = f"VTrial{suffix}"
@@ -287,6 +293,9 @@ async def cb_vs_buat(cb: CallbackQuery):
     if not sconf:
         await cb.answer("❌ Server tidak ditemukan"); return
     tg    = load_tg_server_conf(sname)
+    ip_vs = sconf.get("IP", "")
+    if count_vmess_accounts(ip_vs) >= int(tg.get("TG_MAX_AKUN","500")):
+        await cb.answer("❌ Server penuh!"); return
     harga = int(tg.get("TG_HARGA_VMESS_HARI","0") or tg.get("TG_HARGA_HARI","0"))
     hh    = f"Rp{fmt(harga)}/hari" if harga > 0 else "Gratis"
     await cb.answer()

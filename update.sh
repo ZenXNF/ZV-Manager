@@ -133,6 +133,7 @@ source /etc/zv-manager/utils/logger.sh
 source /etc/zv-manager/config.conf
 
 print_section "Cek & Update Komponen"
+echo "" > "$_UPDATE_LOG"
 
 # ── Helper cek versi ──────────────────────────────────────────
 _pkg_installed() { dpkg -l "$1" 2>/dev/null | grep -q "^ii"; }
@@ -147,20 +148,37 @@ _xray_current_version() {
     /usr/local/bin/xray version 2>/dev/null | grep -oP 'Xray \K[\d.]+' | head -1 || echo ""
 }
 
+# ── Helper: jalankan diam-diam, tampilkan 1 baris hasil ─────
+_UPDATE_LOG="/tmp/zv-update-detail.log"
+_run_silent() {
+    # $1 = label, $2+ = command
+    local label="$1"; shift
+    printf "  %-40s" "${label}..."
+    if "$@" >> "$_UPDATE_LOG" 2>&1; then
+        echo -e " ${BGREEN}✔${NC}"
+    else
+        echo -e " ${BRED}✘ (lihat $_UPDATE_LOG)${NC}"
+    fi
+}
+
+_source_silent() {
+    # source file tanpa output, simpan ke log
+    "$@" >> "$_UPDATE_LOG" 2>&1
+}
+
 # ── 1. Xray-core ─────────────────────────────────────────────
-print_info "Mengecek Xray-core..."
+printf "  %-40s" "Xray-core (cek versi)..."
 if [[ ! -f "/usr/local/bin/xray" ]]; then
-    print_info "Xray belum ada, menginstall..."
-    source /etc/zv-manager/services/xray/install.sh
-    install_xray
-    print_ok "Xray-core terinstall"
+    echo ""
+    source /etc/zv-manager/services/xray/install.sh >> "$_UPDATE_LOG" 2>&1
+    _run_silent "Xray-core (install)" install_xray
 else
     current_xray=$(_xray_current_version)
     latest_xray=$(_xray_latest_version)
-    # Strip 'v' prefix untuk perbandingan
+    echo -e " ${BGREEN}✔${NC}"
     latest_xray_clean="${latest_xray#v}"
     if [[ -n "$latest_xray_clean" && -n "$current_xray" && "$current_xray" != "$latest_xray_clean" ]]; then
-        print_info "Xray update: v${current_xray} → ${latest_xray}"
+        printf "  %-40s" "Xray-core (update v${current_xray}→${latest_xray})..."
         ARCH=$(uname -m)
         case "$ARCH" in
             x86_64)  ARCH_TAG="64" ;;
@@ -169,98 +187,73 @@ else
         esac
         tmpdir=$(mktemp -d)
         dl_url="https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-${ARCH_TAG}.zip"
-        if wget -q --show-progress -O "${tmpdir}/xray.zip" "$dl_url"; then
-            apt-get install -y unzip &>/dev/null
-            unzip -q "${tmpdir}/xray.zip" -d "${tmpdir}/xray"
+        if wget -q -O "${tmpdir}/xray.zip" "$dl_url" >> "$_UPDATE_LOG" 2>&1; then
+            apt-get install -y unzip >> "$_UPDATE_LOG" 2>&1
+            unzip -q "${tmpdir}/xray.zip" -d "${tmpdir}/xray" >> "$_UPDATE_LOG" 2>&1
             systemctl stop zv-xray 2>/dev/null
             install -m 755 "${tmpdir}/xray/xray" /usr/local/bin/xray
             systemctl start zv-xray 2>/dev/null
-            print_ok "Xray-core diupdate ke ${latest_xray}"
+            echo -e " ${BGREEN}✔${NC}"
         else
-            print_info "Gagal download Xray, skip update"
+            echo -e " ${BRED}✘ gagal download${NC}"
         fi
         rm -rf "$tmpdir"
     else
-        print_ok "Xray-core sudah terbaru (v${current_xray}), skip"
+        echo -e " ✔  Xray-core sudah terbaru (v${current_xray}), skip"
     fi
-    # Pastikan config Xray sudah punya HandlerService — hanya tulis ulang config, bukan install ulang binary
+    # Pastikan config Xray sudah punya HandlerService — hanya tulis ulang config
     if ! grep -q "HandlerService" /usr/local/etc/xray/config.json 2>/dev/null; then
-        print_info "Menambahkan HandlerService ke config Xray..."
-        source /etc/zv-manager/services/xray/install.sh
-        _write_xray_config
-        print_ok "Xray config diperbarui"
+        source /etc/zv-manager/services/xray/install.sh >> "$_UPDATE_LOG" 2>&1
+        _run_silent "Xray config (HandlerService)" _write_xray_config
     fi
 fi
 
 # ── 2. BadVPN UDPGW ──────────────────────────────────────────
-print_info "Mengecek BadVPN UDPGW..."
-source /etc/zv-manager/services/badvpn/install.sh
+source /etc/zv-manager/services/badvpn/install.sh >> "$_UPDATE_LOG" 2>&1
 if [[ ! -f "/usr/local/bin/badvpn-udpgw" ]]; then
-    print_info "BadVPN belum ada, menginstall..."
-    install_badvpn
-    print_ok "BadVPN terinstall"
+    _run_silent "BadVPN (install)" install_badvpn
 else
-    print_ok "BadVPN sudah ada, skip"
+    echo -e " ✔  BadVPN sudah ada, skip"
 fi
 
 # ── 3. Nginx ─────────────────────────────────────────────────
-print_info "Mengecek Nginx..."
+source /etc/zv-manager/services/nginx/install.sh >> "$_UPDATE_LOG" 2>&1
 if ! _pkg_installed nginx; then
-    print_info "Nginx belum ada, menginstall..."
-    source /etc/zv-manager/services/nginx/install.sh
-    install_nginx
-    print_ok "Nginx terinstall"
+    _run_silent "Nginx (install)" install_nginx
 else
-    print_ok "Nginx sudah ada, apply config terbaru..."
-    source /etc/zv-manager/services/nginx/install.sh
-    install_nginx
+    _run_silent "Nginx (apply config)" install_nginx
 fi
 
 # ── 4. Dropbear ───────────────────────────────────────────────
-print_info "Mengecek Dropbear..."
+source /etc/zv-manager/services/dropbear/install.sh >> "$_UPDATE_LOG" 2>&1
 if ! _pkg_installed dropbear; then
-    print_info "Dropbear belum ada, menginstall..."
-    source /etc/zv-manager/services/dropbear/install.sh
-    install_dropbear
-    print_ok "Dropbear terinstall"
+    _run_silent "Dropbear (install)" install_dropbear
 else
-    print_ok "Dropbear sudah ada, apply config terbaru..."
-    source /etc/zv-manager/services/dropbear/install.sh
-    install_dropbear
+    _run_silent "Dropbear (apply config)" install_dropbear
 fi
 
-# ── 5. WebSocket + Stunnel ────────────────────────────────────
-print_info "Mengecek WebSocket/Stunnel..."
-source /etc/zv-manager/services/websocket/install.sh
-install_websocket
-print_ok "WebSocket config diterapkan"
+# ── 5. WebSocket ─────────────────────────────────────────────
+source /etc/zv-manager/services/websocket/install.sh >> "$_UPDATE_LOG" 2>&1
+_run_silent "WebSocket (apply config)" install_websocket
 
-# ── 6. SSH ────────────────────────────────────────────────────
-print_info "Apply config SSH..."
-source /etc/zv-manager/services/ssh/install.sh
-install_ssh
-print_ok "SSH config diterapkan"
+# ── 6. SSH ───────────────────────────────────────────────────
+source /etc/zv-manager/services/ssh/install.sh >> "$_UPDATE_LOG" 2>&1
+_run_silent "SSH (apply config)" install_ssh
 
-# ── 7. UDP Custom ─────────────────────────────────────────────
-print_info "Mengecek UDP Custom..."
-source /etc/zv-manager/services/udp/install.sh
-install_udp_custom
-print_ok "UDP Custom diterapkan"
+# ── 7. UDP Custom ────────────────────────────────────────────
+source /etc/zv-manager/services/udp/install.sh >> "$_UPDATE_LOG" 2>&1
+_run_silent "UDP Custom (apply config)" install_udp_custom
 
-# ── 8. Python aiogram ─────────────────────────────────────────
-print_info "Mengecek aiogram (Python)..."
+# ── 8. Python aiogram ────────────────────────────────────────
 current_aiogram=$(pip3 show aiogram 2>/dev/null | grep "^Version:" | awk '{print $2}')
 if [[ -z "$current_aiogram" ]]; then
-    print_info "aiogram belum ada, menginstall..."
-    pip3 install -q "aiogram==3.*" --break-system-packages 2>/dev/null || \
-    pip3 install -q "aiogram==3.*" 2>/dev/null
-    print_ok "aiogram terinstall"
+    _run_silent "aiogram (install)" pip3 install -q "aiogram==3.*" --break-system-packages
 else
-    print_ok "aiogram sudah ada (v${current_aiogram}), skip"
+    echo -e " ✔  aiogram sudah ada (v${current_aiogram}), skip"
 fi
 
 # --- Cron jobs ---
-print_info "Apply cron jobs..."
+printf "  %-40s" "Cron jobs..."
 cat > /etc/cron.d/zv-autokill <<'CRONEOF'
 # ZV-Manager - Auto Kill Multi-Login
 */1 * * * * root /bin/bash /etc/zv-manager/cron/autokill.sh
@@ -302,7 +295,7 @@ CRONEOF
 service cron restart &>/dev/null
 # Jalankan cek update sekali sekarang (background, tidak blocking)
 /bin/bash /etc/zv-manager/cron/check-update.sh &>/dev/null &
-print_ok "Cron jobs diterapkan"
+echo -e " ${BGREEN}✔${NC}"
 
 
 # Pastikan menu command masih ada
