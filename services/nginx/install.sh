@@ -51,8 +51,7 @@ events {
     multi_accept on;
 }
 
-# ── STREAM: Port 80 & 443 — raw TCP ke ws-proxy ──────────────
-# nginx tidak parsing HTTP di level ini — CONNECT method lewat
+# ── STREAM: Port 80 & 443 ─────────────────────────────────────
 stream {
     # Port 80 → ws-proxy (non-SSL, HTTP Custom tanpa SSL)
     server {
@@ -62,9 +61,24 @@ stream {
         proxy_connect_timeout 10s;
     }
 
-    # Port 443 → ws-proxy (nginx terminasi TLS dulu, lalu TCP ke ws-proxy)
+    # Port 443 → ssl_preread (TIDAK terminate TLS)
+    # SNI = domain server → nginx:18443 → ws-proxy → SSH
+    # SNI = lain (bug domain XL/dll) → Xray:10003 → VMess TLS
+    map \$ssl_preread_server_name \$backend_443 {
+        ${domain}   127.0.0.1:18443;
+        default     127.0.0.1:10003;
+    }
     server {
-        listen 443 ssl;
+        listen 443;
+        ssl_preread on;
+        proxy_pass \$backend_443;
+        proxy_timeout 3600s;
+        proxy_connect_timeout 10s;
+    }
+
+    # Port 18443 → TLS terminate → ws-proxy (untuk SSH via domain SNI)
+    server {
+        listen 18443 ssl;
         ssl_certificate     ${SSL_CERT};
         ssl_certificate_key ${SSL_KEY};
         ssl_protocols       TLSv1.2 TLSv1.3;

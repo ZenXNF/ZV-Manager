@@ -3,11 +3,12 @@
 #   ZV-Manager - Xray-core Installer
 #   VMess over WebSocket (TLS & non-TLS) + gRPC
 #   Arsitektur:
-#     - Xray inbound WS  : 127.0.0.1:10001 (non-TLS, internal)
-#     - Xray inbound gRPC: 127.0.0.1:10002 (non-TLS, internal)
-#     - Nginx port 8080  : /vmess → 10001 (HTTP)
-#     - Nginx port 8443  : /vmess → 10001, /vmess-grpc → 10002 (HTTPS)
-#     - Port 80/443      : stream TCP → ws-proxy:8880 (untuk SSH HTTP Custom)
+#     - Xray inbound WS     : 127.0.0.1:10001 (non-TLS, dari nginx:8080)
+#     - Xray inbound WSS    : 0.0.0.0:10003   (TLS langsung, dari nginx ssl_preread)
+#     - Xray inbound gRPC   : 127.0.0.1:10002 (non-TLS, dari nginx:8443)
+#     - Port 80             : stream TCP → ws-proxy:8880 (SSH HTTP Custom)
+#     - Port 443            : ssl_preread → SNI domain → :18443 → SSH
+#                                         → SNI lain (bug) → :10003 → VMess TLS
 # ============================================================
 
 source /etc/zv-manager/utils/colors.sh
@@ -144,6 +145,25 @@ cfg = {
       "protocol": "vmess",
       "settings": {"clients": clients},
       "streamSettings": {"network": "ws", "wsSettings": {"path": "/vmess"}}
+    },
+    {
+      "tag": "vmess-wss",
+      "listen": "0.0.0.0", "port": 10003,
+      "protocol": "vmess",
+      "settings": {"clients": clients},
+      "streamSettings": {
+        "network": "ws",
+        "security": "tls",
+        "tlsSettings": {
+          "certificates": [
+            {
+              "certificateFile": "/etc/zv-manager/ssl/cert.pem",
+              "keyFile": "/etc/zv-manager/ssl/key.pem"
+            }
+          ]
+        },
+        "wsSettings": {"path": "/vmess"}
+      }
     },
     {
       "tag": "vmess-grpc",
