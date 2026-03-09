@@ -136,6 +136,13 @@ http {
             proxy_send_timeout 3600s;
             proxy_buffering off;
         }
+
+        # VMess Dashboard API
+        location /api/ {
+            alias /var/www/zv-manager/api/;
+            add_header Content-Type text/html;
+            try_files \$uri \$uri/ =404;
+        }
     }
 
     # ── Port 8443 — VMess WS/gRPC (SSL) + Status Page ────────
