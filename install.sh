@@ -308,6 +308,7 @@ CRONEOF
 mkdir -p /var/lib/zv-manager/status
 service cron restart &>/dev/null
 /bin/bash /etc/zv-manager/cron/check-update.sh &>/dev/null &
+/bin/bash /etc/zv-manager/cron/status-page.sh &>/dev/null &
 } >> "$_INSTALL_LOG" 2>&1
 _ok "Cron jobs" "semua terjadwal"
 echo ""

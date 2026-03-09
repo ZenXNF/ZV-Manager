@@ -88,6 +88,18 @@ http {
             proxy_buffering off;
         }
 
+        # ── Status Page via HTTP ────────────────────────────
+        location /status {
+            root /var/www/zv-manager;
+            try_files /index.html =404;
+            add_header Cache-Control "no-cache";
+        }
+
+        location = /favicon.ico {
+            root /var/www/zv-manager;
+            log_not_found off;
+        }
+
         location / {
             proxy_pass http://127.0.0.1:8880;
             proxy_http_version 1.1;
@@ -145,8 +157,10 @@ http {
         }
 
         location = / {
-            alias /var/www/zv-manager/;
+            root /var/www/zv-manager;
             index index.html;
+            try_files /index.html =404;
+            add_header Cache-Control "no-cache";
         }
 
         # ── Dashboard Akun VMess ─────────────────────────
