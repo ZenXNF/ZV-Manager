@@ -273,10 +273,19 @@ backup_menu() {
                         source "$ac"
                         [[ -z "$USERNAME" || -z "$PASSWORD" ]] && continue
 
-                        local now_ts days_left
+                        local now_ts days_left new_exp_ts new_exp_date
                         now_ts=$(date +%s)
                         days_left=$(( (EXPIRED_TS - now_ts) / 86400 ))
                         [[ $days_left -lt 1 ]] && days_left=1
+
+                        # Jika sudah expired, extend dari sekarang
+                        if [[ "$EXPIRED_TS" -lt "$now_ts" ]]; then
+                            new_exp_ts=$(( now_ts + days_left * 86400 ))
+                            new_exp_date=$(date -d "@${new_exp_ts}" +"%Y-%m-%d" 2>/dev/null || \
+                                          date -r "${new_exp_ts}" +"%Y-%m-%d" 2>/dev/null)
+                            sed -i "s/^EXPIRED_TS=.*/EXPIRED_TS=${new_exp_ts}/" "$ac"
+                            sed -i "s/^EXPIRED=.*/EXPIRED=${new_exp_date}/" "$ac"
+                        fi
 
                         # Update SERVER dan DOMAIN di conf dulu
                         sed -i "s/^SERVER=.*/SERVER=\"${target_srv}\"/" "$ac"
@@ -308,10 +317,19 @@ backup_menu() {
                         source "$vc"
                         [[ -z "$USERNAME" || -z "$UUID" ]] && continue
 
-                        local now_ts days_left
+                        local now_ts days_left new_exp_ts new_exp_date
                         now_ts=$(date +%s)
                         days_left=$(( (EXPIRED_TS - now_ts) / 86400 ))
                         [[ $days_left -lt 1 ]] && days_left=1
+
+                        # Jika sudah expired, extend dari sekarang
+                        if [[ "$EXPIRED_TS" -lt "$now_ts" ]]; then
+                            new_exp_ts=$(( now_ts + days_left * 86400 ))
+                            new_exp_date=$(date -d "@${new_exp_ts}" +"%Y-%m-%d" 2>/dev/null || \
+                                          date -r "${new_exp_ts}" +"%Y-%m-%d" 2>/dev/null)
+                            sed -i "s/^EXPIRED_TS=.*/EXPIRED_TS=\"${new_exp_ts}\"/" "$vc"
+                            sed -i "s/^EXPIRED_DATE=.*/EXPIRED_DATE=\"${new_exp_date}\"/" "$vc"
+                        fi
 
                         # Update SERVER dan DOMAIN di conf dulu
                         sed -i "s/^SERVER=.*/SERVER=\"${target_srv}\"/" "$vc"
@@ -339,12 +357,19 @@ backup_menu() {
                         systemctl restart zv-xray 2>/dev/null
                     fi
 
+                    # Restart bot supaya cache counter akun (ssh/vmess) langsung fresh
+                    echo -e "  ${BYELLOW}Merestart bot...${NC}"
+                    systemctl restart zv-telegram 2>/dev/null
+                    sleep 2
+
                     rm -rf "$XTMP"
                     echo ""
                     echo -e "  ${BGREEN}✓ Restore server selesai!${NC}"
                     echo -e "  ${BWHITE}SSH   : ${ssh_ok} akun dipush${NC}"
                     echo -e "  ${BWHITE}VMess : ${vmess_ok} akun dipush${NC}"
-                    echo -e "  ${BYELLOW}⚠ Domain akun masih domain lama — update via bot jika domain berubah.${NC}"
+                    [[ -n "$new_domain" ]] && \
+                        echo -e "  ${BWHITE}Domain akun diupdate ke: ${BGREEN}${new_domain}${NC}" || \
+                        echo -e "  ${BYELLOW}⚠ Domain tidak ditemukan di server conf — periksa manual.${NC}"
                 fi
                 echo ""
                 press_any_key

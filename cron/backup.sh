@@ -130,11 +130,18 @@ backup_server() {
     local dst="${TMP_DIR}/ssh-${sname}"
     mkdir -p "$dst"
 
-    # Simpan hanya info referensi server (bukan credential)
+    # Simpan info referensi server (bukan credential)
+    local backup_date; backup_date=$(TZ="Asia/Jakarta" date +"%Y-%m-%d %H:%M WIB")
     cat > "${dst}/server-info.txt" << SRVTXT
-SERVER: ${sname}
-DOMAIN: ${DOMAIN:-?}
-ISP   : ${ISP:-?}
+============================
+  ZV-Manager Server Backup
+============================
+SERVER  : ${sname}
+DOMAIN  : ${DOMAIN:-?}
+ISP     : ${ISP:-?}
+TANGGAL : ${backup_date}
+SSH     : ${ssh_count} akun
+VMESS   : ${vmess_count} akun
 SRVTXT
 
     # Conf akun SSH yang terkait server ini
@@ -174,16 +181,33 @@ SRVTXT
 
     # Catatan restore
     cat > "${dst}/RESTORE-NOTE.txt" << NOTETXT
-CATATAN RESTORE SERVER: ${sname}
-Domain lama: ${DOMAIN:-?}
+============================
+  PANDUAN RESTORE SERVER
+============================
+Server  : ${sname}
+Domain  : ${DOMAIN:-?}
+ISP     : ${ISP:-?}
+Dibackup: ${backup_date}
 
-Langkah restore saat VPS di-suspend dan beli VPS baru:
-1. Install ZV-Manager di VPS baru
-2. Tambah server di Menu Server → Tambah Server (IP/PASS baru)
-3. Jika domain baru: ganti DNS record saja, user tinggal ganti domain di conf akun
-4. Recreate akun SSH: username + password sama (dari ssh-accounts/)
-5. Recreate akun VMess: UUID sama (dari vmess-accounts/)
-6. xray-config.json bisa dipakai untuk inject UUID langsung ke Xray baru
+CARA RESTORE OTOMATIS (Direkomendasikan):
+------------------------------------------
+1. Beli VPS baru, install ZV-Manager
+2. Menu Server → Tambah Server → isi IP/PASS/domain baru
+   → Setelah berhasil, bot otomatis tanya "Restore dari backup?"
+   → Pilih file backup ini → semua akun SSH+VMess di-push otomatis
+
+CARA RESTORE MANUAL:
+------------------------------------------
+1. Menu System → Backup & Restore → [5] Restore Server Tunneling
+2. Pilih file backup ini
+3. Pilih server tujuan (yang baru ditambah)
+4. Bot akan recreate semua akun SSH+VMess ke server baru
+
+CATATAN:
+- Domain akun diupdate otomatis ke domain server baru
+- EXPIRED_TS yang sudah lewat di-extend otomatis
+- UUID VMess tetap sama (tidak berubah)
+- Password SSH tetap sama (tidak berubah)
 NOTETXT
 
     [[ "$ok" == false ]] && echo "GAGAL: koneksi ke ${sname}" > "${dst}/error.txt"

@@ -355,6 +355,13 @@ TGEOF
         now_ts=$(date +%s)
         days_left=$(( (EXPIRED_TS - now_ts) / 86400 ))
         [[ $days_left -lt 1 ]] && days_left=1
+        # Extend jika sudah expired
+        if [[ "$EXPIRED_TS" -lt "$now_ts" ]]; then
+            local _nts=$(( now_ts + days_left * 86400 ))
+            local _nd; _nd=$(date -d "@${_nts}" +"%Y-%m-%d" 2>/dev/null)
+            sed -i "s/^EXPIRED_TS=.*/EXPIRED_TS=${_nts}/" "$ac"
+            sed -i "s/^EXPIRED=.*/EXPIRED=${_nd}/" "$ac"
+        fi
         sed -i "s/^SERVER=.*/SERVER=\"${name}\"/" "$ac"
         [[ -n "$new_domain" ]] && sed -i "s/^DOMAIN=.*/DOMAIN=\"${new_domain}\"/" "$ac"
         cp "$ac" "${BASE_DIR}/accounts/ssh/${USERNAME}.conf"
@@ -379,6 +386,13 @@ TGEOF
         now_ts=$(date +%s)
         days_left=$(( (EXPIRED_TS - now_ts) / 86400 ))
         [[ $days_left -lt 1 ]] && days_left=1
+        # Extend jika sudah expired
+        if [[ "$EXPIRED_TS" -lt "$now_ts" ]]; then
+            local _nts=$(( now_ts + days_left * 86400 ))
+            local _nd; _nd=$(date -d "@${_nts}" +"%Y-%m-%d" 2>/dev/null)
+            sed -i "s/^EXPIRED_TS=.*/EXPIRED_TS=\"${_nts}\"/" "$vc"
+            sed -i "s/^EXPIRED_DATE=.*/EXPIRED_DATE=\"${_nd}\"/" "$vc"
+        fi
         sed -i "s/^SERVER=.*/SERVER=\"${name}\"/" "$vc"
         [[ -n "$new_domain" ]] && sed -i "s/^DOMAIN=.*/DOMAIN=\"${new_domain}\"/" "$vc"
         cp "$vc" "${BASE_DIR}/accounts/vmess/${USERNAME}.conf"
@@ -397,6 +411,11 @@ TGEOF
         echo -e "  ${BYELLOW}Merestart Xray...${NC}"
         systemctl restart zv-xray 2>/dev/null
     fi
+
+    # Restart bot supaya cache counter akun langsung fresh
+    echo -e "  ${BYELLOW}Merestart bot...${NC}"
+    systemctl restart zv-telegram 2>/dev/null
+    sleep 2
 
     rm -rf "$XTMP"
     echo ""

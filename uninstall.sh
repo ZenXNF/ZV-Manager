@@ -181,6 +181,7 @@ _step_un "Hapus Xray" "selesai" bash -c '
 _step_un "Hapus file config" "selesai" bash -c '
     for bak in /etc/ssh/sshd_config.bak.*; do [[ -f "$bak" ]] && rm -f "$bak"; done
     rm -rf /etc/zv-manager
+    rm -rf /var/backups/zv-manager
     rm -rf /root/ZV-Manager
 '
 

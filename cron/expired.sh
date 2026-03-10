@@ -180,4 +180,8 @@ _log "=== Mulai cron expired sweep ==="
 _sweep_local
 _sweep_remote
 _sweep_vmess
+
+# Restart bot supaya cache counter akun (ssh/vmess) langsung fresh
+# Cron ini jalan 00:02 — aman untuk restart 1x sehari
+systemctl restart zv-telegram &>/dev/null
 _log "=== Selesai ==="
