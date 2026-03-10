@@ -284,46 +284,11 @@ async def cb_vs_trial(cb: CallbackQuery):
 async def _send_vmess_info(msg, tipe: str, username: str, uuid: str, domain: str,
                             exp_disp: str, server_label: str,
                             days: int = 0, total: int = 0, isp: str = ""):
-    """Kirim info VMess: 1 pesan info + 3 pesan URL dengan tombol Salin."""
-    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CopyTextButton
-    from aiogram.utils.keyboard import InlineKeyboardBuilder
-    from texts import text_vmess_info, vmess_build_urls
-
-    # Pesan utama info akun
+    """Kirim info VMess: 1 pesan lengkap dengan URL bisa di-tap untuk salin."""
     await msg.answer(
         text_vmess_info(tipe, username, uuid, domain, exp_disp, server_label,
                         days, total, isp=isp),
-        parse_mode="HTML"
-    )
-
-    # 3 pesan URL terpisah dengan tombol Salin
-    url_tls, url_http, url_grpc = vmess_build_urls(username, uuid, domain)
-    url_items = [
-        ("🔐 URL VMess TLS (WebSocket)", url_tls),
-        ("🔓 URL VMess HTTP (WebSocket)", url_http),
-        ("🔒 URL VMess gRPC", url_grpc),
-    ]
-    for label, url in url_items:
-        try:
-            kb = InlineKeyboardBuilder()
-            kb.row(InlineKeyboardButton(
-                text="📋 Salin Kode",
-                copy_text=CopyTextButton(text=url)
-            ))
-            await msg.answer(
-                f"<b>{label}</b>\n<code>{url}</code>",
-                parse_mode="HTML",
-                reply_markup=kb.as_markup()
-            )
-        except Exception:
-            # Fallback jika CopyTextButton tidak didukung
-            await msg.answer(
-                f"<b>{label}</b>\n<code>{url}</code>",
-                parse_mode="HTML"
-            )
-
-    await msg.answer(
-        "✨ Selamat menikmati layanan! ✨",
+        parse_mode="HTML",
         reply_markup=kb_after_buy("vmess")
     )
 
@@ -602,12 +567,17 @@ def _render_ssh_page(items: list, page: int, now_ts: int, uid: int) -> tuple[str
         domain  = sc.get("DOMAIN") or sc.get("IP") or ac.get("DOMAIN", "")
         tipe    = "Trial" if ac.get("IS_TRIAL","0") == "1" else "Premium"
         exp_d, status, sisa_l = _status_label(ac.get("EXPIRED_TS",""), now_ts)
+        limit   = int(ac.get("LIMIT", "2") or "2")
+        ip_now  = int(open(f"/tmp/zv-bw/{uname}.count").read().strip()
+                      if __import__("os").path.exists(f"/tmp/zv-bw/{uname}.count") else "0")
+        ip_warn = " ⚠️ Penuh!" if ip_now >= limit else ""
         out += (
             f"\n👤 <b>{uname}</b> <i>({tipe})</i>\n"
             f"🌐 Host    : <code>{domain}</code>\n"
             f"🔑 Pass    : <code>{passwd}</code>\n"
             f"⏳ Expired : {exp_d}\n"
             f"📊 Status  : {status} · {sisa_l}\n"
+            f"📡 IP      : {ip_now}/{limit}{ip_warn}\n"
             f"━━━━━━━━━━━━━━━━━━━"
         )
 
@@ -649,12 +619,23 @@ def _render_vmess_page(items: list, page: int, now_ts: int, uid: int) -> tuple[s
         slabel   = vtg.get("TG_SERVER_LABEL","") or vsname or vc.get("DOMAIN","")
         tipe     = "Trial" if vc.get("IS_TRIAL","0") == "1" else "Premium"
         exp_d, status, sisa_l = _status_label(vc.get("EXPIRED_TS",""), now_ts)
+        # Ambil IP aktif VMess dari online JSON
+        import json as _json, os as _os
+        _online_f = f"/var/www/zv-manager/api/online-{vuname}.json"
+        try:
+            _od = _json.loads(open(_online_f).read()) if _os.path.exists(_online_f) else {}
+            ip_now_v = len(_od.get("ips", [])) if _od.get("ips") else (_od.get("online", 0))
+        except Exception:
+            ip_now_v = 0
+        vlimit = int(load_tg_server_conf(vsname).get("TG_LIMIT_IP", "2") if vsname else "2")
+        vip_warn = " ⚠️ Penuh!" if ip_now_v >= vlimit else ""
         out += (
             f"\n⚡ <b>{vuname}</b> <i>({tipe})</i>\n"
             f"🌐 Server   : {slabel}\n"
             f"🔑 UUID     : <code>{vuuid}</code>\n"
             f"⏳ Expired  : {exp_d} · {sisa_l}\n"
             f"📊 Status   : {status}\n"
+            f"📡 IP       : {ip_now_v}/{vlimit}{vip_warn}\n"
             f"━━━━━━━━━━━━━━━━━━━"
         )
 
@@ -1104,9 +1085,10 @@ async def cb_bw_akun(cb: CallbackQuery):
     bw_quota     = int(ac.get("BW_QUOTA_BYTES", "0") or "0")
     bw_used      = int(ac.get("BW_USED_BYTES", "0") or "0")
     bw_blocked   = ac.get("BW_BLOCKED", "0") == "1"
-    pct          = min(int(bw_used * 100 / bw_quota), 100) if bw_quota > 0 else 0
+    pct          = min(round(bw_used * 100 / bw_quota), 100) if bw_quota > 0 else 0
     filled       = pct // 10
     bar          = "▓" * filled + "░" * (10 - filled)
+    color        = "🔴" if pct >= 80 else "🟡" if pct >= 50 else "🟢"
     status_str   = "🚫 Diblokir (Bandwidth Habis)" if bw_blocked else "✅ Aktif"
     p1 = harga_per_gb * 1; p5 = harga_per_gb * 5; p10 = harga_per_gb * 10
     state_clear(uid)
@@ -1125,7 +1107,7 @@ async def cb_bw_akun(cb: CallbackQuery):
         f"━━━━━━━━━━━━━━━━━━━\n"
         f"👤 Username : <code>{username}</code>\n"
         f"📶 Terpakai : {fmt_bytes(bw_used)} / {fmt_bytes(bw_quota)}\n"
-        f"[{bar}] {pct}%\n"
+        f"{color} [{bar}] {pct}%\n"
         f"📊 Status   : {status_str}\n"
         f"💰 Saldo    : Rp{fmt(saldo_get(uid))}\n"
         f"━━━━━━━━━━━━━━━━━━━\nPilih paket tambahan:",
@@ -1229,9 +1211,10 @@ async def cb_vbw_akun(cb: CallbackQuery):
     bw_limit     = int(vc.get("BW_LIMIT_GB","0") or "0")
     bw_used_b    = int(vc.get("BW_USED_BYTES","0") or "0")
     bw_quota_b   = bw_limit * 1024 * 1024 * 1024
-    pct          = min(int(bw_used_b * 100 / bw_quota_b), 100) if bw_quota_b > 0 else 0
+    pct          = min(round(bw_used_b * 100 / bw_quota_b), 100) if bw_quota_b > 0 else 0
     filled       = pct // 10
     bar          = "▓" * filled + "░" * (10 - filled)
+    color        = "🔴" if pct >= 80 else "🟡" if pct >= 50 else "🟢"
     p1 = harga_per_gb * 1; p5 = harga_per_gb * 5; p10 = harga_per_gb * 10
     state_clear(uid)
     state_set(uid, "STATE",    "vbw_pilih_paket")
@@ -1249,7 +1232,7 @@ async def cb_vbw_akun(cb: CallbackQuery):
         f"━━━━━━━━━━━━━━━━━━━\n"
         f"⚡ Username : <code>{username}</code>\n"
         f"📶 Terpakai : {fmt_bytes(bw_used_b)} / {bw_limit} GB\n"
-        f"[{bar}] {pct}%\n"
+        f"{color} [{bar}] {pct}%\n"
         f"💰 Saldo    : Rp{fmt(saldo_get(uid))}\n"
         f"━━━━━━━━━━━━━━━━━━━\nPilih paket tambahan:",
         parse_mode="HTML", reply_markup=b.as_markup()

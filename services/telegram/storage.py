@@ -167,6 +167,8 @@ def count_ssh_accounts(srv_ip: str) -> int:
     if cached is not None:
         return cached
     lip   = local_ip()
+    if not srv_ip:
+        srv_ip = lip
     count = 0
     if srv_ip == lip:
         try:
@@ -206,6 +208,8 @@ def count_vmess_accounts(srv_ip: str) -> int:
     if cached is not None:
         return cached
     lip   = local_ip()
+    if not srv_ip:
+        srv_ip = lip
     count = 0
     if srv_ip == lip:
         try:
