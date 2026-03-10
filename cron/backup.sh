@@ -110,9 +110,10 @@ NOTETXT
     [[ -f "${BASE_DIR}/ssl/cert.pem" ]] && cp "${BASE_DIR}/ssl/cert.pem" "${dst}/ssl/"
     [[ -f "${BASE_DIR}/ssl/key.pem"  ]] && cp "${BASE_DIR}/ssl/key.pem"  "${dst}/ssl/"
 
-    # Domain config
-    [[ -f "${BASE_DIR}/web-host" ]] && cp "${BASE_DIR}/web-host" "$dst/"
-    [[ -f "${BASE_DIR}/domain"   ]] && cp "${BASE_DIR}/domain"   "$dst/"
+    # Domain config + banner
+    [[ -f "${BASE_DIR}/web-host"    ]] && cp "${BASE_DIR}/web-host"    "$dst/"
+    [[ -f "${BASE_DIR}/domain"      ]] && cp "${BASE_DIR}/domain"      "$dst/"
+    [[ -f "${BASE_DIR}/banner.conf" ]] && cp "${BASE_DIR}/banner.conf" "$dst/"
 }
 
 # ── 2. Backup per-server tunneling ─────────────────────────

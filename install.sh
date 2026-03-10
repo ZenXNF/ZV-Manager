@@ -338,7 +338,103 @@ chmod +x /usr/local/bin/menu
 } >> "$_INSTALL_LOG" 2>&1
 _ok "Command 'menu'" "siap digunakan"
 
-# ── Simpan hash & IP ─────────────────────────────────────────
+# ── Restore: recreate SSH users + inject Xray + install bot ──
+if [[ "$install_mode" == restore_* ]]; then
+    echo ""
+    echo -e "\033[33m  ──────────────────────────────────────\033[0m"
+    echo -e "  \033[1mRestore Akun & Services\033[0m"
+    echo -e "\033[33m  ──────────────────────────────────────\033[0m"
+    echo ""
+
+    # Recreate user Linux dari conf SSH
+    local_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null | tr -d '[:space:]')
+    ssh_ok=0; ssh_skip=0
+    for cf in /etc/zv-manager/accounts/ssh/*.conf; do
+        [[ -f "$cf" ]] || continue
+        _u=$(grep "^USERNAME=" "$cf" | cut -d= -f2 | tr -d '"[:space:]')
+        _p=$(grep "^PASSWORD=" "$cf" | cut -d= -f2 | tr -d '"[:space:]')
+        _srv=$(grep "^SERVER=" "$cf" | cut -d= -f2 | tr -d '"')
+        # Cari IP server dari conf server
+        _sip=""
+        for sc in /etc/zv-manager/servers/*.conf; do
+            _sname=$(grep "^NAME=" "$sc" 2>/dev/null | cut -d= -f2 | tr -d '"')
+            if [[ "$_sname" == "$_srv" ]]; then
+                _sip=$(grep "^IP=" "$sc" 2>/dev/null | cut -d= -f2 | tr -d '"')
+                break
+            fi
+        done
+        # Buat user hanya jika server ini lokal
+        if [[ -z "$_sip" || "$_sip" == "$local_ip" ]]; then
+            if [[ -n "$_u" && -n "$_p" ]]; then
+                if ! id "$_u" &>/dev/null; then
+                    useradd -M -s /bin/false "$_u" 2>/dev/null
+                    echo "$_u:$_p" | chpasswd 2>/dev/null
+                fi
+                ssh_ok=$((ssh_ok+1))
+            fi
+        fi
+    done >> "$_INSTALL_LOG" 2>&1
+    _ok "Recreate SSH users" "${ssh_ok} akun"
+
+    # Inject VMess UUID ke Xray + rebuild config
+    vmess_ok=0
+    for cf in /etc/zv-manager/accounts/vmess/*.conf; do
+        [[ -f "$cf" ]] || continue
+        _u=$(grep "^USERNAME=" "$cf" | cut -d= -f2 | tr -d '"[:space:]')
+        _uuid=$(grep "^UUID=" "$cf" | cut -d= -f2 | tr -d '"[:space:]')
+        _srv=$(grep "^SERVER=" "$cf" | cut -d= -f2 | tr -d '"')
+        _sip=""
+        for sc in /etc/zv-manager/servers/*.conf; do
+            _sname=$(grep "^NAME=" "$sc" 2>/dev/null | cut -d= -f2 | tr -d '"')
+            if [[ "$_sname" == "$_srv" ]]; then
+                _sip=$(grep "^IP=" "$sc" 2>/dev/null | cut -d= -f2 | tr -d '"')
+                break
+            fi
+        done
+        if [[ -z "$_sip" || "$_sip" == "$local_ip" ]]; then
+            if [[ -n "$_u" && -n "$_uuid" ]]; then
+                /usr/local/bin/xray api rmu -s "127.0.0.1:10085" -inbound "vmess-ws"   -email "placeholder@vmess" &>/dev/null || true
+                /usr/local/bin/xray api rmu -s "127.0.0.1:10085" -inbound "vmess-grpc" -email "placeholder@vmess" &>/dev/null || true
+                /usr/local/bin/xray api adu -s "127.0.0.1:10085" -inbound "vmess-ws" \
+                    -user "{\"vmess\":{\"id\":\"${_uuid}\",\"email\":\"${_u}@vmess\",\"alterId\":0}}" &>/dev/null || true
+                /usr/local/bin/xray api adu -s "127.0.0.1:10085" -inbound "vmess-grpc" \
+                    -user "{\"vmess\":{\"id\":\"${_uuid}\",\"email\":\"${_u}@vmess\",\"alterId\":0}}" &>/dev/null || true
+                vmess_ok=$((vmess_ok+1))
+            fi
+        fi
+    done >> "$_INSTALL_LOG" 2>&1
+    # Rebuild config.json + restart Xray
+    bash /usr/local/bin/zv-vmess-agent rebuild-config >> "$_INSTALL_LOG" 2>&1 || true
+    systemctl restart zv-xray >> "$_INSTALL_LOG" 2>&1
+    _ok "Recreate VMess clients" "${vmess_ok} akun"
+
+    # Install bot dependencies + start bot
+    {
+        source /opt/zv-telegram/install.sh && install_telegram_bot
+    } >> "$_INSTALL_LOG" 2>&1
+    _ok "Telegram Bot" "aktif"
+
+    # Notif Telegram ke admin
+    {
+        source /etc/zv-manager/core/telegram.sh
+        tg_load 2>/dev/null || true
+        if [[ -n "$TG_TOKEN" && -n "$TG_ADMIN" ]]; then
+            _msg="🔄 <b>Restore Otak Selesai</b>
+
+✅ SSH   : ${ssh_ok} akun di-recreate
+⚡ VMess : ${vmess_ok} akun di-inject
+🤖 Bot   : aktif
+
+VPS siap digunakan."
+            curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+                -d "chat_id=${TG_ADMIN}&parse_mode=HTML&text=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.stdin.read()))" <<< "$_msg")" \
+                --max-time 10 &>/dev/null || true
+        fi
+    } >> "$_INSTALL_LOG" 2>&1
+    _ok "Notifikasi admin" "terkirim"
+fi
+
+
 INSTALL_HASH=$(git -C /root/ZV-Manager rev-parse --short HEAD 2>/dev/null || echo "unknown")
 sed -i "s/^COMMIT_HASH=.*/COMMIT_HASH=\"${INSTALL_HASH}\"/" /etc/zv-manager/config.conf
 mkdir -p /etc/zv-manager/accounts
