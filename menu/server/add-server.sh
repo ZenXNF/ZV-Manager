@@ -335,9 +335,10 @@ TGEOF
 
     # Deteksi lokal
     local is_local=false
-    local _sip
+    local _sip _local_ip
     _sip=$(grep "^IP=" "${BASE_DIR}/servers/${name}.conf" 2>/dev/null | cut -d= -f2 | tr -d '"')
-    [[ -z "$_sip" ]] && is_local=true
+    _local_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null | tr -d '[:space:]')
+    [[ -z "$_sip" || "$_sip" == "$_local_ip" ]] && is_local=true
 
     # Domain baru dari conf server yang baru saja dibuat
     local new_domain
@@ -377,6 +378,12 @@ TGEOF
         echo -e "    ${BGREEN}✓${NC} SSH: ${USERNAME}"
         ssh_ok=$((ssh_ok+1))
     done
+
+    # Hapus placeholder Xray sebelum restore VMess
+    if [[ "$is_local" == true ]]; then
+        /usr/local/bin/xray api rmu -s "127.0.0.1:10085" -inbound "vmess-ws"   -email "placeholder@vmess" &>/dev/null || true
+        /usr/local/bin/xray api rmu -s "127.0.0.1:10085" -inbound "vmess-grpc" -email "placeholder@vmess" &>/dev/null || true
+    fi
 
     for vc in "${XTMP}/vmess-accounts"/*.conf; do
         [[ -f "$vc" ]] || continue

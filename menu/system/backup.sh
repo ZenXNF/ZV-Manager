@@ -243,15 +243,15 @@ backup_menu() {
                     tar -xzf "$sel_backup" -C "$XTMP" 2>/dev/null
 
                     # Deteksi lokal vs remote
-                    # Lokal = tidak ada IP di conf server (atau conf tidak ada)
                     local is_local=false
                     local srv_conf="${BASE_DIR}/servers/${target_srv}.conf"
+                    local _local_ip; _local_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null | tr -d '[:space:]')
                     if [[ ! -f "$srv_conf" ]]; then
                         is_local=true
                     else
                         local _ip
                         _ip=$(grep "^IP=" "$srv_conf" | cut -d= -f2 | tr -d '"')
-                        [[ -z "$_ip" ]] && is_local=true
+                        [[ -z "$_ip" || "$_ip" == "$_local_ip" ]] && is_local=true
                     fi
 
                     # Ambil domain terbaru dari server conf aktif
@@ -312,6 +312,12 @@ backup_menu() {
                     echo ""
                     echo -e "  ${BYELLOW}Memproses akun VMess...${NC}"
                     local vmess_ok=0
+                    # Hapus placeholder Xray sebelum restore VMess
+                    if [[ "$is_local" == true ]]; then
+                        /usr/local/bin/xray api rmu -s "127.0.0.1:10085" -inbound "vmess-ws"   -email "placeholder@vmess" &>/dev/null || true
+                        /usr/local/bin/xray api rmu -s "127.0.0.1:10085" -inbound "vmess-grpc" -email "placeholder@vmess" &>/dev/null || true
+                    fi
+
                     for vc in "${XTMP}/vmess-accounts"/*.conf; do
                         [[ -f "$vc" ]] || continue
                         USERNAME=$(grep "^USERNAME=" "$vc" | cut -d= -f2- | tr -d '"\n')
