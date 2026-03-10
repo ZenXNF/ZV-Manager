@@ -36,7 +36,7 @@ from storage import (
     saldo_deduct, saldo_get, save_account_conf, save_vmess_conf,
     state_clear, state_get, state_set
 )
-from texts import text_akun_info, text_home, text_server_list, text_vmess_info, vmess_url_messages, generate_dashboard_html
+from texts import text_akun_info, text_home, text_server_list, text_vmess_info, vmess_build_urls
 
 # ── VMess remote agent helper (async, non-blocking) ──────────
 async def _vmess_agent(sname: str, *args) -> str:
@@ -277,10 +277,54 @@ async def cb_vs_trial(cb: CallbackQuery):
 
     mark_trial_vmess(uid, sname)
     zv_log(f"VMESS_TRIAL: {uid} server={sname} user={username}")
-    await cb.message.answer(
-        text_vmess_info("TRIAL", username, new_uuid, domain, exp_disp,
-                        tg["TG_SERVER_LABEL"], isp=sconf.get("ISP","")),
-        parse_mode="HTML", reply_markup=kb_after_buy("vmess")
+    await _send_vmess_info(cb.message, "TRIAL", username, new_uuid, domain, exp_disp,
+                           tg["TG_SERVER_LABEL"], isp=sconf.get("ISP",""))
+
+
+async def _send_vmess_info(msg, tipe: str, username: str, uuid: str, domain: str,
+                            exp_disp: str, server_label: str,
+                            days: int = 0, total: int = 0, isp: str = ""):
+    """Kirim info VMess: 1 pesan info + 3 pesan URL dengan tombol Salin."""
+    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CopyTextButton
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    from texts import text_vmess_info, vmess_build_urls
+
+    # Pesan utama info akun
+    await msg.answer(
+        text_vmess_info(tipe, username, uuid, domain, exp_disp, server_label,
+                        days, total, isp=isp),
+        parse_mode="HTML"
+    )
+
+    # 3 pesan URL terpisah dengan tombol Salin
+    url_tls, url_http, url_grpc = vmess_build_urls(username, uuid, domain)
+    url_items = [
+        ("🔐 URL VMess TLS (WebSocket)", url_tls),
+        ("🔓 URL VMess HTTP (WebSocket)", url_http),
+        ("🔒 URL VMess gRPC", url_grpc),
+    ]
+    for label, url in url_items:
+        try:
+            kb = InlineKeyboardBuilder()
+            kb.row(InlineKeyboardButton(
+                text="📋 Salin Kode",
+                copy_text=CopyTextButton(text=url)
+            ))
+            await msg.answer(
+                f"<b>{label}</b>\n<code>{url}</code>",
+                parse_mode="HTML",
+                reply_markup=kb.as_markup()
+            )
+        except Exception:
+            # Fallback jika CopyTextButton tidak didukung
+            await msg.answer(
+                f"<b>{label}</b>\n<code>{url}</code>",
+                parse_mode="HTML"
+            )
+
+    await msg.answer(
+        "✨ Selamat menikmati layanan! ✨",
+        reply_markup=kb_after_buy("vmess")
     )
 
 # ── Pilih server VMess → Buat (input durasi) ──────────────────
@@ -384,37 +428,9 @@ async def cb_konfirm_vmess(cb: CallbackQuery):
                 parse_mode="HTML")
         except Exception: pass
 
-    # Generate dashboard HTML
-    import os as _os
-    dashboard_url = ""
-    try:
-        _os.makedirs("/var/www/zv-manager/api", exist_ok=True)
-        html_fname = f"vmess-{username}-{new_uuid}.html"
-        html_path  = f"/var/www/zv-manager/api/{html_fname}"
-        html_content = generate_dashboard_html(
-            username, new_uuid, domain, exp_disp, tg["TG_SERVER_LABEL"],
-            is_trial=False,
-            bw_limit_gb=bw_limit,
-            bw_used_bytes=0,
-            ip_limit=2,
-            created=datetime.now().strftime("%Y-%m-%d")
-        )
-        with open(html_path, "w") as _hf: _hf.write(html_content)
-        # Buat file JSON online counter awal
-        import json as _json
-        online_path = f"/var/www/zv-manager/api/online-{username}.json"
-        with open(online_path, "w") as _of:
-            _json.dump({"online": 0, "username": username}, _of)
-        dashboard_url = f"https://{domain}/api/{html_fname}"
-    except Exception as _e:
-        pass
-
     await cb.message.edit_text("✅ Akun VMess sedang dibuat...")
-    await cb.message.answer(
-        text_vmess_info("BELI", username, new_uuid, domain, exp_disp,
-                        tg["TG_SERVER_LABEL"], days, total, dashboard_url, isp=sconf.get("ISP","")),
-        parse_mode="HTML", reply_markup=kb_after_buy("vmess")
-    )
+    await _send_vmess_info(cb.message, "BELI", username, new_uuid, domain, exp_disp,
+                           tg["TG_SERVER_LABEL"], days, total, isp=sconf.get("ISP",""))
 
 def load_server_list_safe() -> bool:
     from storage import get_server_list_by_type
@@ -656,7 +672,10 @@ def _render_vmess_page(items: list, page: int, now_ts: int, uid: int) -> tuple[s
         nav.append(InlineKeyboardButton(text="Berikutnya ▶", callback_data=f"akun_vmess_{page+1}"))
     if nav: b.row(*nav)
     if has_premium:
-        b.row(InlineKeyboardButton(text="🔄 Perpanjang", callback_data="m_perpanjang_vmess"))
+        b.row(
+            InlineKeyboardButton(text="🔄 Perpanjang", callback_data="m_perpanjang_vmess"),
+            InlineKeyboardButton(text="📶 Bandwidth",  callback_data="m_tambah_bw_vmess")
+        )
     b.row(InlineKeyboardButton(text="🏠 Menu", callback_data="home"))
     return out, b.as_markup()
 
