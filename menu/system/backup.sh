@@ -259,8 +259,7 @@ backup_menu() {
 
                         # Push ke server via agent
                         local res
-                        res=$(remote_vmess_agent "$target_srv" 2>/dev/null || \
-                              bash /etc/zv-manager/zv-agent.sh add "$USERNAME" "$PASSWORD" "$days_left" 2>/dev/null)
+                        res=$(remote_agent "$target_srv" add "$USERNAME" "$PASSWORD" "$days_left" 2>/dev/null)
 
                         # Simpan conf dengan SERVER baru
                         sed -i "s/^SERVER=.*/SERVER=\"${target_srv}\"/" "$ac"
@@ -284,9 +283,17 @@ backup_menu() {
                         days_left=$(( (EXPIRED_TS - now_ts) / 86400 ))
                         [[ $days_left -lt 1 ]] && days_left=1
 
-                        # Inject UUID ke Xray via agent
-                        bash /etc/zv-manager/zv-vmess-agent.sh add \
-                            "$USERNAME" "$UUID" "$days_left" "${BW_LIMIT_GB:-0}" 2>/dev/null
+                        # Inject UUID ke Xray via agent (skip jika sudah ada)
+                        local chk
+                        chk=$(remote_vmess_agent "$target_srv" check "$USERNAME" 2>/dev/null)
+                        if [[ "$chk" == EXISTS* ]]; then
+                            # Sudah ada — renew saja supaya expired diupdate
+                            remote_vmess_agent "$target_srv" renew \
+                                "$USERNAME" "$days_left" 2>/dev/null
+                        else
+                            remote_vmess_agent "$target_srv" add \
+                                "$USERNAME" "$UUID" "$days_left" "${BW_LIMIT_GB:-0}" 2>/dev/null
+                        fi
 
                         # Simpan conf dengan SERVER baru
                         sed -i "s/^SERVER=.*/SERVER=\"${target_srv}\"/" "$vc"
