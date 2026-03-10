@@ -212,9 +212,10 @@ TOTAL_VMESS=$(ls "${BASE_DIR}/accounts/vmess/"*.conf 2>/dev/null | wc -l)
 TOTAL_USER=$(ls "${BASE_DIR}/accounts/users/"*.user 2>/dev/null | wc -l)
 TOTAL_SRV=$(ls "${BASE_DIR}/servers/"*.conf 2>/dev/null | grep -v "\.tg\.conf" | wc -l)
 
+NOW=$(TZ="Asia/Jakarta" date +"%Y-%m-%d %H:%M")
 _tg_msg "🗄 <b>Backup Harian Dimulai</b>
 ━━━━━━━━━━━━━━━━━━━
-📅 Waktu      : $(TZ=\"Asia/Jakarta\" date +\"%Y-%m-%d %H:%M\") WIB
+📅 Waktu      : ${NOW} WIB
 🔑 Akun SSH   : ${TOTAL_SSH}
 ⚡ Akun VMess : ${TOTAL_VMESS}
 👥 User Bot   : ${TOTAL_USER}
