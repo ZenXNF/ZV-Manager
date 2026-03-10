@@ -40,6 +40,9 @@ _read()   {
 _xray_add() {
     local user="$1" uuid="$2"
     local j="{\"vmess\":{\"id\":\"${uuid}\",\"email\":\"${user}@vmess\",\"alterId\":0}}"
+    # Hapus placeholder dari memory jika masih ada
+    "$XRAY_BIN" api rmu -s "$API_ADDR" -inbound "vmess-ws"   -email "placeholder@vmess" &>/dev/null || true
+    "$XRAY_BIN" api rmu -s "$API_ADDR" -inbound "vmess-grpc" -email "placeholder@vmess" &>/dev/null || true
     "$XRAY_BIN" api adu -s "$API_ADDR" -inbound "vmess-ws"   -user "$j" &>/dev/null || true
     "$XRAY_BIN" api adu -s "$API_ADDR" -inbound "vmess-grpc" -user "$j" &>/dev/null || true
     _xray_config_rebuild
