@@ -242,26 +242,35 @@ backup_menu() {
                     mkdir -p "$XTMP"
                     tar -xzf "$sel_backup" -C "$XTMP" 2>/dev/null
 
+                    # Deteksi lokal vs remote
+                    # Lokal = tidak ada file .conf server (brain = tunneling 1 VPS)
+                    local is_local=false
+                    [[ ! -f "${BASE_DIR}/servers/${target_srv}.conf" ]] && is_local=true
+
                     echo ""
                     echo -e "  ${BYELLOW}Memproses akun SSH...${NC}"
-                    local ssh_ok=0 ssh_fail=0
+                    local ssh_ok=0
                     for ac in "${XTMP}/ssh-accounts"/*.conf; do
                         [[ -f "$ac" ]] || continue
                         unset USERNAME PASSWORD EXPIRED_TS
                         source "$ac"
                         [[ -z "$USERNAME" || -z "$PASSWORD" ]] && continue
 
-                        # Hitung sisa hari
                         local now_ts days_left
                         now_ts=$(date +%s)
                         days_left=$(( (EXPIRED_TS - now_ts) / 86400 ))
                         [[ $days_left -lt 1 ]] && days_left=1
 
-                        # Push ke server via agent
-                        local res
-                        res=$(remote_agent "$target_srv" add "$USERNAME" "$PASSWORD" "$days_left" 2>/dev/null)
+                        if [[ "$is_local" == true ]]; then
+                            # Lokal — buat user Linux langsung
+                            if ! id "$USERNAME" &>/dev/null; then
+                                useradd -M -s /bin/false "$USERNAME" 2>/dev/null
+                                echo "$USERNAME:$PASSWORD" | chpasswd 2>/dev/null
+                            fi
+                        else
+                            remote_agent "$target_srv" add "$USERNAME" "$PASSWORD" "$days_left" 2>/dev/null
+                        fi
 
-                        # Simpan conf dengan SERVER baru
                         sed -i "s/^SERVER=.*/SERVER=\"${target_srv}\"/" "$ac"
                         cp "$ac" "${BASE_DIR}/accounts/ssh/${USERNAME}.conf"
 
@@ -283,19 +292,26 @@ backup_menu() {
                         days_left=$(( (EXPIRED_TS - now_ts) / 86400 ))
                         [[ $days_left -lt 1 ]] && days_left=1
 
-                        # Inject UUID ke Xray via agent (skip jika sudah ada)
-                        local chk
-                        chk=$(remote_vmess_agent "$target_srv" check "$USERNAME" 2>/dev/null)
-                        if [[ "$chk" == EXISTS* ]]; then
-                            # Sudah ada — renew saja supaya expired diupdate
-                            remote_vmess_agent "$target_srv" renew \
-                                "$USERNAME" "$days_left" 2>/dev/null
+                        if [[ "$is_local" == true ]]; then
+                            local chk
+                            chk=$(bash /etc/zv-manager/zv-vmess-agent.sh check "$USERNAME" 2>/dev/null)
+                            if [[ "$chk" == EXISTS* ]]; then
+                                bash /etc/zv-manager/zv-vmess-agent.sh renew "$USERNAME" "$days_left" 2>/dev/null
+                            else
+                                bash /etc/zv-manager/zv-vmess-agent.sh add \
+                                    "$USERNAME" "$UUID" "$days_left" "${BW_LIMIT_GB:-0}" 2>/dev/null
+                            fi
                         else
-                            remote_vmess_agent "$target_srv" add \
-                                "$USERNAME" "$UUID" "$days_left" "${BW_LIMIT_GB:-0}" 2>/dev/null
+                            local chk
+                            chk=$(remote_vmess_agent "$target_srv" check "$USERNAME" 2>/dev/null)
+                            if [[ "$chk" == EXISTS* ]]; then
+                                remote_vmess_agent "$target_srv" renew "$USERNAME" "$days_left" 2>/dev/null
+                            else
+                                remote_vmess_agent "$target_srv" add \
+                                    "$USERNAME" "$UUID" "$days_left" "${BW_LIMIT_GB:-0}" 2>/dev/null
+                            fi
                         fi
 
-                        # Simpan conf dengan SERVER baru
                         sed -i "s/^SERVER=.*/SERVER=\"${target_srv}\"/" "$vc"
                         cp "$vc" "${BASE_DIR}/accounts/vmess/${USERNAME}.conf"
 
