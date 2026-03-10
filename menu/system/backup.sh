@@ -243,9 +243,16 @@ backup_menu() {
                     tar -xzf "$sel_backup" -C "$XTMP" 2>/dev/null
 
                     # Deteksi lokal vs remote
-                    # Lokal = tidak ada file .conf server (brain = tunneling 1 VPS)
+                    # Lokal = tidak ada IP di conf server (atau conf tidak ada)
                     local is_local=false
-                    [[ ! -f "${BASE_DIR}/servers/${target_srv}.conf" ]] && is_local=true
+                    local srv_conf="${BASE_DIR}/servers/${target_srv}.conf"
+                    if [[ ! -f "$srv_conf" ]]; then
+                        is_local=true
+                    else
+                        local _ip
+                        _ip=$(grep "^IP=" "$srv_conf" | cut -d= -f2 | tr -d '"')
+                        [[ -z "$_ip" ]] && is_local=true
+                    fi
 
                     echo ""
                     echo -e "  ${BYELLOW}Memproses akun SSH...${NC}"
