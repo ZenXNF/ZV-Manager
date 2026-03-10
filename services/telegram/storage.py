@@ -173,7 +173,8 @@ def count_ssh_accounts(srv_ip: str) -> int:
     if srv_ip == lip:
         try:
             for f in Path(ACCOUNT_DIR).glob("*.conf"):
-                if "IS_TRIAL=1" not in f.read_text():
+                txt = f.read_text()
+                if "IS_TRIAL=1" not in txt and 'IS_TRIAL="1"' not in txt:
                     count += 1
         except Exception:
             pass
@@ -214,7 +215,8 @@ def count_vmess_accounts(srv_ip: str) -> int:
     if srv_ip == lip:
         try:
             for f in Path(VMESS_DIR).glob("*.conf"):
-                if "IS_TRIAL=1" not in f.read_text():
+                txt = f.read_text()
+                if "IS_TRIAL=1" not in txt and 'IS_TRIAL="1"' not in txt:
                     count += 1
         except Exception:
             pass
