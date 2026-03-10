@@ -34,7 +34,9 @@ deploy_agent_menu() {
         [[ "$IP" == "$local_ip" ]] && continue
         count=$((count + 1))
         snames+=("$NAME")
-        echo -e "  ${BGREEN}[${count}]${NC} ${BWHITE}${NAME}${NC} — ${USER}@${IP}:${PORT}"
+        local _dip="${IP:-${local_ip}}"
+        local _dport="${PORT:-22}"
+        echo -e "  ${BGREEN}[${count}]${NC} ${BWHITE}${NAME}${NC} — ${USER:-root}@${_dip}:${_dport}"
     done
 
     if [[ $count -eq 0 ]]; then

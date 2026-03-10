@@ -16,6 +16,7 @@ connect_server() {
     echo -e "${BCYAN} └─────────────────────────────────────────────┘${NC}"
     echo ""
 
+    local _ipvps; _ipvps=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null | tr -d "[:space:]")
     local count=0
     local server_confs=()
     for conf in "${SERVER_DIR}"/*.conf; do
@@ -25,8 +26,10 @@ connect_server() {
         source "$conf"
         count=$((count + 1))
         server_confs+=("$conf")
-        local disp_domain="${DOMAIN:-$IP}"
-        echo -e "  ${BGREEN}[${count}]${NC} ${BWHITE}${NAME}${NC} — ${USER}@${disp_domain}:${PORT}"
+        local _dip="${IP:-${_ipvps}}"
+        local _dport="${PORT:-22}"
+        local disp_domain="${DOMAIN:-${_dip}}"
+        echo -e "  ${BGREEN}[${count}]${NC} ${BWHITE}${NAME}${NC} — ${USER:-root}@${disp_domain}:${_dport}"
     done
 
     if [[ $count -eq 0 ]]; then

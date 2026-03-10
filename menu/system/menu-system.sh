@@ -32,11 +32,21 @@ menu_system() {
             6) bash /etc/zv-manager/menu/system/backup.sh ;;
             7) bash /etc/zv-manager/menu/system/setup-web.sh ;;
             8)
+                clear
+                echo -e "${BRED}  ╔══════════════════════════════════════════════════╗${NC}"
+                echo -e "${BRED}  ║   ⚠  PERINGATAN: UNINSTALL ZV-MANAGER           ║${NC}"
+                echo -e "${BRED}  ╚══════════════════════════════════════════════════╝${NC}"
                 echo ""
-                echo -e "  ${BRED}⚠  PERINGATAN: Ini akan menghapus semua komponen ZV-Manager!${NC}"
+                echo -e "  Ini akan ${BRED}MENGHAPUS SEMUA${NC} komponen ZV-Manager!"
+                echo -e "  Semua akun, setting, dan data akan terhapus permanen."
                 echo ""
-                bash /etc/zv-manager/uninstall.sh
-                exit 0
+                read -rp "  Ketik 'HAPUS' untuk konfirmasi: " _conf1
+                if [[ "$_conf1" != "HAPUS" ]]; then
+                    echo -e "  ${BYELLOW}Dibatalkan.${NC}"; sleep 1
+                else
+                    bash /etc/zv-manager/uninstall.sh
+                    exit 0
+                fi
                 ;;
             0) break ;;
             *) echo -e "  ${BRED}Pilihan tidak valid!${NC}"; sleep 1 ;;

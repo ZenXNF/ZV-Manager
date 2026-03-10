@@ -409,8 +409,9 @@ TGEOF
             # Copy conf dulu
             cp "$vc" "${BASE_DIR}/accounts/vmess/${USERNAME}.conf"
             # Inject ke Xray API (memory)
-            /usr/local/bin/xray api adu -s "127.0.0.1:10085" -inbound "vmess-ws"                 -user "{"vmess":{"id":"${UUID}","email":"${USERNAME}@vmess","alterId":0}}" &>/dev/null || true
-            /usr/local/bin/xray api adu -s "127.0.0.1:10085" -inbound "vmess-grpc"                 -user "{"vmess":{"id":"${UUID}","email":"${USERNAME}@vmess","alterId":0}}" &>/dev/null || true
+            local _xjson="{"vmess":{"id":"${UUID}","email":"${USERNAME}@vmess","alterId":0}}"
+            /usr/local/bin/xray api adu -s "127.0.0.1:10085" -inbound "vmess-ws"   -user "$_xjson" &>/dev/null || true
+            /usr/local/bin/xray api adu -s "127.0.0.1:10085" -inbound "vmess-grpc" -user "$_xjson" &>/dev/null || true
         else
             remote_vmess_agent "$name" add                 "$USERNAME" "$UUID" "$days_left" "${BW_LIMIT_GB:-0}" 2>/dev/null
             cp "$vc" "${BASE_DIR}/accounts/vmess/${USERNAME}.conf"
