@@ -51,11 +51,19 @@ for conf_file in "$ACCOUNT_DIR"/*.conf; do
         if [[ -n "$user_ips" ]]; then
             # Simpan IP aktif ke session file
             echo "$user_ips" > "${BW_SESSION_DIR}/${user}.ips"
+            # Tulis count
+            echo "$user_ips" | wc -l | tr -d ' ' > "${BW_SESSION_DIR}/${user}.count"
             # Tambah iptables rule untuk tiap IP
             while IFS= read -r ip; do
                 _bw_add_ip_rule "$user" "$ip"
             done <<< "$user_ips"
+        else
+            # Tidak ada IP aktif → reset count
+            echo "0" > "${BW_SESSION_DIR}/${user}.count"
+            rm -f "${BW_SESSION_DIR}/${user}.ips" 2>/dev/null
         fi
+    else
+        echo "0" > "${BW_SESSION_DIR}/${user}.count"
     fi
 
     # ── Akumulasi bytes ───────────────────────────────────────
