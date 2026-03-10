@@ -169,10 +169,13 @@ SRVTXT
         fi
     done
 
-    # Ambil xray config.json dari remote (berisi UUID list aktif)
-    local ssh_opts="-o StrictHostKeyChecking=no -o ConnectTimeout=10"
+    # Ambil xray config.json (lokal atau remote)
+    local local_ip; local_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null | tr -d '[:space:]')
+    local ssh_opts="-q -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o LogLevel=ERROR"
     local ok=true
-    if [[ "${AUTH_TYPE}" == "key" && -f "${SSH_KEY_PATH}" ]]; then
+    if [[ -z "$IP" || "$IP" == "$local_ip" ]]; then
+        cp /usr/local/etc/xray/config.json "${dst}/xray-config.json" 2>/dev/null || ok=false
+    elif [[ "${AUTH_TYPE}" == "key" && -f "${SSH_KEY_PATH}" ]]; then
         ssh -i "$SSH_KEY_PATH" $ssh_opts -p "${PORT:-22}" "${USER:-root}@${IP}" \
             "cat /usr/local/etc/xray/config.json" > "${dst}/xray-config.json" 2>/dev/null || ok=false
     else
@@ -232,8 +235,17 @@ cleanup_realtime() {
 # ══════════════════════════════════════════════════════════
 zv_log "BACKUP: Mulai backup harian..." 2>/dev/null || true
 
-TOTAL_SSH=$(ls "${BASE_DIR}/accounts/ssh/"*.conf 2>/dev/null | wc -l)
-TOTAL_VMESS=$(ls "${BASE_DIR}/accounts/vmess/"*.conf 2>/dev/null | wc -l)
+# Hitung hanya akun premium (bukan trial)
+TOTAL_SSH=0
+for _f in "${BASE_DIR}/accounts/ssh/"*.conf; do
+    [[ -f "$_f" ]] || continue
+    grep -qE 'IS_TRIAL="1"|IS_TRIAL=1' "$_f" || TOTAL_SSH=$((TOTAL_SSH+1))
+done
+TOTAL_VMESS=0
+for _f in "${BASE_DIR}/accounts/vmess/"*.conf; do
+    [[ -f "$_f" ]] || continue
+    grep -qE 'IS_TRIAL="1"|IS_TRIAL=1' "$_f" || TOTAL_VMESS=$((TOTAL_VMESS+1))
+done
 TOTAL_USER=$(ls "${BASE_DIR}/accounts/users/"*.user 2>/dev/null | wc -l)
 TOTAL_SRV=$(ls "${BASE_DIR}/servers/"*.conf 2>/dev/null | grep -v "\.tg\.conf" | wc -l)
 
