@@ -221,7 +221,7 @@ def generate_dashboard_html(username: str, uuid: str, domain: str,
     bw_used_gb  = round(bw_used_bytes / 1073741824, 2) if bw_used_bytes else 0
     bw_limit_str = f"{bw_limit_gb} GB" if bw_limit_gb else "Unlimited"
     bw_used_str  = f"{bw_used_gb} GB"
-    bw_pct       = min(int(bw_used_gb / bw_limit_gb * 100), 100) if bw_limit_gb else 0
+    bw_pct       = min(round(bw_used_gb / bw_limit_gb * 100), 100) if bw_limit_gb else 0
     bw_bar_color = "#ef4444" if bw_pct >= 80 else "#f97316" if bw_pct >= 50 else "#22c55e"
 
     trial_banner = f"""

@@ -440,21 +440,22 @@ for fname in os.listdir(vmess_dir):
     srv     = d.get("SERVER","")
     bw_lim  = int(d.get("BW_LIMIT_GB","0") or 0)
     bw_used = int(d.get("BW_USED_BYTES","0") or 0)
+    created_str = d.get("CREATED", "")
     html = generate_dashboard_html(
         username=u, uuid=uuid, domain=dom,
         exp_display=exp_str, server_label=srv,
-        bw_limit_gb=bw_lim, bw_used_bytes=bw_used
+        bw_limit_gb=bw_lim, bw_used_bytes=bw_used,
+        created=created_str
     )
     html_path = f"{api_dir}/vmess-{u}-{uuid}.html"
     with open(html_path, "w") as hf:
         hf.write(html)
     print(f"Generated: {html_path}")
 
-    # Buat online JSON jika belum ada
+    # Buat online JSON (format sesuai vmess-online.sh)
     online_path = f"{api_dir}/online-{u}.json"
-    if not os.path.exists(online_path):
-        with open(online_path, "w") as jf:
-            json.dump({"online": 0, "ips": []}, jf)
+    with open(online_path, "w") as jf:
+        json.dump({"online": 0, "username": u}, jf)
 PYEOF
     } >> "$_INSTALL_LOG" 2>&1
     _ok "Recreate VMess clients" "${vmess_ok} akun"
