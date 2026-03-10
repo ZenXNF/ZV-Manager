@@ -245,6 +245,7 @@ async def cb_vs_trial(cb: CallbackQuery):
 
     tg     = load_tg_server_conf(sname)
     ip     = sconf.get("IP", "")
+    if not ip: ip = local_ip()
     domain = sconf.get("DOMAIN") or ip
 
     if count_vmess_accounts(ip) >= int(tg.get("TG_MAX_AKUN","500")):
@@ -424,6 +425,7 @@ async def cb_s_buat(cb: CallbackQuery):
         await cb.answer("❌ Server tidak ditemukan"); return
     tg = load_tg_server_conf(sname)
     ip = sconf.get("IP", "")
+    if not ip: ip = local_ip()
     if count_ssh_accounts(ip) >= int(tg["TG_MAX_AKUN"]):
         await cb.answer("❌ Server penuh!"); return
     await cb.answer()
@@ -459,6 +461,7 @@ async def cb_s_trial(cb: CallbackQuery):
     tg     = load_tg_server_conf(sname)
     ip     = sconf.get("IP", "")
     lip    = local_ip()
+    if not ip: ip = lip
     domain = sconf.get("DOMAIN") or ip
 
     if count_ssh_accounts(ip) >= int(tg["TG_MAX_AKUN"]):
@@ -1414,6 +1417,7 @@ async def cb_konfirm(cb: CallbackQuery):
     tg       = load_tg_server_conf(sname)
     ip       = sconf.get("IP", "")
     lip      = local_ip()
+    if not ip: ip = lip
     domain   = sconf.get("DOMAIN") or ip
     harga    = int(tg["TG_HARGA_HARI"])
     total    = harga * days
