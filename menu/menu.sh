@@ -105,7 +105,8 @@ show_header() {
     get_version_line
     get_license_display
     echo -e "${BCYAN}  ╠══════════════════════════════════════════════════╣${NC}"
-    echo -e "  ${BCYAN}║${NC}  ${s_ssh} SSH  ${s_db} Dropbear  ${s_ng} Nginx  ${s_ssl} SSL  ${s_wss} WS  ${s_udp} UDP  ${s_xray} Xray  ${s_bot} Bot"
+    echo -e "  ${BCYAN}║${NC}  ${s_ssh} SSH  ${s_db} Dropbear  ${s_ng} Nginx  ${s_ssl} SSL"
+    echo -e "  ${BCYAN}║${NC}  ${s_wss} WS   ${s_udp} UDP       ${s_xray} Xray  ${s_bot} Bot"
     echo -e "${BCYAN}  ╚══════════════════════════════════════════════════╝${NC}"
     echo ""
 }

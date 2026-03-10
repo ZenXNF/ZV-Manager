@@ -20,15 +20,19 @@ list_servers() {
     printf "  ${BWHITE}%-4s %-10s %-22s %-20s %-5s${NC}\n" "No." "Nama" "Domain" "IP" "Port"
     echo -e "  ${BCYAN}──────────────────────────────────────────────────────${NC}"
 
+    local _ipvps; _ipvps=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null | tr -d "[:space:]")
     for conf in "${SERVER_DIR}"/*.conf; do
         [[ -f "$conf" ]] || continue
         [[ "$conf" == *.tg.conf ]] && continue
         unset NAME IP DOMAIN PORT USER
         source "$conf"
         count=$((count + 1))
-        local disp_domain="${DOMAIN:-$IP}"
+        # Fallback IP ke ipvps untuk server lokal (IP tidak disimpan di conf)
+        local disp_ip="${IP:-${_ipvps}}"
+        local disp_port="${PORT:-22}"
+        local disp_domain="${DOMAIN:-$disp_ip}"
         printf "  ${BGREEN}%-4s${NC} %-10s %-22s %-20s %-5s\n" \
-            "${count}." "$NAME" "$disp_domain" "$IP" "$PORT"
+            "${count}." "$NAME" "$disp_domain" "$disp_ip" "$disp_port"
     done
 
     if [[ $count -eq 0 ]]; then
