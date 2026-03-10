@@ -570,6 +570,9 @@ def _render_ssh_page(items: list, page: int, now_ts: int, uid: int) -> tuple[str
         sname   = ac.get("SERVER", "")
         sc      = load_server_conf(sname)
         domain  = sc.get("DOMAIN") or sc.get("IP") or ac.get("DOMAIN", "")
+        if not domain:
+            try: domain = open("/etc/zv-manager/domain").read().strip()
+            except Exception: pass
         tipe    = "Trial" if ac.get("IS_TRIAL","0") == "1" else "Premium"
         exp_d, status, sisa_l = _status_label(ac.get("EXPIRED_TS",""), now_ts)
         limit   = int(ac.get("LIMIT", "2") or "2")
