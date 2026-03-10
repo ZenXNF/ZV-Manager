@@ -345,15 +345,17 @@ backup_menu() {
                         [[ -n "$new_domain" ]] && \
                             sed -i "s/^DOMAIN=.*/DOMAIN=\"${new_domain}\"/" "$vc"
 
-                        # Copy conf dulu ke accounts/ supaya _xray_config_rebuild baca semua akun
-                        cp "$vc" "${BASE_DIR}/accounts/vmess/${USERNAME}.conf"
-
                         if [[ "$is_local" == true ]]; then
-                            bash /etc/zv-manager/zv-vmess-agent.sh add \
-                                "$USERNAME" "$UUID" "$days_left" "${BW_LIMIT_GB:-0}" 2>/dev/null
+                            # Inject Xray dulu (tanpa copy conf supaya agent tidak skip)
+                            /usr/local/bin/xray api adu -s "127.0.0.1:10085" -inbound "vmess-ws" \
+                                -user "{\"vmess\":{\"id\":\"${UUID}\",\"email\":\"${USERNAME}@vmess\",\"alterId\":0}}" &>/dev/null || true
+                            /usr/local/bin/xray api adu -s "127.0.0.1:10085" -inbound "vmess-grpc" \
+                                -user "{\"vmess\":{\"id\":\"${UUID}\",\"email\":\"${USERNAME}@vmess\",\"alterId\":0}}" &>/dev/null || true
+                            cp "$vc" "${BASE_DIR}/accounts/vmess/${USERNAME}.conf"
                         else
                             remote_vmess_agent "$target_srv" add \
                                 "$USERNAME" "$UUID" "$days_left" "${BW_LIMIT_GB:-0}" 2>/dev/null
+                            cp "$vc" "${BASE_DIR}/accounts/vmess/${USERNAME}.conf"
                         fi
 
                         echo -e "    ${BGREEN}✓${NC} VMess: ${USERNAME}"
