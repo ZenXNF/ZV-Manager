@@ -276,6 +276,7 @@ async def cb_vs_trial(cb: CallbackQuery):
     # Tambah ke Xray via agent (lokal/remote)
     await _vmess_agent(sname, "add", username, new_uuid, "1", "0", uid)
 
+    invalidate_account_cache(ip or local_ip(), "vmess")
     mark_trial_vmess(uid, sname)
     zv_log(f"VMESS_TRIAL: {uid} server={sname} user={username}")
     await _send_vmess_info(cb.message, "TRIAL", username, new_uuid, domain, exp_disp,
@@ -378,7 +379,7 @@ async def cb_konfirm_vmess(cb: CallbackQuery):
 
     state_clear(uid)
     zv_log(f"VMESS_BELI: {uid} server={sname} user={username} days={days} total={total}")
-    invalidate_account_cache(sconf.get("IP",""), "vmess")
+    invalidate_account_cache(sconf.get("IP","") or local_ip(), "vmess")
     backup_realtime_vmess(username, "create")
     if ADMIN_ID and uid != ADMIN_ID:
         try:
@@ -503,6 +504,7 @@ async def cb_s_trial(cb: CallbackQuery):
         if not result.stdout.startswith("ADD-OK"):
             await cb.message.answer("❌ Gagal membuat akun trial."); return
 
+    invalidate_account_cache(ip, "ssh")
     mark_trial(uid, sname)
     zv_log(f"TRIAL: {uid} server={sname} user={username}")
     await cb.message.answer(

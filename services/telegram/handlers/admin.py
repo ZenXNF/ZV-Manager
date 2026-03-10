@@ -72,7 +72,7 @@ async def do_hapus_akun(msg: Message, username: str, admin_uid: int):
         try: os.remove(extra)
         except Exception: pass
 
-    invalidate_account_cache(srv_ip, "ssh")
+    invalidate_account_cache(srv_ip or _local_ip_cached(), "ssh")
     zv_log(f"ADM_HAPUS: admin={admin_uid} username={username}")
 
     from utils import backup_realtime
@@ -656,7 +656,7 @@ async def cb_adm_vdel_exec(cb: CallbackQuery):
     conf_path.unlink(missing_ok=True)
     # Invalidate cache supaya slot langsung terupdate
     sconf = load_server_conf(sname)
-    invalidate_account_cache(sconf.get("IP", ""), "vmess")
+    invalidate_account_cache(sconf.get("IP", "") or _local_ip_cached(), "vmess")
     zv_log(f"ADM_VMESS_DEL: {username} server={sname}")
     await cb.answer("✅ Dihapus!")
     await cb.message.edit_text(
