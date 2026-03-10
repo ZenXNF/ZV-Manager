@@ -28,7 +28,7 @@ _tg_send() {
 
 # Ambil semua client IP yang sedang konek ke SSH port
 estab_ips=$(ss -tn state established 2>/dev/null | \
-    awk '$4 ~ /:22$|:500$|:40000$|:109$|:143$/ {print $5}' | \
+    awk '$3 ~ /:22$|:500$|:40000$|:109$|:143$/ {print $4}' | \
     cut -d: -f1 | grep -v '^$' | sort -u)
 
 for conf_file in "$ACCOUNT_DIR"/*.conf; do
