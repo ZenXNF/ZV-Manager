@@ -55,7 +55,13 @@ for conf in "$SERVER_DIR"/*.conf; do
 
     unset NAME IP DOMAIN PORT ISP
     source "$conf"
-    [[ -z "$NAME" || -z "$IP" ]] && continue
+    [[ -z "$NAME" ]] && continue
+
+    # Kalau IP kosong, fallback ke IP lokal (server ini = tunneling VPS lokal)
+    if [[ -z "$IP" ]]; then
+        _local_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null | tr -d '[:space:]')
+        IP="${_local_ip:-127.0.0.1}"
+    fi
 
     LABEL="$NAME"
     tgconf="${SERVER_DIR}/${NAME}.tg.conf"
