@@ -348,8 +348,9 @@ TGEOF
 
     for ac in "${XTMP}/ssh-accounts"/*.conf; do
         [[ -f "$ac" ]] || continue
-        unset USERNAME PASSWORD EXPIRED_TS
-        source "$ac"
+        USERNAME=$(grep "^USERNAME=" "$ac" | cut -d= -f2- | tr -d '"\n')
+        PASSWORD=$(grep "^PASSWORD=" "$ac" | cut -d= -f2- | tr -d '"\n')
+        EXPIRED_TS=$(grep "^EXPIRED_TS=" "$ac" | cut -d= -f2- | tr -d '"\n')
         [[ -z "$USERNAME" || -z "$PASSWORD" ]] && continue
         local now_ts days_left
         now_ts=$(date +%s)
@@ -379,8 +380,10 @@ TGEOF
 
     for vc in "${XTMP}/vmess-accounts"/*.conf; do
         [[ -f "$vc" ]] || continue
-        unset USERNAME UUID EXPIRED_TS BW_LIMIT_GB
-        source "$vc"
+        USERNAME=$(grep "^USERNAME=" "$vc" | cut -d= -f2- | tr -d '"\n')
+        UUID=$(grep "^UUID=" "$vc" | cut -d= -f2- | tr -d '"\n')
+        EXPIRED_TS=$(grep "^EXPIRED_TS=" "$vc" | cut -d= -f2- | tr -d '"\n')
+        BW_LIMIT_GB=$(grep "^BW_LIMIT_GB=" "$vc" | cut -d= -f2- | tr -d '"\n')
         [[ -z "$USERNAME" || -z "$UUID" ]] && continue
         local now_ts days_left
         now_ts=$(date +%s)

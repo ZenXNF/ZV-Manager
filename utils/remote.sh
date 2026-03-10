@@ -53,7 +53,7 @@ _ensure_sshpass() {
     fi
 }
 
-_ssh_opts="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -o BatchMode=no"
+_ssh_opts="-q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -o BatchMode=no -o LogLevel=ERROR"
 
 # Eksekusi perintah arbitrary di server tujuan
 # remote_exec <server_name> <command_string>
