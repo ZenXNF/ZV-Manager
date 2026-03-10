@@ -406,6 +406,57 @@ if [[ "$install_mode" == restore_* ]]; then
     # Rebuild config.json + restart Xray
     bash /usr/local/bin/zv-vmess-agent rebuild-config >> "$_INSTALL_LOG" 2>&1 || true
     systemctl restart zv-xray >> "$_INSTALL_LOG" 2>&1
+
+    # Generate dashboard HTML untuk semua akun VMess
+    {
+        mkdir -p /var/www/zv-manager/api
+        python3 << 'PYEOF'
+import sys, os, json, time
+sys.path.insert(0, '/opt/zv-telegram')
+try:
+    from texts import generate_dashboard_html
+except ImportError:
+    sys.exit(0)
+
+vmess_dir = "/etc/zv-manager/accounts/vmess"
+api_dir   = "/var/www/zv-manager/api"
+os.makedirs(api_dir, exist_ok=True)
+
+for fname in os.listdir(vmess_dir):
+    if not fname.endswith(".conf"): continue
+    d = {}
+    with open(f"{vmess_dir}/{fname}") as f:
+        for line in f:
+            line = line.strip()
+            if "=" in line:
+                k, _, v = line.partition("=")
+                d[k] = v.strip('"')
+    u    = d.get("USERNAME","")
+    uuid = d.get("UUID","")
+    dom  = d.get("DOMAIN","")
+    if not (u and uuid and dom): continue
+    exp_ts  = int(d.get("EXPIRED_TS","0") or 0)
+    exp_str = d.get("EXPIRED_DATE", "")
+    srv     = d.get("SERVER","")
+    bw_lim  = int(d.get("BW_LIMIT_GB","0") or 0)
+    bw_used = int(d.get("BW_USED_BYTES","0") or 0)
+    html = generate_dashboard_html(
+        username=u, uuid=uuid, domain=dom,
+        exp_display=exp_str, server_label=srv,
+        bw_limit_gb=bw_lim, bw_used_bytes=bw_used
+    )
+    html_path = f"{api_dir}/vmess-{u}-{uuid}.html"
+    with open(html_path, "w") as hf:
+        hf.write(html)
+    print(f"Generated: {html_path}")
+
+    # Buat online JSON jika belum ada
+    online_path = f"{api_dir}/online-{u}.json"
+    if not os.path.exists(online_path):
+        with open(online_path, "w") as jf:
+            json.dump({"online": 0, "ips": []}, jf)
+PYEOF
+    } >> "$_INSTALL_LOG" 2>&1
     _ok "Recreate VMess clients" "${vmess_ok} akun"
 
     # Install bot dependencies + start bot
