@@ -263,16 +263,17 @@ PYEOF
 # ── dispatcher ───────────────────────────────────────────────
 CMD="$1"; shift
 case "$CMD" in
-    ping)    cmd_ping             ;;
-    add)     cmd_add     "$@"     ;;
-    del)     cmd_del     "$@"     ;;
-    info)    cmd_info    "$@"     ;;
-    list)    cmd_list             ;;
-    renew)   cmd_renew   "$@"     ;;
-    enable)  cmd_enable  "$@"     ;;
-    disable) cmd_disable "$@"     ;;
-    check)   cmd_check   "$@"     ;;
-    bw)      cmd_bw      "$@"     ;;
+    ping)           cmd_ping             ;;
+    add)            cmd_add     "$@"     ;;
+    del)            cmd_del     "$@"     ;;
+    info)           cmd_info    "$@"     ;;
+    list)           cmd_list             ;;
+    renew)          cmd_renew   "$@"     ;;
+    enable)         cmd_enable  "$@"     ;;
+    disable)        cmd_disable "$@"     ;;
+    check)          cmd_check   "$@"     ;;
+    bw)             cmd_bw      "$@"     ;;
+    rebuild-config) _xray_config_rebuild; echo "REBUILD-OK" ;;
     *)
         echo "ZV-VMess-Agent"
         echo "Usage: zv-vmess-agent <command> [args]"

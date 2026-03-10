@@ -346,12 +346,11 @@ backup_menu() {
                             sed -i "s/^DOMAIN=.*/DOMAIN=\"${new_domain}\"/" "$vc"
 
                         if [[ "$is_local" == true ]]; then
-                            # Inject Xray dulu (tanpa copy conf supaya agent tidak skip)
+                            cp "$vc" "${BASE_DIR}/accounts/vmess/${USERNAME}.conf"
                             /usr/local/bin/xray api adu -s "127.0.0.1:10085" -inbound "vmess-ws" \
                                 -user "{\"vmess\":{\"id\":\"${UUID}\",\"email\":\"${USERNAME}@vmess\",\"alterId\":0}}" &>/dev/null || true
                             /usr/local/bin/xray api adu -s "127.0.0.1:10085" -inbound "vmess-grpc" \
                                 -user "{\"vmess\":{\"id\":\"${UUID}\",\"email\":\"${USERNAME}@vmess\",\"alterId\":0}}" &>/dev/null || true
-                            cp "$vc" "${BASE_DIR}/accounts/vmess/${USERNAME}.conf"
                         else
                             remote_vmess_agent "$target_srv" add \
                                 "$USERNAME" "$UUID" "$days_left" "${BW_LIMIT_GB:-0}" 2>/dev/null
@@ -365,6 +364,8 @@ backup_menu() {
                     # Restart xray lokal supaya load config.json hasil rebuild dengan bersih
                     if [[ "$is_local" == true && $vmess_ok -gt 0 ]]; then
                         echo -e "  ${BYELLOW}Merestart Xray...${NC}"
+                        bash /usr/local/bin/zv-vmess-agent rebuild-config 2>/dev/null || \
+                            bash /etc/zv-manager/zv-vmess-agent.sh rebuild-config 2>/dev/null || true
                         systemctl restart zv-xray 2>/dev/null
                     fi
 
