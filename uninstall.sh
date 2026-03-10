@@ -16,8 +16,7 @@ fi
 SILENT=false
 [[ "$1" == "--silent" ]] && SILENT=true
 
-LOG="/var/log/zv-manager/uninstall.log"
-mkdir -p /var/log/zv-manager
+LOG="/tmp/zv-uninstall.log"
 touch "$LOG" 2>/dev/null
 
 _log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$LOG" 2>/dev/null; }
