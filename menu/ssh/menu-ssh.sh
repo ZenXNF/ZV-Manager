@@ -27,18 +27,30 @@ _init_target() {
     [[ ! -f "/tmp/zv_target_server" ]] && set_target_server "local"
 }
 
+_ssh_active_count() {
+    local target; target=$(get_target_server)
+    if is_local_target; then
+        ls /etc/zv-manager/accounts/ssh/*.conf 2>/dev/null | while read -r f; do
+            grep -qE 'IS_TRIAL="1"|IS_TRIAL=1' "$f" || echo x
+        done | wc -l
+    else
+        echo "?"
+    fi
+}
+
 menu_ssh() {
     check_server_exists || return
     _init_target
 
     while true; do
         local target_info; target_info=$(target_display)
+        local aktif; aktif=$(_ssh_active_count)
         clear
         echo -e "${BCYAN}  ┌──────────────────────────────────────────────┐${NC}"
-        echo -e "  │            ${BWHITE}MANAJEMEN SSH${NC}                     │"
+        echo -e "  │              ${BWHITE}MANAJEMEN SSH${NC}                   │"
         echo -e "${BCYAN}  └──────────────────────────────────────────────┘${NC}"
         echo ""
-        echo -e "  ${BWHITE}Target :${NC} ${BGREEN}${target_info}${NC}"
+        echo -e "  ${BWHITE}Target :${NC} ${BGREEN}${target_info}${NC}   ${BWHITE}Akun Aktif :${NC} ${BYELLOW}${aktif}${NC}"
         echo ""
         echo -e "  ${BGREEN}[1]${NC} Tambah Akun          ${BGREEN}[2]${NC} Hapus Akun"
         echo -e "  ${BGREEN}[3]${NC} List Akun            ${BGREEN}[4]${NC} Perpanjang Akun"
@@ -55,9 +67,8 @@ menu_ssh() {
             2) bash /etc/zv-manager/menu/ssh/del-user.sh ;;
             3) bash /etc/zv-manager/menu/ssh/list-user.sh ;;
             4) bash /etc/zv-manager/menu/ssh/renew-user.sh ;;
-            5) bash /etc/zv-manager/menu/ssh/lock-user.sh ;;
-            6) bash /etc/zv-manager/menu/ssh/unlock-user.sh ;;
-
+            5) bash /etc/zv-manager/menu/ssh/lock-user.sh lock ;;
+            6) bash /etc/zv-manager/menu/ssh/lock-user.sh unlock ;;
             7) bash /etc/zv-manager/menu/ssh/edit-user.sh ;;
             s|S) pick_target_server ;;
             d|D) bash /etc/zv-manager/menu/ssh/saldo.sh ;;
