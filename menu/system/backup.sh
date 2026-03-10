@@ -254,6 +254,16 @@ backup_menu() {
                         [[ -z "$_ip" ]] && is_local=true
                     fi
 
+                    # Ambil domain terbaru dari server conf aktif
+                    # atau fallback ke server-info.txt di backup
+                    local new_domain=""
+                    if [[ -f "$srv_conf" ]]; then
+                        new_domain=$(grep "^DOMAIN=" "$srv_conf" | cut -d= -f2 | tr -d '"')
+                    fi
+                    if [[ -z "$new_domain" && -f "${XTMP}/server-info.txt" ]]; then
+                        new_domain=$(grep "^DOMAIN:" "${XTMP}/server-info.txt" | awk '{print $2}')
+                    fi
+
                     echo ""
                     echo -e "  ${BYELLOW}Memproses akun SSH...${NC}"
                     local ssh_ok=0
@@ -268,8 +278,15 @@ backup_menu() {
                         days_left=$(( (EXPIRED_TS - now_ts) / 86400 ))
                         [[ $days_left -lt 1 ]] && days_left=1
 
+                        # Update SERVER dan DOMAIN di conf dulu
+                        sed -i "s/^SERVER=.*/SERVER=\"${target_srv}\"/" "$ac"
+                        [[ -n "$new_domain" ]] && \
+                            sed -i "s/^DOMAIN=.*/DOMAIN=\"${new_domain}\"/" "$ac"
+
+                        # Copy conf dulu ke accounts/ sebelum agent dipanggil
+                        cp "$ac" "${BASE_DIR}/accounts/ssh/${USERNAME}.conf"
+
                         if [[ "$is_local" == true ]]; then
-                            # Lokal — buat user Linux langsung
                             if ! id "$USERNAME" &>/dev/null; then
                                 useradd -M -s /bin/false "$USERNAME" 2>/dev/null
                                 echo "$USERNAME:$PASSWORD" | chpasswd 2>/dev/null
@@ -277,9 +294,6 @@ backup_menu() {
                         else
                             remote_agent "$target_srv" add "$USERNAME" "$PASSWORD" "$days_left" 2>/dev/null
                         fi
-
-                        sed -i "s/^SERVER=.*/SERVER=\"${target_srv}\"/" "$ac"
-                        cp "$ac" "${BASE_DIR}/accounts/ssh/${USERNAME}.conf"
 
                         echo -e "    ${BGREEN}✓${NC} SSH: ${USERNAME}"
                         ssh_ok=$((ssh_ok+1))
@@ -299,32 +313,31 @@ backup_menu() {
                         days_left=$(( (EXPIRED_TS - now_ts) / 86400 ))
                         [[ $days_left -lt 1 ]] && days_left=1
 
-                        if [[ "$is_local" == true ]]; then
-                            local chk
-                            chk=$(bash /etc/zv-manager/zv-vmess-agent.sh check "$USERNAME" 2>/dev/null)
-                            if [[ "$chk" == EXISTS* ]]; then
-                                bash /etc/zv-manager/zv-vmess-agent.sh renew "$USERNAME" "$days_left" 2>/dev/null
-                            else
-                                bash /etc/zv-manager/zv-vmess-agent.sh add \
-                                    "$USERNAME" "$UUID" "$days_left" "${BW_LIMIT_GB:-0}" 2>/dev/null
-                            fi
-                        else
-                            local chk
-                            chk=$(remote_vmess_agent "$target_srv" check "$USERNAME" 2>/dev/null)
-                            if [[ "$chk" == EXISTS* ]]; then
-                                remote_vmess_agent "$target_srv" renew "$USERNAME" "$days_left" 2>/dev/null
-                            else
-                                remote_vmess_agent "$target_srv" add \
-                                    "$USERNAME" "$UUID" "$days_left" "${BW_LIMIT_GB:-0}" 2>/dev/null
-                            fi
-                        fi
-
+                        # Update SERVER dan DOMAIN di conf dulu
                         sed -i "s/^SERVER=.*/SERVER=\"${target_srv}\"/" "$vc"
+                        [[ -n "$new_domain" ]] && \
+                            sed -i "s/^DOMAIN=.*/DOMAIN=\"${new_domain}\"/" "$vc"
+
+                        # Copy conf dulu ke accounts/ supaya _xray_config_rebuild baca semua akun
                         cp "$vc" "${BASE_DIR}/accounts/vmess/${USERNAME}.conf"
+
+                        if [[ "$is_local" == true ]]; then
+                            bash /etc/zv-manager/zv-vmess-agent.sh add \
+                                "$USERNAME" "$UUID" "$days_left" "${BW_LIMIT_GB:-0}" 2>/dev/null
+                        else
+                            remote_vmess_agent "$target_srv" add \
+                                "$USERNAME" "$UUID" "$days_left" "${BW_LIMIT_GB:-0}" 2>/dev/null
+                        fi
 
                         echo -e "    ${BGREEN}✓${NC} VMess: ${USERNAME}"
                         vmess_ok=$((vmess_ok+1))
                     done
+
+                    # Restart xray lokal supaya load config.json hasil rebuild dengan bersih
+                    if [[ "$is_local" == true && $vmess_ok -gt 0 ]]; then
+                        echo -e "  ${BYELLOW}Merestart Xray...${NC}"
+                        systemctl restart zv-xray 2>/dev/null
+                    fi
 
                     rm -rf "$XTMP"
                     echo ""

@@ -274,6 +274,137 @@ TGEOF
         fi
     fi
 
+    # --- Tanya restore akun dari backup ---
+    echo ""
+    echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
+    echo -e " │           ${BWHITE}RESTORE AKUN (OPSIONAL)${NC}            │"
+    echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+    echo ""
+    echo -e "  Apakah server ini ${BWHITE}pengganti server lama${NC} yang suspend?"
+    echo -e "  Jika ya, akun SSH+VMess lama bisa di-restore sekarang."
+    echo ""
+
+    local BACKUP_DIR="/var/backups/zv-manager"
+    local srv_backups=()
+    while IFS= read -r f; do srv_backups+=("$f"); done < <(ls -t "$BACKUP_DIR"/zv-ssh-*.tar.gz 2>/dev/null)
+
+    if [[ ${#srv_backups[@]} -eq 0 ]]; then
+        echo -e "  ${BYELLOW}(Tidak ada backup server tersimpan — lewati)${NC}"
+        echo ""
+        press_any_key
+        return
+    fi
+
+    read -rp "  Restore akun dari backup? [y/n]: " do_restore
+    if [[ "$do_restore" != "y" && "$do_restore" != "Y" ]]; then
+        press_any_key
+        return
+    fi
+
+    echo ""
+    echo -e "  ${BWHITE}Pilih backup server:${NC}"
+    echo ""
+    local i=1
+    for f in "${srv_backups[@]}"; do
+        local nm sz
+        nm=$(basename "$f" | sed 's/zv-ssh-//;s/.tar.gz//' | tr '_' ' ')
+        sz=$(stat -c%s "$f" 2>/dev/null || echo 0)
+        if   [[ $sz -ge 1048576 ]]; then sz=$(printf "%.1f MB" "$(echo "scale=1; $sz/1048576" | bc)")
+        elif [[ $sz -ge 1024    ]]; then sz=$(printf "%.1f KB" "$(echo "scale=1; $sz/1024" | bc)")
+        else sz="${sz} B"; fi
+        echo -e "  ${BGREEN}[${i}]${NC} ${nm} (${sz})"
+        i=$((i+1))
+    done
+    echo ""
+    read -rp "  Pilih nomor backup: " bnum
+    [[ ! "$bnum" =~ ^[0-9]+$ ]] && { press_any_key; return; }
+    local sel_backup="${srv_backups[$((bnum-1))]}"
+    [[ -z "$sel_backup" ]] && { press_any_key; return; }
+
+    # Jalankan restore langsung (inline, tidak perlu buka menu)
+    echo ""
+    echo -e "  ${BYELLOW}Memulai restore ke server '${name}'...${NC}"
+    echo ""
+
+    local BASE_DIR="/etc/zv-manager"
+    local XTMP="/tmp/zv-restore-add-$$"
+    mkdir -p "$XTMP"
+    tar -xzf "$sel_backup" -C "$XTMP" 2>/dev/null
+
+    source /etc/zv-manager/utils/remote.sh 2>/dev/null
+
+    # Deteksi lokal
+    local is_local=false
+    local _sip
+    _sip=$(grep "^IP=" "${BASE_DIR}/servers/${name}.conf" 2>/dev/null | cut -d= -f2 | tr -d '"')
+    [[ -z "$_sip" ]] && is_local=true
+
+    # Domain baru dari conf server yang baru saja dibuat
+    local new_domain
+    new_domain=$(grep "^DOMAIN=" "${BASE_DIR}/servers/${name}.conf" 2>/dev/null | cut -d= -f2 | tr -d '"')
+    [[ -z "$new_domain" ]] && new_domain=$(grep "^DOMAIN:" "${XTMP}/server-info.txt" 2>/dev/null | awk '{print $2}')
+
+    local ssh_ok=0 vmess_ok=0
+
+    for ac in "${XTMP}/ssh-accounts"/*.conf; do
+        [[ -f "$ac" ]] || continue
+        unset USERNAME PASSWORD EXPIRED_TS
+        source "$ac"
+        [[ -z "$USERNAME" || -z "$PASSWORD" ]] && continue
+        local now_ts days_left
+        now_ts=$(date +%s)
+        days_left=$(( (EXPIRED_TS - now_ts) / 86400 ))
+        [[ $days_left -lt 1 ]] && days_left=1
+        sed -i "s/^SERVER=.*/SERVER=\"${name}\"/" "$ac"
+        [[ -n "$new_domain" ]] && sed -i "s/^DOMAIN=.*/DOMAIN=\"${new_domain}\"/" "$ac"
+        cp "$ac" "${BASE_DIR}/accounts/ssh/${USERNAME}.conf"
+        if [[ "$is_local" == true ]]; then
+            if ! id "$USERNAME" &>/dev/null; then
+                useradd -M -s /bin/false "$USERNAME" 2>/dev/null
+                echo "$USERNAME:$PASSWORD" | chpasswd 2>/dev/null
+            fi
+        else
+            remote_agent "$name" add "$USERNAME" "$PASSWORD" "$days_left" 2>/dev/null
+        fi
+        echo -e "    ${BGREEN}✓${NC} SSH: ${USERNAME}"
+        ssh_ok=$((ssh_ok+1))
+    done
+
+    for vc in "${XTMP}/vmess-accounts"/*.conf; do
+        [[ -f "$vc" ]] || continue
+        unset USERNAME UUID EXPIRED_TS BW_LIMIT_GB
+        source "$vc"
+        [[ -z "$USERNAME" || -z "$UUID" ]] && continue
+        local now_ts days_left
+        now_ts=$(date +%s)
+        days_left=$(( (EXPIRED_TS - now_ts) / 86400 ))
+        [[ $days_left -lt 1 ]] && days_left=1
+        sed -i "s/^SERVER=.*/SERVER=\"${name}\"/" "$vc"
+        [[ -n "$new_domain" ]] && sed -i "s/^DOMAIN=.*/DOMAIN=\"${new_domain}\"/" "$vc"
+        cp "$vc" "${BASE_DIR}/accounts/vmess/${USERNAME}.conf"
+        if [[ "$is_local" == true ]]; then
+            bash /etc/zv-manager/zv-vmess-agent.sh add \
+                "$USERNAME" "$UUID" "$days_left" "${BW_LIMIT_GB:-0}" 2>/dev/null
+        else
+            remote_vmess_agent "$name" add \
+                "$USERNAME" "$UUID" "$days_left" "${BW_LIMIT_GB:-0}" 2>/dev/null
+        fi
+        echo -e "    ${BGREEN}✓${NC} VMess: ${USERNAME}"
+        vmess_ok=$((vmess_ok+1))
+    done
+
+    if [[ "$is_local" == true && $vmess_ok -gt 0 ]]; then
+        echo -e "  ${BYELLOW}Merestart Xray...${NC}"
+        systemctl restart zv-xray 2>/dev/null
+    fi
+
+    rm -rf "$XTMP"
+    echo ""
+    echo -e "  ${BGREEN}✓ Restore selesai! SSH: ${ssh_ok} akun, VMess: ${vmess_ok} akun.${NC}"
+    [[ -n "$new_domain" ]] && \
+        echo -e "  ${BWHITE}Domain akun diupdate ke: ${new_domain}${NC}"
+    echo ""
+
     press_any_key
 }
 
