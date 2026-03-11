@@ -137,10 +137,14 @@ _step_un "Restore file sistem" "selesai" bash -c '
     rm -f /etc/stunnel/zv-wss.conf
 '
 
-# ── Langkah 6: Hapus cron ─────────────────────────────────────
+# ── Langkah 6: Hapus cron & PAM ──────────────────────────────
 _step_un "Hapus cron jobs" "selesai" bash -c '
     for f in /etc/cron.d/zv-*; do [[ -f "$f" ]] && rm -f "$f"; done
     service cron restart 2>/dev/null
+'
+
+_step_un "Bersihkan PAM sshd" "selesai" bash -c '
+    sed -i "/bw-session.sh/d" /etc/pam.d/sshd 2>/dev/null
 '
 
 echo ""
@@ -251,9 +255,10 @@ if [ "$BASH" ]; then if [ -f ~/.bashrc ]; then . ~/.bashrc; fi; fi
 mesg n 2>/dev/null || true
 DEFPROFILE
                 echo -e "\n  \033[1;32mFile sisa berhasil dihapus.\033[0m\n"
-                # Kill seluruh chain proses menu
-                pkill -9 -f "menu.sh" 2>/dev/null
-                pkill -9 -f "menu-system.sh" 2>/dev/null
+                echo -e "  Sesi ini akan ditutup.\n"
+                sleep 1
+                # Kill seluruh tree proses dari sesi SSH ini
+                kill -9 -$$ 2>/dev/null
                 kill -9 $PPID 2>/dev/null
                 exit 0 ;;
             2)
