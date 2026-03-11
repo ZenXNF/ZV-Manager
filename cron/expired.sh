@@ -39,12 +39,13 @@ _sweep_local() {
     local count=0
     for conf_file in /etc/zv-manager/accounts/ssh/*.conf; do
         [[ -f "$conf_file" ]] || continue
-        unset USERNAME EXPIRED
-        source "$conf_file"
+        USERNAME=$(grep "^USERNAME=" "$conf_file" | cut -d= -f2 | tr -d '"' | tr -d "[:space:]")
+        EXPIRED=$(grep "^EXPIRED=" "$conf_file" | cut -d= -f2 | tr -d '"' | tr -d "[:space:]")
+        [[ -z "$USERNAME" || -z "$EXPIRED" ]] && continue
 
         if [[ "$EXPIRED" < "$today" ]]; then
-            local tg_uid_del; tg_uid_del=$(grep "^TG_USER_ID=" "$conf_file" | cut -d= -f2 | tr -d "[:space:]")
-            local server_del; server_del=$(grep "^SERVER=" "$conf_file" | cut -d= -f2 | tr -d "[:space:]")
+            local tg_uid_del; tg_uid_del=$(grep "^TG_USER_ID=" "$conf_file" | cut -d= -f2 | tr -d '"' | tr -d "[:space:]")
+            local server_del; server_del=$(grep "^SERVER=" "$conf_file" | cut -d= -f2 | tr -d '"')
             # Hapus file notified agar slot bersih
             rm -f "/etc/zv-manager/accounts/notified/${USERNAME}.notified"
             rm -f "/etc/zv-manager/accounts/notified/${USERNAME}.bw_warn"
@@ -79,8 +80,15 @@ _sweep_remote() {
 
     for conf in "$server_dir"/*.conf; do
         [[ -f "$conf" ]] || continue
-        unset NAME IP PORT USER PASS
-        source "$conf"
+        [[ "$conf" == *.tg.conf ]] && continue
+        NAME=$(grep "^NAME=" "$conf" | cut -d= -f2 | tr -d '"')
+        IP=$(grep "^IP=" "$conf" | cut -d= -f2 | tr -d '"' | tr -d "[:space:]")
+        PORT=$(grep "^PORT=" "$conf" | cut -d= -f2 | tr -d '"' | tr -d "[:space:]")
+        USER=$(grep "^USER=" "$conf" | cut -d= -f2 | tr -d '"' | tr -d "[:space:]")
+        PASS=$(grep "^PASS=" "$conf" | cut -d= -f2 | tr -d '"')
+        [[ -z "$IP" ]] && IP=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null | tr -d "[:space:]")
+        [[ -z "$PORT" ]] && PORT=22
+        [[ -z "$USER" ]] && USER=root
 
         # Skip lokal
         [[ "$IP" == "$local_ip" ]] && continue
@@ -145,8 +153,12 @@ _sweep_vmess() {
     local now_ts; now_ts=$(date +%s)
     for conf_file in "$vmess_dir"/*.conf; do
         [[ -f "$conf_file" ]] || continue
-        unset USERNAME EXPIRED_TS TG_USER_ID IS_TRIAL SERVER
-        source "$conf_file"
+        USERNAME=$(grep "^USERNAME=" "$conf_file" | cut -d= -f2 | tr -d '"' | tr -d "[:space:]")
+        EXPIRED_TS=$(grep "^EXPIRED_TS=" "$conf_file" | cut -d= -f2 | tr -d '"' | tr -d "[:space:]")
+        TG_USER_ID=$(grep "^TG_USER_ID=" "$conf_file" | cut -d= -f2 | tr -d '"' | tr -d "[:space:]")
+        IS_TRIAL=$(grep "^IS_TRIAL=" "$conf_file" | cut -d= -f2 | tr -d '"' | tr -d "[:space:]")
+        SERVER=$(grep "^SERVER=" "$conf_file" | cut -d= -f2 | tr -d '"')
+        [[ -z "$USERNAME" ]] && continue
         [[ -z "$EXPIRED_TS" ]] && continue
         if [[ "$EXPIRED_TS" -lt "$now_ts" ]]; then
             local sname="${SERVER:-local}"
