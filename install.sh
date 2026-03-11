@@ -438,41 +438,18 @@ if [[ "$install_mode" == restore_* ]]; then
     } >> "$_INSTALL_LOG" 2>&1
     _ok "Telegram Bot" "aktif"
 
-    # Delay: tunggu bot fully started sebelum kirim notif
-    _step_inline "Menunggu bot ready" "siap" sleep 15
-
-    # Notif Telegram ke admin
+    # Buat flag file restore — bot akan kirim notif ke admin saat startup
     {
-        _tg_token=$(grep "^TG_TOKEN=" /etc/zv-manager/telegram.conf 2>/dev/null | cut -d= -f2 | tr -d '"\n')
-        _tg_admin=$(grep "^TG_ADMIN=" /etc/zv-manager/telegram.conf 2>/dev/null | cut -d= -f2 | tr -d '"\n')
-        _new_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null | tr -d '[:space:]')
         _restore_date=$(TZ="Asia/Jakarta" date +"%Y-%m-%d %H:%M WIB")
-        if [[ -n "$_tg_token" && -n "$_tg_admin" ]]; then
-            _msg="🔄 <b>Restore Otak Selesai</b>
-━━━━━━━━━━━━━━━━━━━
-✅ SSH      : ${ssh_ok} akun di-recreate
-⚡ VMess    : ${vmess_ok} akun di-inject
-🤖 Bot      : aktif
-🌐 IP VPS   : ${_new_ip}
-📅 Waktu    : ${_restore_date}
-━━━━━━━━━━━━━━━━━━━
-<i>VPS siap digunakan. Tambah server via Menu Server → Tambah Server.</i>"
-            python3 - << PYNOTIF
-import urllib.request, urllib.parse, json
-url = "https://api.telegram.org/bot${_tg_token}/sendMessage"
-data = urllib.parse.urlencode({
-    "chat_id": "${_tg_admin}",
-    "parse_mode": "HTML",
-    "text": """${_msg}"""
-}).encode()
-try:
-    urllib.request.urlopen(urllib.request.Request(url, data), timeout=15)
-except Exception as e:
-    print(f"notif error: {e}")
-PYNOTIF
-        fi
+        _new_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null | tr -d '[:space:]')
+        cat > /etc/zv-manager/.restore_pending << FLAGEOF
+SSH_OK=${ssh_ok}
+VMESS_OK=${vmess_ok}
+IP=${_new_ip}
+DATE=${_restore_date}
+FLAGEOF
     } >> "$_INSTALL_LOG" 2>&1
-    _ok "Notifikasi admin" "terkirim"
+    _ok "Flag restore" "bot akan notif admin saat startup"
 fi
 
 

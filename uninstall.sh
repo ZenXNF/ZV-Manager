@@ -51,18 +51,7 @@ if [[ "$SILENT" == false ]]; then
     echo "  ║    ⚠   UNINSTALL ZV-MANAGER  ⚠      ║"
     echo "  ╚══════════════════════════════════════╝"
     printf "\033[0m\n"
-    echo "  Ini akan menghapus ZV-Manager beserta:"
-    printf "  \033[33m-\033[0m  Semua service (nginx, dropbear, ws-proxy, UDP)\n"
-    printf "  \033[33m-\033[0m  Semua akun SSH yang pernah dibuat\n"
-    printf "  \033[33m-\033[0m  Semua file konfigurasi ZV-Manager\n"
-    printf "  \033[33m-\033[0m  Semua cron job ZV-Manager\n"
-    echo ""
-    read -rp "  Ketik 'HAPUS' untuk konfirmasi: " confirm
-    if [[ "$confirm" != "HAPUS" ]]; then
-        echo ""
-        echo "  Dibatalkan."
-        exit 0
-    fi
+    echo "  Menghapus semua komponen ZV-Manager..."
     echo ""
 fi
 
@@ -257,13 +246,14 @@ if [[ "$SILENT" == false ]] && [ -t 1 ]; then
         case $pilihan in
             1)
                 rm -f /root/zv.sh /usr/local/bin/zv 2>/dev/null
-                # Hapus .profile agar tidak loop ke notif expired
                 cat > /root/.profile <<'DEFPROFILE'
 if [ "$BASH" ]; then if [ -f ~/.bashrc ]; then . ~/.bashrc; fi; fi
 mesg n 2>/dev/null || true
 DEFPROFILE
                 echo -e "\n  \033[1;32mFile sisa berhasil dihapus.\033[0m\n"
-                # Kill parent shell (menu) agar tidak balik ke menu
+                # Kill seluruh chain proses menu
+                pkill -9 -f "menu.sh" 2>/dev/null
+                pkill -9 -f "menu-system.sh" 2>/dev/null
                 kill -9 $PPID 2>/dev/null
                 exit 0 ;;
             2)

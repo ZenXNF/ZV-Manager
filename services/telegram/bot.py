@@ -30,6 +30,52 @@ from middleware import RateLimitMiddleware
 from handlers import user, admin, messages
 
 
+async def _check_restore_flag(bot: Bot) -> None:
+    """Cek flag restore dari install.sh, kirim notif ke admin, hapus flag."""
+    flag_file = "/etc/zv-manager/.restore_pending"
+    if not os.path.exists(flag_file):
+        return
+    try:
+        data = {}
+        with open(flag_file) as f:
+            for line in f:
+                line = line.strip()
+                if "=" in line:
+                    k, v = line.split("=", 1)
+                    data[k.strip()] = v.strip()
+
+        ssh_ok   = data.get("SSH_OK", "?")
+        vmess_ok = data.get("VMESS_OK", "?")
+        ip       = data.get("IP", "?")
+        date     = data.get("DATE", "?")
+
+        msg = (
+            "🔄 <b>Restore Otak Selesai</b>
+"
+            "━━━━━━━━━━━━━━━━━━━
+"
+            f"✅ SSH      : {ssh_ok} akun di-recreate
+"
+            f"⚡ VMess    : {vmess_ok} akun di-inject
+"
+            "🤖 Bot      : aktif
+"
+            f"🌐 IP VPS   : {ip}
+"
+            f"📅 Waktu    : {date}
+"
+            "━━━━━━━━━━━━━━━━━━━
+"
+            "<i>VPS siap digunakan. Tambah server via Menu Server → Tambah Server.</i>"
+        )
+
+        await bot.send_message(ADMIN_ID, msg, parse_mode="HTML")
+        os.remove(flag_file)
+        log.info("Restore flag: notif terkirim ke admin, flag dihapus")
+    except Exception as e:
+        log.error(f"Restore flag error: {e}")
+
+
 async def main():
     if not TOKEN:
         log.error("TG_TOKEN tidak ditemukan di telegram.conf!")
@@ -50,6 +96,9 @@ async def main():
     dp.include_router(messages.router)
 
     log.info(f"ZV-Manager Bot starting... Admin: {ADMIN_ID}")
+
+    # ── Cek flag restore setelah bot siap ─────────────────
+    await _check_restore_flag(bot)
 
     await dp.start_polling(
         bot,
