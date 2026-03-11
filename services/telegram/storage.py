@@ -97,14 +97,18 @@ def load_tg_server_conf(sname: str) -> dict:
         if now - ts < 300:
             return val
     defaults = {
-        "TG_SERVER_LABEL": sname,
-        "TG_HARGA_HARI":   "0",
-        "TG_HARGA_BULAN":  "0",
-        "TG_QUOTA":        "Unlimited",
-        "TG_LIMIT_IP":     "2",
-        "TG_MAX_AKUN":     "500",
-        "TG_BW_PER_HARI":  "5",
-        "TG_HARGA_VMESS_HARI": "0",
+        "TG_SERVER_LABEL":       sname,
+        "TG_HARGA_HARI":         "0",
+        "TG_HARGA_BULAN":        "0",
+        "TG_QUOTA":              "Unlimited",
+        "TG_LIMIT_IP":           "2",
+        "TG_MAX_AKUN":           "500",
+        "TG_BW_PER_HARI":        "5",
+        "TG_HARGA_VMESS_HARI":   "0",
+        "TG_HARGA_VMESS_BULAN":  "0",
+        "TG_LIMIT_IP_VMESS":     "2",
+        "TG_MAX_AKUN_VMESS":     "500",
+        "TG_BW_PER_HARI_VMESS":  "5",
     }
     defaults.update(_read_conf_file(f"{SERVER_DIR}/{sname}.tg.conf"))
     _tg_conf_cache[sname] = (defaults, now)

@@ -118,36 +118,30 @@ NOTETXT
 # Hapus semua akun terkait server + notif user
 _hapus_akun_server() {
     local sname="$1"
-    local now_wib; now_wib=$(TZ="Asia/Jakarta" date +"%Y-%m-%d %H:%M WIB")
     local count_ssh=0 count_vmess=0
 
-    # Hapus akun SSH
+    # Ambil ISP dari server conf
+    local isp; isp=$(grep "^ISP=" "${SERVER_DIR}/${sname}.conf" 2>/dev/null | cut -d= -f2 | tr -d '"')
+
+    # Kumpulkan data semua user SEBELUM hapus file
+    declare -A uid_ssh_list uid_vmess_list
+
     for ac in "${ACCOUNT_SSH}"/*.conf; do
         [[ -f "$ac" ]] || continue
         local srv; srv=$(grep "^SERVER=" "$ac" | cut -d= -f2 | tr -d '"' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
         [[ "$srv" == "$sname" ]] || continue
         local uname; uname=$(grep "^USERNAME=" "$ac" | cut -d= -f2 | tr -d '"' | tr -d '[:space:]')
         local tg_uid; tg_uid=$(grep "^TG_USER_ID=" "$ac" | cut -d= -f2 | tr -d '"' | tr -d '[:space:]')
-        # Notif ke user
-        if [[ -n "$tg_uid" && "$tg_uid" != "0" ]]; then
-            _tg_send "$tg_uid" "🔧 <b>Informasi Akun SSH</b>
-
-Halo! Kami ingin memberitahu bahwa server <b>${sname}</b> sedang dalam proses pergantian.
-
-👤 Username : <code>${uname}</code>
-🌐 Server   : ${sname}
-
-Tenang, data kamu <b>aman</b> dan sudah kami backup. 😊
-Silakan hubungi admin untuk info lebih lanjut atau membuat akun di server baru."
-        fi
-        # Hapus file terkait
+        local exp_ts; exp_ts=$(grep "^EXPIRED_TS=" "$ac" | cut -d= -f2 | tr -d '"' | tr -d '[:space:]')
+        local exp_d; exp_d=$(date -d "@${exp_ts}" "+%d %b %Y" 2>/dev/null || echo "?")
+        [[ -n "$tg_uid" && "$tg_uid" != "0" ]] &&             uid_ssh_list["$tg_uid"]+="👤 ${uname} · ⏳ ${exp_d}
+"
         rm -f "$ac"
         rm -f "${NOTIFIED_DIR}/${uname}.notified"
         rm -f "${NOTIFIED_DIR}/${uname}.bw_warn"
         count_ssh=$((count_ssh + 1))
     done
 
-    # Hapus akun VMess
     for vc in "${ACCOUNT_VMESS}"/*.conf; do
         [[ -f "$vc" ]] || continue
         local srv; srv=$(grep "^SERVER=" "$vc" | cut -d= -f2 | tr -d '"' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
@@ -155,21 +149,44 @@ Silakan hubungi admin untuk info lebih lanjut atau membuat akun di server baru."
         local uname; uname=$(grep "^USERNAME=" "$vc" | cut -d= -f2 | tr -d '"' | tr -d '[:space:]')
         local tg_uid; tg_uid=$(grep "^TG_USER_ID=" "$vc" | cut -d= -f2 | tr -d '"' | tr -d '[:space:]')
         local is_trial; is_trial=$(grep "^IS_TRIAL=" "$vc" | cut -d= -f2 | tr -d '"' | tr -d '[:space:]')
-        # Notif ke user (hanya premium)
-        if [[ "$is_trial" != "1" && -n "$tg_uid" && "$tg_uid" != "0" ]]; then
-            _tg_send "$tg_uid" "🔧 <b>Informasi Akun VMess</b>
-
-Halo! Kami ingin memberitahu bahwa server <b>${sname}</b> sedang dalam proses pergantian.
-
-👤 Username : <code>${uname}</code>
-🌐 Server   : ${sname}
-
-Tenang, data kamu <b>aman</b> dan sudah kami backup. 😊
-Silakan hubungi admin untuk info lebih lanjut atau membuat akun di server baru."
-        fi
+        local uuid; uuid=$(grep "^UUID=" "$vc" | cut -d= -f2 | tr -d '"' | tr -d '[:space:]')
+        local exp_ts; exp_ts=$(grep "^EXPIRED_TS=" "$vc" | cut -d= -f2 | tr -d '"' | tr -d '[:space:]')
+        local exp_d; exp_d=$(date -d "@${exp_ts}" "+%d %b %Y" 2>/dev/null || echo "?")
+        [[ "$is_trial" != "1" && -n "$tg_uid" && "$tg_uid" != "0" ]] &&             uid_vmess_list["$tg_uid"]+="👤 ${uname} · ⏳ ${exp_d}
+"
         rm -f "$vc"
         rm -f "/tmp/zv-tg-state/vmess_${uname}.notified"
         count_vmess=$((count_vmess + 1))
+    done
+
+    # Kumpulkan semua UID unik
+    declare -A all_uids
+    for uid in "${!uid_ssh_list[@]}";   do all_uids["$uid"]=1; done
+    for uid in "${!uid_vmess_list[@]}"; do all_uids["$uid"]=1; done
+
+    # Kirim 1 notif per user
+    for tg_uid in "${!all_uids[@]}"; do
+        local msg="🔧 <b>Informasi Pergantian Server</b>
+
+Halo! Server <b>${sname}</b> sedang dalam proses pergantian.
+🌐 ISP : ${isp:-?}
+
+Tenang, data kamu <b>aman</b> dan sudah kami backup. 😊
+Silakan tunggu info selanjutnya dari admin.
+
+"
+        if [[ -n "${uid_ssh_list[$tg_uid]}" ]]; then
+            msg+="🔑 <b>Akun SSH kamu:</b>
+${uid_ssh_list[$tg_uid]}"
+        fi
+        if [[ -n "${uid_vmess_list[$tg_uid]}" ]]; then
+            msg+="
+⚡ <b>Akun VMess kamu:</b>
+${uid_vmess_list[$tg_uid]}"
+        fi
+        msg+="
+Hubungi admin jika ada pertanyaan. 😊"
+        _tg_send "$tg_uid" "$msg"
     done
 
     echo "$count_ssh $count_vmess"

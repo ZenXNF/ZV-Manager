@@ -24,7 +24,8 @@ _get_ip_limit() {
     local server_name limit=0
     server_name=$(grep "^SERVER=" "${VMESS_DIR}/${username}.conf" 2>/dev/null | cut -d= -f2 | tr -d '"')
     if [[ -n "$server_name" && -f "/etc/zv-manager/servers/${server_name}.tg.conf" ]]; then
-        limit=$(grep "^TG_LIMIT_IP=" "/etc/zv-manager/servers/${server_name}.tg.conf" | cut -d= -f2 | tr -d '"')
+        limit=$(grep "^TG_LIMIT_IP_VMESS=" "/etc/zv-manager/servers/${server_name}.tg.conf" | cut -d= -f2 | tr -d '"')
+        [[ -z "$limit" ]] && limit=$(grep "^TG_LIMIT_IP=" "/etc/zv-manager/servers/${server_name}.tg.conf" | cut -d= -f2 | tr -d '"')
     else
         local sc
         sc=$(ls /etc/zv-manager/servers/*.tg.conf 2>/dev/null | head -1)

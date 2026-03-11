@@ -72,10 +72,16 @@ def text_server_list(title: str, proto: str = "ssh") -> str:
         hh = f"Rp{fmt(harga_hari_raw)}" if harga_hari_raw != "0" else "Hubungi admin"
         hb_raw = str(int(harga_hari_raw) * 30) if harga_hari_raw.isdigit() else "0"
         hb = f"Rp{fmt(hb_raw)}" if hb_raw != "0" else "Hubungi admin"
-        bw_hr = int(tg.get("TG_BW_PER_HARI", "5") or "5")
+        if proto == "vmess":
+            bw_hr    = int(tg.get("TG_BW_PER_HARI_VMESS", tg.get("TG_BW_PER_HARI", "5")) or "5")
+            max_akun = int(tg.get("TG_MAX_AKUN_VMESS", tg.get("TG_MAX_AKUN", "500")) or "500")
+            limit_ip = tg.get("TG_LIMIT_IP_VMESS", tg.get("TG_LIMIT_IP", "2"))
+        else:
+            bw_hr    = int(tg.get("TG_BW_PER_HARI", "5") or "5")
+            max_akun = int(tg.get("TG_MAX_AKUN", "500") or "500")
+            limit_ip = tg.get("TG_LIMIT_IP", "2")
         bw_30 = bw_hr * 30
         bandwidth = f"{bw_hr} GB/hari · {bw_30} GB/30hr" if bw_hr > 0 else "Unlimited"
-        max_akun = int(tg.get("TG_MAX_AKUN", "500") or "500")
         is_full  = cnt >= max_akun
         # Label total akun sesuai proto
         if is_full:
@@ -89,7 +95,7 @@ def text_server_list(title: str, proto: str = "ssh") -> str:
             f"💰 Harga/hari: {hh}\n"
             f"📅 Harga/30hr: {hb}\n"
             f"📶 Bandwidth: {bandwidth}\n"
-            f"🔢 Limit IP: {tg['TG_LIMIT_IP']} IP/akun\n"
+            f"🔢 Limit IP: {limit_ip} IP/akun\n"
             f"{akun_label}\n\n"
         )
     return out + "Pilih server:"

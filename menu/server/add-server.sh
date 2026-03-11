@@ -187,45 +187,66 @@ CONFEOF
     local tg_label="$name"
     read -rp "  Label di bot         [${tg_label}]: " v; [[ -n "$v" ]] && tg_label="$v"
 
-    # Inisialisasi semua variabel tg.conf
+    # Inisialisasi variabel SSH
     local tg_harga_hari="0" tg_harga_bulan="0"
-    local tg_harga_vmess_hari="0" tg_harga_vmess_bulan="0"
-    local tg_bw_total="Unlimited"
     local tg_limit_ip="2"
     local tg_max_akun="500"
     local tg_bw_per_hari="5"
+    # Inisialisasi variabel VMess (terpisah dari SSH)
+    local tg_harga_vmess_hari="0" tg_harga_vmess_bulan="0"
+    local tg_limit_ip_vmess="2"
+    local tg_max_akun_vmess="500"
+    local tg_bw_per_hari_vmess="5"
 
     # --- Pengaturan SSH ---
     if [[ "$server_type" == "ssh" || "$server_type" == "both" ]]; then
         echo ""
         echo -e "  ${BWHITE}── Pengaturan SSH ──────────────────────────${NC}"
-        read -rp "  Harga SSH / hari (Rp)    [${tg_harga_hari}]: " v
-        [[ "$v" =~ ^[0-9]+$ ]] && tg_harga_hari="$v"
+        echo -e "  ${BYELLOW}(Semua field wajib diisi)${NC}"
+        while true; do
+            read -rp "  Harga SSH / hari (Rp)    : " v
+            [[ "$v" =~ ^[0-9]+$ && "$v" != "0" ]] && { tg_harga_hari="$v"; break; }
+            echo -e "  ${BRED}Harga harus angka dan tidak boleh 0.${NC}"
+        done
         tg_harga_bulan=$(( tg_harga_hari * 30 ))
-        read -rp "  Limit IP SSH per akun    [${tg_limit_ip}]: " v
-        [[ "$v" =~ ^[0-9]+$ ]] && tg_limit_ip="$v"
-        read -rp "  Maks akun SSH di server  [${tg_max_akun}]: " v
-        [[ "$v" =~ ^[0-9]+$ ]] && tg_max_akun="$v"
-        read -rp "  Bandwidth / hari (GB)    [${tg_bw_per_hari}]: " v
-        [[ "$v" =~ ^[0-9]+$ ]] && tg_bw_per_hari="$v"
+        while true; do
+            read -rp "  Limit IP SSH per akun    : " v
+            [[ "$v" =~ ^[0-9]+$ && "$v" != "0" ]] && { tg_limit_ip="$v"; break; }
+            echo -e "  ${BRED}Limit IP harus angka dan tidak boleh 0.${NC}"
+        done
+        while true; do
+            read -rp "  Maks akun SSH di server  : " v
+            [[ "$v" =~ ^[0-9]+$ && "$v" != "0" ]] && { tg_max_akun="$v"; break; }
+            echo -e "  ${BRED}Maks akun harus angka dan tidak boleh 0.${NC}"
+        done
+        while true; do
+            read -rp "  Bandwidth / hari (GB)    : " v
+            [[ "$v" =~ ^[0-9]+$ ]] && { tg_bw_per_hari="$v"; break; }
+            echo -e "  ${BRED}Bandwidth harus angka (0 = unlimited).${NC}"
+        done
     fi
 
     # --- Pengaturan VMess ---
     if [[ "$server_type" == "vmess" || "$server_type" == "both" ]]; then
         echo ""
         echo -e "  ${BWHITE}── Pengaturan VMess ────────────────────────${NC}"
-        read -rp "  Harga VMess / hari (Rp)  [${tg_harga_vmess_hari}]: " v
+        echo -e "  ${BYELLOW}(Kosongkan/Enter = ikuti setting SSH)${NC}"
+        # Default VMess ikuti SSH jika server type both
+        if [[ "$server_type" == "both" ]]; then
+            tg_harga_vmess_hari="${tg_harga_hari}"
+            tg_limit_ip_vmess="${tg_limit_ip}"
+            tg_max_akun_vmess="${tg_max_akun}"
+            tg_bw_per_hari_vmess="${tg_bw_per_hari}"
+        fi
+        read -rp "  Harga VMess / hari (Rp)     [${tg_harga_vmess_hari}]: " v
         [[ "$v" =~ ^[0-9]+$ ]] && tg_harga_vmess_hari="$v"
         tg_harga_vmess_bulan=$(( tg_harga_vmess_hari * 30 ))
-        if [[ "$server_type" == "vmess" ]]; then
-            # VMess only — tanya limit IP & max akun juga
-            read -rp "  Limit IP VMess per akun  [${tg_limit_ip}]: " v
-            [[ "$v" =~ ^[0-9]+$ ]] && tg_limit_ip="$v"
-            read -rp "  Maks akun VMess          [${tg_max_akun}]: " v
-            [[ "$v" =~ ^[0-9]+$ ]] && tg_max_akun="$v"
-            read -rp "  Bandwidth / hari (GB)    [${tg_bw_per_hari}]: " v
-            [[ "$v" =~ ^[0-9]+$ ]] && tg_bw_per_hari="$v"
-        fi
+        read -rp "  Limit IP VMess per akun     [${tg_limit_ip_vmess}]: " v
+        [[ "$v" =~ ^[0-9]+$ ]] && tg_limit_ip_vmess="$v"
+        read -rp "  Maks akun VMess             [${tg_max_akun_vmess}]: " v
+        [[ "$v" =~ ^[0-9]+$ ]] && tg_max_akun_vmess="$v"
+        read -rp "  Bandwidth VMess / hari (GB) [${tg_bw_per_hari_vmess}]: " v
+        [[ "$v" =~ ^[0-9]+$ ]] && tg_bw_per_hari_vmess="$v"
     fi
 
     # --- Tulis tg.conf ---
@@ -234,12 +255,14 @@ TG_SERVER_LABEL="${tg_label}"
 TG_SERVER_TYPE="${server_type}"
 TG_HARGA_HARI="${tg_harga_hari}"
 TG_HARGA_BULAN="${tg_harga_bulan}"
-TG_HARGA_VMESS_HARI="${tg_harga_vmess_hari}"
-TG_HARGA_VMESS_BULAN="${tg_harga_vmess_bulan}"
-TG_BW_TOTAL="${tg_bw_total}"
 TG_LIMIT_IP="${tg_limit_ip}"
 TG_MAX_AKUN="${tg_max_akun}"
 TG_BW_PER_HARI="${tg_bw_per_hari}"
+TG_HARGA_VMESS_HARI="${tg_harga_vmess_hari}"
+TG_HARGA_VMESS_BULAN="${tg_harga_vmess_bulan}"
+TG_LIMIT_IP_VMESS="${tg_limit_ip_vmess}"
+TG_MAX_AKUN_VMESS="${tg_max_akun_vmess}"
+TG_BW_PER_HARI_VMESS="${tg_bw_per_hari_vmess}"
 TGEOF
 
     echo ""
@@ -461,65 +484,78 @@ TGEOF
     sleep 2
 
     # Kirim notif ke semua user yang punya akun di server ini
+    # 1 notif per user per server — berisi list semua akun SSH+VMess miliknya
     if [[ $((ssh_ok + vmess_ok)) -gt 0 && -n "$new_domain" ]]; then
         echo -e "  ${BYELLOW}Mengirim notifikasi ke user...${NC}"
-        local _now_wib; _now_wib=$(TZ="Asia/Jakarta" date +"%d %b %Y %H:%M WIB")
-        local _notified_uids=()
-        # Cek notif sudah terkirim ke UID ini (hindari dobel)
-        _already_notified() {
-            local uid="$1"
-            for x in "${_notified_uids[@]}"; do [[ "$x" == "$uid" ]] && return 0; done
-            return 1
-        }
-        # Scan akun SSH yang baru di-restore
-        for ac in "${BASE_DIR}/accounts/ssh"/*.conf; do
-            [[ -f "$ac" ]] || continue
-            local _srv; _srv=$(grep "^SERVER=" "$ac" | cut -d= -f2 | tr -d '"\n')
+
+        # Kumpulkan semua UID unik yang punya akun di server ini
+        local _all_uids=()
+        for _f in "${BASE_DIR}/accounts/ssh"/*.conf "${BASE_DIR}/accounts/vmess"/*.conf; do
+            [[ -f "$_f" ]] || continue
+            local _srv; _srv=$(grep "^SERVER=" "$_f" | cut -d= -f2 | tr -d '"\n')
             [[ "$_srv" != "$name" ]] && continue
-            local _uid; _uid=$(grep "^TG_USER_ID=" "$ac" | cut -d= -f2 | tr -d '"[:space:]')
-            local _uname; _uname=$(grep "^USERNAME=" "$ac" | cut -d= -f2 | tr -d '"[:space:]')
-            local _exp_ts; _exp_ts=$(grep "^EXPIRED_TS=" "$ac" | cut -d= -f2 | tr -d '"[:space:]')
-            local _exp_d; _exp_d=$(date -d "@${_exp_ts}" "+%d %b %Y" 2>/dev/null || echo "?")
+            local _uid; _uid=$(grep "^TG_USER_ID=" "$_f" | cut -d= -f2 | tr -d '"[:space:]')
             [[ -z "$_uid" || "$_uid" == "0" ]] && continue
-            _already_notified "$_uid" && continue
-            _tg_send "$_uid" "✅ <b>Server Sudah Aktif Kembali!</b>
-
-Halo! Server yang sebelumnya kami ganti kini sudah aktif kembali dengan server baru. 🎉
-
-👤 Username  : <code>${_uname}</code>
-🌐 Domain    : <code>${new_domain}</code>
-⏳ Expired   : ${_exp_d}
-
-Silakan update konfigurasi kamu dengan domain baru di atas.
-Hubungi admin jika ada pertanyaan. 😊"
-            _notified_uids+=("$_uid")
+            # Tambah jika belum ada
+            local _exists=false
+            for _x in "${_all_uids[@]}"; do [[ "$_x" == "$_uid" ]] && _exists=true && break; done
+            [[ "$_exists" == false ]] && _all_uids+=("$_uid")
         done
-        # Scan akun VMess yang baru di-restore
-        for vc in "${BASE_DIR}/accounts/vmess"/*.conf; do
-            [[ -f "$vc" ]] || continue
-            local _srv; _srv=$(grep "^SERVER=" "$vc" | cut -d= -f2 | tr -d '"\n')
-            [[ "$_srv" != "$name" ]] && continue
-            local _uid; _uid=$(grep "^TG_USER_ID=" "$vc" | cut -d= -f2 | tr -d '"[:space:]')
-            local _uname; _uname=$(grep "^USERNAME=" "$vc" | cut -d= -f2 | tr -d '"[:space:]')
-            local _uuid; _uuid=$(grep "^UUID=" "$vc" | cut -d= -f2 | tr -d '"[:space:]')
-            local _exp_ts; _exp_ts=$(grep "^EXPIRED_TS=" "$vc" | cut -d= -f2 | tr -d '"[:space:]')
-            local _exp_d; _exp_d=$(date -d "@${_exp_ts}" "+%d %b %Y" 2>/dev/null || echo "?")
-            local _is_trial; _is_trial=$(grep "^IS_TRIAL=" "$vc" | cut -d= -f2 | tr -d '"[:space:]')
-            [[ "$_is_trial" == "1" ]] && continue
-            [[ -z "$_uid" || "$_uid" == "0" ]] && continue
-            _already_notified "$_uid" && continue
-            _tg_send "$_uid" "✅ <b>Server Sudah Aktif Kembali!</b>
+
+        # Ambil ISP server baru
+        local _isp; _isp=$(grep "^ISP=" "${BASE_DIR}/servers/${name}.conf" 2>/dev/null | cut -d= -f2 | tr -d '"')
+
+        # Kirim 1 notif per UID berisi semua akunnya
+        for _uid in "${_all_uids[@]}"; do
+            local _msg="✅ <b>Server Sudah Aktif Kembali!</b>
 
 Halo! Server yang sebelumnya kami ganti kini sudah aktif kembali dengan server baru. 🎉
+🌐 Domain baru : <code>${new_domain}</code>
+🏢 ISP         : ${_isp:-?}
 
-👤 Username  : <code>${_uname}</code>
-🔑 UUID      : <code>${_uuid}</code>
-🌐 Domain    : <code>${new_domain}</code>
-⏳ Expired   : ${_exp_d}
+"
+            # List akun SSH
+            local _has_ssh=false
+            for ac in "${BASE_DIR}/accounts/ssh"/*.conf; do
+                [[ -f "$ac" ]] || continue
+                local _srv; _srv=$(grep "^SERVER=" "$ac" | cut -d= -f2 | tr -d '"\n')
+                [[ "$_srv" != "$name" ]] && continue
+                local _auid; _auid=$(grep "^TG_USER_ID=" "$ac" | cut -d= -f2 | tr -d '"[:space:]')
+                [[ "$_auid" != "$_uid" ]] && continue
+                local _uname; _uname=$(grep "^USERNAME=" "$ac" | cut -d= -f2 | tr -d '"[:space:]')
+                local _exp_ts; _exp_ts=$(grep "^EXPIRED_TS=" "$ac" | cut -d= -f2 | tr -d '"[:space:]')
+                local _exp_d; _exp_d=$(date -d "@${_exp_ts}" "+%d %b %Y" 2>/dev/null || echo "?")
+                [[ "$_has_ssh" == false ]] && _msg+="🔑 <b>Akun SSH:</b>
+" && _has_ssh=true
+                _msg+="👤 ${_uname} · ⏳ ${_exp_d}
+"
+            done
 
-Silakan update konfigurasi kamu dengan domain baru di atas.
+            # List akun VMess
+            local _has_vmess=false
+            for vc in "${BASE_DIR}/accounts/vmess"/*.conf; do
+                [[ -f "$vc" ]] || continue
+                local _srv; _srv=$(grep "^SERVER=" "$vc" | cut -d= -f2 | tr -d '"\n')
+                [[ "$_srv" != "$name" ]] && continue
+                local _vuid; _vuid=$(grep "^TG_USER_ID=" "$vc" | cut -d= -f2 | tr -d '"[:space:]')
+                [[ "$_vuid" != "$_uid" ]] && continue
+                local _is_trial; _is_trial=$(grep "^IS_TRIAL=" "$vc" | cut -d= -f2 | tr -d '"[:space:]')
+                [[ "$_is_trial" == "1" ]] && continue
+                local _uname; _uname=$(grep "^USERNAME=" "$vc" | cut -d= -f2 | tr -d '"[:space:]')
+                local _uuid; _uuid=$(grep "^UUID=" "$vc" | cut -d= -f2 | tr -d '"[:space:]')
+                local _exp_ts; _exp_ts=$(grep "^EXPIRED_TS=" "$vc" | cut -d= -f2 | tr -d '"[:space:]')
+                local _exp_d; _exp_d=$(date -d "@${_exp_ts}" "+%d %b %Y" 2>/dev/null || echo "?")
+                [[ "$_has_vmess" == false ]] && _msg+="
+⚡ <b>Akun VMess:</b>
+" && _has_vmess=true
+                _msg+="👤 ${_uname} · <code>${_uuid}</code> · ⏳ ${_exp_d}
+"
+            done
+
+            _msg+="
+Silakan update konfigurasi dengan domain baru di atas.
 Hubungi admin jika ada pertanyaan. 😊"
-            _notified_uids+=("$_uid")
+            _tg_send "$_uid" "$_msg"
         done
     fi
 

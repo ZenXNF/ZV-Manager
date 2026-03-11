@@ -16,16 +16,16 @@ _load_tg() {
     local f="${SERVER_DIR}/${name}.tg.conf"
     TG_SERVER_LABEL="$name"
     TG_SERVER_TYPE="both"
-    TG_HARGA_HARI="0"
-    TG_HARGA_BULAN="0"
-    TG_HARGA_VMESS_HARI="0"
-    TG_HARGA_VMESS_BULAN="0"
-    TG_BW_TOTAL="Unlimited"
-    TG_LIMIT_IP="2"
-    TG_MAX_AKUN="500"
-    TG_BW_PER_HARI="5"
-    TG_BW_HARGA_PCT="40"
+    TG_HARGA_HARI="0"; TG_HARGA_BULAN="0"
+    TG_LIMIT_IP="2"; TG_MAX_AKUN="500"; TG_BW_PER_HARI="5"
+    TG_HARGA_VMESS_HARI="0"; TG_HARGA_VMESS_BULAN="0"
+    TG_LIMIT_IP_VMESS="2"; TG_MAX_AKUN_VMESS="500"; TG_BW_PER_HARI_VMESS="5"
+    TG_BW_TOTAL="Unlimited"; TG_BW_HARGA_PCT="40"
     [[ -f "$f" ]] && source "$f"
+    # Fallback: jika field VMess belum ada di file lama, ikut SSH
+    [[ "$TG_LIMIT_IP_VMESS" == "2" && "$TG_LIMIT_IP" != "2" ]] && TG_LIMIT_IP_VMESS="$TG_LIMIT_IP"
+    [[ "$TG_MAX_AKUN_VMESS" == "500" && "$TG_MAX_AKUN" != "500" ]] && TG_MAX_AKUN_VMESS="$TG_MAX_AKUN"
+    [[ "$TG_BW_PER_HARI_VMESS" == "5" && "$TG_BW_PER_HARI" != "5" ]] && TG_BW_PER_HARI_VMESS="$TG_BW_PER_HARI"
 }
 
 _save_tg() {
@@ -35,12 +35,15 @@ TG_SERVER_LABEL="${TG_SERVER_LABEL}"
 TG_SERVER_TYPE="${TG_SERVER_TYPE}"
 TG_HARGA_HARI="${TG_HARGA_HARI}"
 TG_HARGA_BULAN="${TG_HARGA_BULAN}"
-TG_HARGA_VMESS_HARI="${TG_HARGA_VMESS_HARI}"
-TG_HARGA_VMESS_BULAN="${TG_HARGA_VMESS_BULAN}"
-TG_BW_TOTAL="${TG_BW_TOTAL:-Unlimited}"
 TG_LIMIT_IP="${TG_LIMIT_IP}"
 TG_MAX_AKUN="${TG_MAX_AKUN}"
 TG_BW_PER_HARI="${TG_BW_PER_HARI}"
+TG_HARGA_VMESS_HARI="${TG_HARGA_VMESS_HARI}"
+TG_HARGA_VMESS_BULAN="${TG_HARGA_VMESS_BULAN}"
+TG_LIMIT_IP_VMESS="${TG_LIMIT_IP_VMESS}"
+TG_MAX_AKUN_VMESS="${TG_MAX_AKUN_VMESS}"
+TG_BW_PER_HARI_VMESS="${TG_BW_PER_HARI_VMESS}"
+TG_BW_TOTAL="${TG_BW_TOTAL:-Unlimited}"
 TG_BW_HARGA_PCT="${TG_BW_HARGA_PCT}"
 EOF
     print_ok "Setting disimpan!"
@@ -138,9 +141,9 @@ _edit_vmess() {
         echo -e "  ${BWHITE}Harga VMess/hari  :${NC} ${BYELLOW}Rp${TG_HARGA_VMESS_HARI}${NC}"
         echo -e "  ${BWHITE}Harga VMess/30hr  :${NC} ${BYELLOW}Rp${TG_HARGA_VMESS_BULAN}${NC} ${BCYAN}(otomatis × 30)${NC}"
         echo -e "  ${BWHITE}Bandwidth         :${NC} ${BYELLOW}${TG_BW_TOTAL:-Unlimited}${NC}"
-        echo -e "  ${BWHITE}Limit IP/akun     :${NC} ${BYELLOW}${TG_LIMIT_IP} IP${NC}"
-        echo -e "  ${BWHITE}Maks Akun VMess   :${NC} ${BYELLOW}${TG_MAX_AKUN}${NC}"
-        echo -e "  ${BWHITE}BW / hari         :${NC} ${BYELLOW}${TG_BW_PER_HARI} GB${NC}"
+        echo -e "  ${BWHITE}Limit IP/akun     :${NC} ${BYELLOW}${TG_LIMIT_IP_VMESS} IP${NC}"
+        echo -e "  ${BWHITE}Maks Akun VMess   :${NC} ${BYELLOW}${TG_MAX_AKUN_VMESS}${NC}"
+        echo -e "  ${BWHITE}BW / hari         :${NC} ${BYELLOW}${TG_BW_PER_HARI_VMESS} GB${NC}"
         echo ""
         echo -e "${BCYAN}  ──────────────────────────────────────────────${NC}"
         echo ""
@@ -165,9 +168,9 @@ _edit_vmess() {
                fi ;;
             3) read -rp "  Harga VMess/30 hari [${TG_HARGA_VMESS_BULAN}]: " v; [[ "$v" =~ ^[0-9]+$ ]] && TG_HARGA_VMESS_BULAN="$v" ;;
             4) read -rp "  Bandwidth [${TG_BW_TOTAL:-Unlimited}]: " v; [[ -n "$v" ]] && TG_BW_TOTAL="$v" ;;
-            5) read -rp "  Limit IP [${TG_LIMIT_IP}]: " v; [[ "$v" =~ ^[0-9]+$ ]] && TG_LIMIT_IP="$v" ;;
-            6) read -rp "  Maks akun [${TG_MAX_AKUN}]: " v; [[ "$v" =~ ^[0-9]+$ ]] && TG_MAX_AKUN="$v" ;;
-            7) read -rp "  BW/hari GB [${TG_BW_PER_HARI}]: " v; [[ "$v" =~ ^[0-9]+$ ]] && TG_BW_PER_HARI="$v" ;;
+            5) read -rp "  Limit IP VMess [${TG_LIMIT_IP_VMESS}]: " v; [[ "$v" =~ ^[0-9]+$ ]] && TG_LIMIT_IP_VMESS="$v" ;;
+            6) read -rp "  Maks akun VMess [${TG_MAX_AKUN_VMESS}]: " v; [[ "$v" =~ ^[0-9]+$ ]] && TG_MAX_AKUN_VMESS="$v" ;;
+            7) read -rp "  BW/hari GB VMess [${TG_BW_PER_HARI_VMESS}]: " v; [[ "$v" =~ ^[0-9]+$ ]] && TG_BW_PER_HARI_VMESS="$v" ;;
             s|S) _save_tg "$name" ;;
             0) break ;;
             *) echo -e "  ${BRED}Tidak valid!${NC}"; sleep 1 ;;

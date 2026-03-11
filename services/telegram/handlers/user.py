@@ -248,7 +248,7 @@ async def cb_vs_trial(cb: CallbackQuery):
     if not ip: ip = local_ip()
     domain = sconf.get("DOMAIN") or ip
 
-    if count_vmess_accounts(ip) >= int(tg.get("TG_MAX_AKUN","500")):
+    if count_vmess_accounts(ip) >= int(tg.get("TG_MAX_AKUN_VMESS","500")):
         await cb.message.answer(
             f"❌ Server <b>{tg['TG_SERVER_LABEL']}</b> penuh.", parse_mode="HTML"
         ); return
@@ -305,7 +305,7 @@ async def cb_vs_buat(cb: CallbackQuery):
         await cb.answer("❌ Server tidak ditemukan"); return
     tg    = load_tg_server_conf(sname)
     ip_vs = sconf.get("IP", "")
-    if count_vmess_accounts(ip_vs) >= int(tg.get("TG_MAX_AKUN","500")):
+    if count_vmess_accounts(ip_vs) >= int(tg.get("TG_MAX_AKUN_VMESS","500")):
         await cb.answer("❌ Server penuh!"); return
     harga = int(tg.get("TG_HARGA_VMESS_HARI","0") or tg.get("TG_HARGA_HARI","0"))
     hh    = f"Rp{fmt(harga)}/hari" if harga > 0 else "Gratis"
@@ -356,7 +356,7 @@ async def cb_konfirm_vmess(cb: CallbackQuery):
     exp_date = datetime.fromtimestamp(exp_ts).strftime("%Y-%m-%d")
     exp_disp = ts_to_wib(exp_ts)
 
-    bw_per_hari = int(tg.get("TG_BW_PER_HARI","0") or "0")
+    bw_per_hari = int(tg.get("TG_BW_PER_HARI_VMESS","0") or "0")
     bw_limit    = bw_per_hari * days
 
     # Simpan conf di brain server (untuk tracking)
@@ -646,7 +646,7 @@ def _render_vmess_page(items: list, page: int, now_ts: int, uid: int) -> tuple[s
             ip_now_v = len(_od.get("ips", [])) if _od.get("ips") else (_od.get("online", 0))
         except Exception:
             ip_now_v = 0
-        vlimit = int(load_tg_server_conf(vsname).get("TG_LIMIT_IP", "2") if vsname else "2")
+        vlimit = int(load_tg_server_conf(vsname).get("TG_LIMIT_IP_VMESS", "2") if vsname else "2")
         vip_warn = " ⚠️ Penuh!" if ip_now_v >= vlimit else ""
         out += (
             f"\n⚡ <b>{vuname}</b> <i>({tipe})</i>\n"

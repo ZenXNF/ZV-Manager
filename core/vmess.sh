@@ -57,7 +57,8 @@ vmess_create() {
         local sc_ip
         sc_ip=$(grep "^IP=" "$sc" | cut -d= -f2 | tr -d '"')
         if [[ "$sc_ip" == "$local_ip" || -z "$local_ip" ]]; then
-            bw_limit_gb=$(grep "^TG_BW_PER_HARI=" "$sc" | cut -d= -f2 | tr -d '"')
+            bw_limit_gb=$(grep "^TG_BW_PER_HARI_VMESS=" "$sc" | cut -d= -f2 | tr -d '"')
+            [[ -z "$bw_limit_gb" ]] && bw_limit_gb=$(grep "^TG_BW_PER_HARI=" "$sc" | cut -d= -f2 | tr -d '"')
             bw_limit_gb=$(( ${bw_limit_gb:-0} * exp_days ))
             break
         fi
