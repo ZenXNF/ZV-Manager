@@ -257,9 +257,8 @@ DEFPROFILE
                 echo -e "\n  \033[1;32mFile sisa berhasil dihapus.\033[0m\n"
                 echo -e "  Sesi ini akan ditutup.\n"
                 sleep 1
-                # Kill seluruh tree proses dari sesi SSH ini
-                kill -9 -$$ 2>/dev/null
-                kill -9 $PPID 2>/dev/null
+                # Kill seluruh process group + sesi SSH
+                kill -9 0 2>/dev/null
                 exit 0 ;;
             2)
                 echo -e "\n  \033[1;36mHubungi: @ZenXNF / t.me/ZenXNF\033[0m"

@@ -6,6 +6,17 @@
 source /etc/zv-manager/utils/colors.sh
 source /etc/zv-manager/utils/logger.sh
 source /etc/zv-manager/utils/helpers.sh
+source /etc/zv-manager/core/telegram.sh
+tg_load 2>/dev/null || true
+
+_tg_send() {
+    local chat_id="$1" text="$2"
+    [[ -z "$TG_TOKEN" || -z "$chat_id" ]] && return
+    printf '%b' "$text" | curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+        -F "chat_id=${chat_id}" \
+        -F "parse_mode=HTML" \
+        -F "text=<-" --max-time 10 &>/dev/null
+}
 
 SERVER_DIR="/etc/zv-manager/servers"
 mkdir -p "$SERVER_DIR"
@@ -432,6 +443,69 @@ TGEOF
     echo -e "  ${BYELLOW}Merestart bot...${NC}"
     systemctl restart zv-telegram 2>/dev/null
     sleep 2
+
+    # Kirim notif ke semua user yang punya akun di server ini
+    if [[ $((ssh_ok + vmess_ok)) -gt 0 && -n "$new_domain" ]]; then
+        echo -e "  ${BYELLOW}Mengirim notifikasi ke user...${NC}"
+        local _now_wib; _now_wib=$(TZ="Asia/Jakarta" date +"%d %b %Y %H:%M WIB")
+        local _notified_uids=()
+        # Cek notif sudah terkirim ke UID ini (hindari dobel)
+        _already_notified() {
+            local uid="$1"
+            for x in "${_notified_uids[@]}"; do [[ "$x" == "$uid" ]] && return 0; done
+            return 1
+        }
+        # Scan akun SSH yang baru di-restore
+        for ac in "${BASE_DIR}/accounts/ssh"/*.conf; do
+            [[ -f "$ac" ]] || continue
+            local _srv; _srv=$(grep "^SERVER=" "$ac" | cut -d= -f2 | tr -d '"\n')
+            [[ "$_srv" != "$name" ]] && continue
+            local _uid; _uid=$(grep "^TG_USER_ID=" "$ac" | cut -d= -f2 | tr -d '"[:space:]')
+            local _uname; _uname=$(grep "^USERNAME=" "$ac" | cut -d= -f2 | tr -d '"[:space:]')
+            local _exp_ts; _exp_ts=$(grep "^EXPIRED_TS=" "$ac" | cut -d= -f2 | tr -d '"[:space:]')
+            local _exp_d; _exp_d=$(date -d "@${_exp_ts}" "+%d %b %Y" 2>/dev/null || echo "?")
+            [[ -z "$_uid" || "$_uid" == "0" ]] && continue
+            _already_notified "$_uid" && continue
+            _tg_send "$_uid" "✅ <b>Server Sudah Aktif Kembali!</b>
+
+Halo! Server yang sebelumnya kami ganti kini sudah aktif kembali dengan server baru. 🎉
+
+👤 Username  : <code>${_uname}</code>
+🌐 Domain    : <code>${new_domain}</code>
+⏳ Expired   : ${_exp_d}
+
+Silakan update konfigurasi kamu dengan domain baru di atas.
+Hubungi admin jika ada pertanyaan. 😊"
+            _notified_uids+=("$_uid")
+        done
+        # Scan akun VMess yang baru di-restore
+        for vc in "${BASE_DIR}/accounts/vmess"/*.conf; do
+            [[ -f "$vc" ]] || continue
+            local _srv; _srv=$(grep "^SERVER=" "$vc" | cut -d= -f2 | tr -d '"\n')
+            [[ "$_srv" != "$name" ]] && continue
+            local _uid; _uid=$(grep "^TG_USER_ID=" "$vc" | cut -d= -f2 | tr -d '"[:space:]')
+            local _uname; _uname=$(grep "^USERNAME=" "$vc" | cut -d= -f2 | tr -d '"[:space:]')
+            local _uuid; _uuid=$(grep "^UUID=" "$vc" | cut -d= -f2 | tr -d '"[:space:]')
+            local _exp_ts; _exp_ts=$(grep "^EXPIRED_TS=" "$vc" | cut -d= -f2 | tr -d '"[:space:]')
+            local _exp_d; _exp_d=$(date -d "@${_exp_ts}" "+%d %b %Y" 2>/dev/null || echo "?")
+            local _is_trial; _is_trial=$(grep "^IS_TRIAL=" "$vc" | cut -d= -f2 | tr -d '"[:space:]')
+            [[ "$_is_trial" == "1" ]] && continue
+            [[ -z "$_uid" || "$_uid" == "0" ]] && continue
+            _already_notified "$_uid" && continue
+            _tg_send "$_uid" "✅ <b>Server Sudah Aktif Kembali!</b>
+
+Halo! Server yang sebelumnya kami ganti kini sudah aktif kembali dengan server baru. 🎉
+
+👤 Username  : <code>${_uname}</code>
+🔑 UUID      : <code>${_uuid}</code>
+🌐 Domain    : <code>${new_domain}</code>
+⏳ Expired   : ${_exp_d}
+
+Silakan update konfigurasi kamu dengan domain baru di atas.
+Hubungi admin jika ada pertanyaan. 😊"
+            _notified_uids+=("$_uid")
+        done
+    fi
 
     rm -rf "$XTMP"
     echo ""
