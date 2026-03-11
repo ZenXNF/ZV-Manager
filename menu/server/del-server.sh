@@ -279,7 +279,8 @@ del_server() {
             echo ""
             ;;
         2)
-            read -rp "  ${BRED}Yakin hapus tanpa backup? (y/N): ${NC}" confirm
+            echo -en "  ${BRED}Yakin hapus tanpa backup? (y/N): ${NC}"
+            read -r confirm
             echo ""
             [[ "${confirm,,}" != "y" ]] && {
                 echo -e "  ${BYELLOW}Dibatalkan.${NC}"
