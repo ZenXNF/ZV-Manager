@@ -297,14 +297,7 @@ TGEOF
 
     local BACKUP_DIR="/var/backups/zv-manager"
     local srv_backups=()
-    while IFS= read -r f; do srv_backups+=("$f"); done < <(ls -t "$BACKUP_DIR"/zv-ssh-*.zvbak 2>/dev/null)
-
-    if [[ ${#srv_backups[@]} -eq 0 ]]; then
-        echo -e "  ${BYELLOW}(Tidak ada backup server tersimpan — lewati)${NC}"
-        echo ""
-        press_any_key
-        return
-    fi
+    while IFS= read -r f; do srv_backups+=("$f"); done < <(ls -t "$BACKUP_DIR"/zv-server-*.zvbak "$BACKUP_DIR"/zv-ssh-*.zvbak 2>/dev/null)
 
     read -rp "  Restore akun dari backup? [y/n]: " do_restore
     if [[ "$do_restore" != "y" && "$do_restore" != "Y" ]]; then
@@ -312,25 +305,39 @@ TGEOF
         return
     fi
 
+    local sel_backup=""
     echo ""
-    echo -e "  ${BWHITE}Pilih backup server:${NC}"
-    echo ""
-    local i=1
-    for f in "${srv_backups[@]}"; do
-        local nm sz
-        nm=$(basename "$f" | sed 's/zv-ssh-//;s/.zvbak//' | tr '_' ' ')
-        sz=$(stat -c%s "$f" 2>/dev/null || echo 0)
-        if   [[ $sz -ge 1048576 ]]; then sz=$(printf "%.1f MB" "$(echo "scale=1; $sz/1048576" | bc)")
-        elif [[ $sz -ge 1024    ]]; then sz=$(printf "%.1f KB" "$(echo "scale=1; $sz/1024" | bc)")
-        else sz="${sz} B"; fi
-        echo -e "  ${BGREEN}[${i}]${NC} ${nm} (${sz})"
-        i=$((i+1))
-    done
-    echo ""
-    read -rp "  Pilih nomor backup: " bnum
-    [[ ! "$bnum" =~ ^[0-9]+$ ]] && { press_any_key; return; }
-    local sel_backup="${srv_backups[$((bnum-1))]}"
-    [[ -z "$sel_backup" ]] && { press_any_key; return; }
+    if [[ ${#srv_backups[@]} -gt 0 ]]; then
+        echo -e "  ${BWHITE}Pilih backup server (atau ketik 0 untuk path manual):${NC}"
+        echo ""
+        local i=1
+        for f in "${srv_backups[@]}"; do
+            local nm sz
+            nm=$(basename "$f" | sed 's/zv-server-//;s/zv-ssh-//;s/.zvbak//' | tr '_' ' ')
+            sz=$(stat -c%s "$f" 2>/dev/null || echo 0)
+            if   [[ $sz -ge 1048576 ]]; then sz=$(printf "%.1f MB" "$(echo "scale=1; $sz/1048576" | bc)")
+            elif [[ $sz -ge 1024    ]]; then sz=$(printf "%.1f KB" "$(echo "scale=1; $sz/1024" | bc)")
+            else sz="${sz} B"; fi
+            echo -e "  ${BGREEN}[${i}]${NC} ${nm} (${sz})"
+            i=$((i+1))
+        done
+        echo -e "  ${BYELLOW}[0]${NC} Path manual"
+        echo ""
+        read -rp "  Pilih nomor backup: " bnum
+        if [[ "$bnum" == "0" ]]; then
+            read -rp "  Path file backup (.zvbak): " sel_backup
+        elif [[ "$bnum" =~ ^[0-9]+$ ]]; then
+            sel_backup="${srv_backups[$((bnum-1))]}"
+        fi
+    else
+        echo -e "  ${BYELLOW}Tidak ada backup tersimpan, masukkan path manual:${NC}"
+        read -rp "  Path file backup (.zvbak): " sel_backup
+    fi
+
+    [[ -z "$sel_backup" || ! -f "$sel_backup" ]] && {
+        print_error "File backup tidak ditemukan: $sel_backup"
+        press_any_key; return
+    }
 
     # Jalankan restore langsung (inline, tidak perlu buka menu)
     echo ""
@@ -341,6 +348,15 @@ TGEOF
     local XTMP="/tmp/zv-restore-add-$$"
     mkdir -p "$XTMP"
     tar -xzf "$sel_backup" -C "$XTMP" 2>/dev/null
+
+    # Handle subfolder srv-NAME/ jika ada (format baru del-server)
+    local _subdir
+    _subdir=$(find "$XTMP" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | head -1)
+    if [[ -n "$_subdir" && -d "${_subdir}/ssh-accounts" ]]; then
+        # Format baru: ada subfolder
+        local _XTMP_BASE="$XTMP"
+        XTMP="$_subdir"
+    fi
 
     source /etc/zv-manager/utils/remote.sh 2>/dev/null
 

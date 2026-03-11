@@ -234,7 +234,7 @@ NOTETXT
 # ── Bersihkan backup lama (> 7 hari) ───────────────────────
 cleanup_old() {
     find "$BACKUP_DIR" -name "zv-backup-*.zvbak" -mtime +7 -delete 2>/dev/null
-    find "$BACKUP_DIR" -name "zv-ssh-*.zvbak"    -mtime +7 -delete 2>/dev/null
+    find "$BACKUP_DIR" -name "zv-server-*.zvbak" -mtime +7 -delete 2>/dev/null
 }
 
 # ── Hapus file realtime setelah backup full selesai ─────────
@@ -310,7 +310,7 @@ for conf in "${BASE_DIR}/servers"/*.conf; do
     ssh_c=$(echo "$result" | cut -d'|' -f2)
     vmess_c=$(echo "$result" | cut -d'|' -f3)
 
-    SRV_FILE="${BACKUP_DIR}/zv-ssh-${sname}-${DATE}.zvbak"
+    SRV_FILE="${BACKUP_DIR}/zv-server-${sname}-${DATE}.zvbak"
     tar -czf "$SRV_FILE" -C "${TMP_DIR}/ssh-${sname}" . 2>/dev/null
     SRV_SIZE=$(_fmt_size "$SRV_FILE")
 

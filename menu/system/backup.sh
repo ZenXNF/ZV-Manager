@@ -44,11 +44,11 @@ backup_menu() {
 
         # Tampilkan backup server terakhir
         local last_srv
-        last_srv=$(ls -t "$BACKUP_DIR"/zv-ssh-*.zvbak 2>/dev/null | head -1)
+        last_srv=$(ls -t "$BACKUP_DIR"/zv-server-*.zvbak 2>/dev/null | head -1)
         if [[ -n "$last_srv" ]]; then
             local srv_size srv_date
             srv_size=$(_fmt_size "$last_srv")
-            srv_date=$(basename "$last_srv" | sed 's/zv-ssh-//;s/.zvbak//' | tr '_' ' ')
+            srv_date=$(basename "$last_srv" | sed 's/zv-server-//;s/.zvbak//' | tr '_' ' ')
             echo -e "  ${BWHITE}Backup server terakhir:${NC} ${BGREEN}${srv_date}${NC} (${srv_size})"
         fi
         echo ""
@@ -114,10 +114,10 @@ backup_menu() {
                 echo ""
                 echo -e "  ${BWHITE}── Backup Server Tunneling ──${NC}"
                 found=0
-                for f in $(ls -t "$BACKUP_DIR"/zv-ssh-*.zvbak 2>/dev/null); do
+                for f in $(ls -t "$BACKUP_DIR"/zv-server-*.zvbak 2>/dev/null); do
                     local sz nm
                     sz=$(_fmt_size "$f")
-                    nm=$(basename "$f" | sed 's/zv-ssh-//;s/.zvbak//' | tr '_' ' ')
+                    nm=$(basename "$f" | sed 's/zv-server-//;s/.zvbak//' | tr '_' ' ')
                     echo -e "  ${BGREEN}${nm}${NC} — ${sz}"
                     found=$((found+1))
                 done
@@ -183,7 +183,7 @@ backup_menu() {
 
                 # Pilih backup server
                 local srv_files=()
-                while IFS= read -r f; do srv_files+=("$f"); done < <(ls -t "$BACKUP_DIR"/zv-ssh-*.zvbak 2>/dev/null)
+                while IFS= read -r f; do srv_files+=("$f"); done < <(ls -t "$BACKUP_DIR"/zv-server-*.zvbak 2>/dev/null)
 
                 if [[ ${#srv_files[@]} -eq 0 ]]; then
                     echo -e "  ${BRED}Tidak ada backup server tunneling.${NC}"
@@ -197,7 +197,7 @@ backup_menu() {
                 local i=1
                 for f in "${srv_files[@]}"; do
                     local nm sz
-                    nm=$(basename "$f" | sed 's/zv-ssh-//;s/.zvbak//' | tr '_' ' ')
+                    nm=$(basename "$f" | sed 's/zv-server-//;s/.zvbak//' | tr '_' ' ')
                     sz=$(_fmt_size "$f")
                     echo -e "  ${BGREEN}[${i}]${NC} ${nm} (${sz})"
                     i=$((i+1))
@@ -392,7 +392,7 @@ backup_menu() {
                 while IFS= read -r f; do
                     rm -f "$f"
                     deleted=$((deleted+1))
-                done < <(find "$BACKUP_DIR" \( -name "zv-backup-*.zvbak" -o -name "zv-ssh-*.zvbak" \) -mtime +7)
+                done < <(find "$BACKUP_DIR" \( -name "zv-backup-*.zvbak" -o -name "zv-server-*.zvbak" \) -mtime +7)
                 echo -e "  ${BGREEN}✓ ${deleted} file backup lama dihapus.${NC}"
                 echo ""
                 press_any_key

@@ -94,10 +94,10 @@ VMess   : ${vmess_count} akun
 Backup ini dibuat otomatis sebelum server dihapus dari ZV-Manager.
 NOTETXT
 
-    # Compress
+    # Compress (struktur sama dengan cron/backup.sh agar kompatibel dengan restore)
     mkdir -p "$BACKUP_DIR"
-    local OUT_FILE="${BACKUP_DIR}/zv-ssh-${sname}-${DATE}.zvbak"
-    tar -czf "$OUT_FILE" -C "$TMP_DIR" "srv-${sname}" 2>/dev/null
+    local OUT_FILE="${BACKUP_DIR}/zv-server-${sname}-${DATE}.zvbak"
+    tar -czf "$OUT_FILE" -C "${dst}" . 2>/dev/null
     rm -rf "$TMP_DIR"
 
     local SIZE; SIZE=$(_fmt_size "$OUT_FILE")
