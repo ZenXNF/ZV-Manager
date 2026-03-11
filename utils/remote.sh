@@ -36,8 +36,7 @@ target_display() {
     else
         local conf="${SERVER_DIR}/${t}.conf"
         if [[ -f "$conf" ]]; then
-            unset NAME IP
-            source "$conf"
+            _load_server_conf "$conf"
             echo "${NAME} (${IP})"
         else
             echo "$t"
@@ -54,6 +53,19 @@ _ensure_sshpass() {
 }
 
 _ssh_opts="-q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -o BatchMode=no -o LogLevel=ERROR"
+
+# Load server conf + fallback IP/PORT untuk menghindari error saat IP kosong
+_load_server_conf() {
+    local conf="$1"
+    unset IP PORT USER PASS NAME AUTH_TYPE SSH_KEY_PATH
+    source "$conf"
+    if [[ -z "$IP" ]]; then
+        IP=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null | tr -d "[:space:]")
+    fi
+    [[ -z "$PORT" ]] && PORT=22
+    [[ -z "$USER" ]] && USER=root
+}
+
 
 # Eksekusi perintah arbitrary di server tujuan
 # remote_exec <server_name> <command_string>
@@ -72,8 +84,7 @@ remote_exec() {
     local conf="${SERVER_DIR}/${name}.conf"
     [[ ! -f "$conf" ]] && { echo "REMOTE-ERR|Server '$name' tidak ditemukan"; return 1; }
 
-    unset IP PORT USER PASS
-    source "$conf"
+    _load_server_conf "$conf"
 
     _ensure_sshpass
 
@@ -97,8 +108,7 @@ remote_agent() {
     local conf="${SERVER_DIR}/${name}.conf"
     [[ ! -f "$conf" ]] && { echo "REMOTE-ERR|Server '$name' tidak ditemukan"; return 1; }
 
-    unset IP PORT USER PASS
-    source "$conf"
+    _load_server_conf "$conf"
 
     _ensure_sshpass
 
@@ -128,8 +138,7 @@ deploy_agent() {
     local agent_src="/etc/zv-manager/zv-agent.sh"
     [[ ! -f "$agent_src" ]] && { echo "DEPLOY-ERR|File zv-agent.sh tidak ada di server ini"; return 1; }
 
-    unset IP PORT USER PASS NAME
-    source "$conf"
+    _load_server_conf "$conf"
 
     _ensure_sshpass
 
@@ -217,8 +226,7 @@ remote_vmess_agent() {
     fi
     local conf="${SERVER_DIR}/${name}.conf"
     [[ ! -f "$conf" ]] && { echo "REMOTE-ERR|Server '$name' tidak ditemukan"; return 1; }
-    unset IP PORT USER PASS
-    source "$conf"
+    _load_server_conf "$conf"
     _ensure_sshpass
     local result
     result=$(sshpass -p "$PASS" ssh $_ssh_opts -p "$PORT" "${USER}@${IP}" \
@@ -239,8 +247,7 @@ deploy_vmess_agent() {
     [[ ! -f "$conf" ]] && { echo "DEPLOY-ERR|Server '$name' tidak ditemukan"; return 1; }
     local agent_src="/etc/zv-manager/zv-vmess-agent.sh"
     [[ ! -f "$agent_src" ]] && { echo "DEPLOY-ERR|File zv-vmess-agent.sh tidak ada"; return 1; }
-    unset IP PORT USER PASS NAME
-    source "$conf"
+    _load_server_conf "$conf"
     _ensure_sshpass
     sshpass -p "$PASS" ssh $_ssh_opts -p "$PORT" "${USER}@${IP}" \
         "mkdir -p /etc/zv-manager/accounts/vmess" 2>&1

@@ -48,8 +48,8 @@ connect_server() {
         return
     fi
 
-    unset NAME IP DOMAIN PORT USER PASS
-    source "$chosen_conf"
+    source /etc/zv-manager/utils/remote.sh 2>/dev/null
+    _load_server_conf "$chosen_conf"
     local disp_domain="${DOMAIN:-$IP}"
 
     # Deteksi apakah server yang dipilih adalah VPS ini sendiri
