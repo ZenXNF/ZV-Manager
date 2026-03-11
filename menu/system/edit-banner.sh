@@ -10,18 +10,17 @@ source /etc/zv-manager/core/banner.sh
 
 BANNER_CONF="/etc/zv-manager/banner.conf"
 
-# Pastikan banner.conf ada
 _init_banner_conf
 
 _load_conf() {
-    unset BANNER_TITLE BANNER_SUBTITLE BANNER_WARN BANNER_THEME
+    unset BANNER_WELCOME BANNER_SUBTITLE BANNER_WARN BANNER_THEME BANNER_WA BANNER_TG
     unset BANNER_RULE_1 BANNER_RULE_2 BANNER_RULE_3 BANNER_RULE_4 BANNER_RULE_5
     source "$BANNER_CONF"
 }
 
 _save_conf() {
     cat > "$BANNER_CONF" <<EOF
-BANNER_TITLE="${BANNER_TITLE}"
+BANNER_WELCOME="${BANNER_WELCOME}"
 BANNER_SUBTITLE="${BANNER_SUBTITLE}"
 BANNER_RULE_1="${BANNER_RULE_1}"
 BANNER_RULE_2="${BANNER_RULE_2}"
@@ -29,6 +28,8 @@ BANNER_RULE_3="${BANNER_RULE_3}"
 BANNER_RULE_4="${BANNER_RULE_4}"
 BANNER_RULE_5="${BANNER_RULE_5}"
 BANNER_WARN="${BANNER_WARN}"
+BANNER_WA="${BANNER_WA}"
+BANNER_TG="${BANNER_TG}"
 BANNER_THEME="${BANNER_THEME}"
 EOF
 }
@@ -40,7 +41,6 @@ _apply_banner() {
     sleep 1
 }
 
-# ---- Preview di terminal ----
 _preview_banner() {
     _load_conf
     clear
@@ -48,81 +48,71 @@ _preview_banner() {
     echo -e " │              ${BWHITE}PREVIEW BANNER${NC}                  │"
     echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
     echo ""
-    echo -e "  ${BYELLOW}(Preview di terminal, warna mungkin berbeda di NetMod)${NC}"
+    echo -e "  ${BYELLOW}(Preview terminal — warna mungkin beda di HTTP Custom)${NC}"
     echo ""
-
-    # Tampilkan preview pakai warna terminal
-    _get_theme_colors "${BANNER_THEME:-magenta}"
 
     local rules=()
     for r in "$BANNER_RULE_1" "$BANNER_RULE_2" "$BANNER_RULE_3" "$BANNER_RULE_4" "$BANNER_RULE_5"; do
         [[ -n "$r" ]] && rules+=("$r")
     done
 
-    # Konversi hex → ANSI terdekat untuk preview
-    echo -e "  ${BPURPLE}▬▬▬ஜ۩۞۩ஜ▬▬▬${NC}"
-    echo -e "  ${BYELLOW}--- ${BANNER_TITLE} ---${NC}"
-    echo -e "  ${BPURPLE}▬▬▬ஜ۩۞۩ஜ▬▬▬${NC}"
-    echo -e "  ${BWHITE}${BANNER_SUBTITLE}${NC}"
+    echo -e "            ${BYELLOW}${BANNER_WELCOME}${NC}"
+    echo -e "          ${BPURPLE}▬▬▬ஜ۩۞۩ஜ▬▬▬${NC}"
+    echo -e "            ${BWHITE}${BANNER_SUBTITLE}${NC}"
     for rule in "${rules[@]}"; do
-        echo -e "  ${BCYAN}✗  ${rule}${NC}"
+        echo -e "            ${BCYAN}✗  ${rule}${NC}"
     done
-    [[ -n "$BANNER_WARN" ]] && echo -e "  ${BRED}✔  ${BANNER_WARN}${NC}"
-    echo -e "  ${BPURPLE}▬▬▬ஜ۩۞۩ஜ▬▬▬${NC}"
+    [[ -n "$BANNER_WARN" ]] && echo -e "            ${BRED}✔  ${BANNER_WARN}${NC}"
+    echo -e "          ${BPURPLE}▬▬▬ஜ۩۞۩ஜ▬▬▬${NC}"
+    [[ -n "$BANNER_WA" ]] && echo -e "            ${BGREEN}📱 WA: ${BANNER_WA}${NC}"
+    [[ -n "$BANNER_TG" ]] && echo -e "            ${BGREEN}✈️  TG: t.me/${BANNER_TG}${NC}"
     echo ""
     echo -e "  ${BYELLOW}Tema: ${BANNER_THEME}${NC}"
     echo ""
     press_any_key
 }
 
-# ---- Edit judul ----
-_edit_title() {
+_edit_welcome() {
     _load_conf
     clear
     echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-    echo -e " │              ${BWHITE}EDIT JUDUL BANNER${NC}               │"
+    echo -e " │            ${BWHITE}EDIT TEKS WELCOME${NC}                 │"
     echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
     echo ""
-    echo -e "  ${BWHITE}Judul sekarang :${NC} ${BYELLOW}${BANNER_TITLE}${NC}"
+    echo -e "  ${BWHITE}Sekarang :${NC} ${BYELLOW}${BANNER_WELCOME}${NC}"
     echo ""
-    read -rp "  Judul baru (Enter = skip): " new_val
+    read -rp "  Teks baru (Enter = skip): " new_val
     [[ -z "$new_val" ]] && return
-
-    BANNER_TITLE="$new_val"
+    BANNER_WELCOME="$new_val"
     _save_conf
-    print_ok "Judul diubah!"
+    print_ok "Teks welcome diubah!"
     sleep 1
 }
 
-# ---- Edit subtitle ----
 _edit_subtitle() {
     _load_conf
     clear
     echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-    echo -e " │            ${BWHITE}EDIT SUBTITLE BANNER${NC}               │"
+    echo -e " │           ${BWHITE}EDIT HEADER TERMS & CONDITIONS${NC}     │"
     echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
     echo ""
-    echo -e "  ${BWHITE}Subtitle sekarang :${NC} ${BYELLOW}${BANNER_SUBTITLE}${NC}"
+    echo -e "  ${BWHITE}Sekarang :${NC} ${BYELLOW}${BANNER_SUBTITLE}${NC}"
     echo ""
-    read -rp "  Subtitle baru (Enter = skip): " new_val
+    read -rp "  Teks baru (Enter = skip): " new_val
     [[ -z "$new_val" ]] && return
-
     BANNER_SUBTITLE="$new_val"
     _save_conf
-    print_ok "Subtitle diubah!"
+    print_ok "Header T&C diubah!"
     sleep 1
 }
 
-# ---- Edit rules ----
 _edit_rules() {
     _load_conf
     while true; do
         clear
         echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-        echo -e " │              ${BWHITE}EDIT RULES BANNER${NC}               │"
+        echo -e " │              ${BWHITE}EDIT RULES LARANGAN${NC}             │"
         echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
-        echo ""
-        echo -e "  ${BWHITE}Rules sekarang:${NC}"
         echo ""
         local i=1
         for r in "$BANNER_RULE_1" "$BANNER_RULE_2" "$BANNER_RULE_3" "$BANNER_RULE_4" "$BANNER_RULE_5"; do
@@ -134,8 +124,7 @@ _edit_rules() {
             i=$((i+1))
         done
         echo ""
-        echo -e "  ${BYELLOW}Pilih [1-5] untuk edit rule${NC}"
-        echo -e "  ${BRED}[0]${NC} Kembali"
+        echo -e "  ${BYELLOW}[1-5]${NC} Edit rule   ${BRED}[0]${NC} Kembali"
         echo ""
         read -rp "  Pilihan: " choice
 
@@ -145,11 +134,10 @@ _edit_rules() {
         local current
         eval "current=\$BANNER_RULE_${choice}"
         echo ""
-        echo -e "  ${BWHITE}Rule $choice sekarang :${NC} ${BYELLOW}${current}${NC}"
+        echo -e "  ${BWHITE}Rule $choice :${NC} ${BYELLOW}${current:-kosong}${NC}"
         echo -e "  ${BYELLOW}(Kosongkan untuk hapus rule ini)${NC}"
         echo ""
         read -rp "  Isi baru: " new_val
-
         eval "BANNER_RULE_${choice}=\"${new_val}\""
         _save_conf
         print_ok "Rule $choice diubah!"
@@ -157,26 +145,81 @@ _edit_rules() {
     done
 }
 
-# ---- Edit warning/punishment ----
 _edit_warn() {
     _load_conf
     clear
     echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-    echo -e " │           ${BWHITE}EDIT PERINGATAN BANNER${NC}              │"
+    echo -e " │           ${BWHITE}EDIT PERINGATAN (PUNISHMENT)${NC}        │"
     echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
     echo ""
-    echo -e "  ${BWHITE}Peringatan sekarang :${NC} ${BYELLOW}${BANNER_WARN}${NC}"
+    echo -e "  ${BWHITE}Sekarang :${NC} ${BYELLOW}${BANNER_WARN}${NC}"
     echo ""
     read -rp "  Peringatan baru (Enter = skip): " new_val
     [[ -z "$new_val" ]] && return
-
     BANNER_WARN="$new_val"
     _save_conf
     print_ok "Peringatan diubah!"
     sleep 1
 }
 
-# ---- Ganti tema ----
+_edit_promo() {
+    _load_conf
+    while true; do
+        clear
+        echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
+        echo -e " │            ${BWHITE}EDIT KONTAK PROMOSI${NC}               │"
+        echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+        echo ""
+        if [[ -n "$BANNER_WA" ]]; then
+            echo -e "  ${BWHITE}WhatsApp :${NC} ${BGREEN}📱 WA: ${BANNER_WA}${NC}"
+        else
+            echo -e "  ${BWHITE}WhatsApp :${NC} ${BYELLOW}(tidak ditampilkan)${NC}"
+        fi
+        if [[ -n "$BANNER_TG" ]]; then
+            echo -e "  ${BWHITE}Telegram :${NC} ${BGREEN}✈️  TG: t.me/${BANNER_TG}${NC}"
+        else
+            echo -e "  ${BWHITE}Telegram :${NC} ${BYELLOW}(tidak ditampilkan)${NC}"
+        fi
+        echo ""
+        echo -e "  ${BGREEN}[1]${NC} Edit WhatsApp"
+        echo -e "  ${BGREEN}[2]${NC} Edit Telegram"
+        echo -e "  ${BRED}[0]${NC} Kembali"
+        echo ""
+        read -rp "  Pilihan: " choice
+
+        case "$choice" in
+            1)
+                echo ""
+                echo -e "  ${BYELLOW}Masukkan nomor WA (contoh: 6281234567890)${NC}"
+                echo -e "  ${BYELLOW}Kosongkan + Enter untuk hapus${NC}"
+                echo ""
+                read -rp "  Nomor WA: " new_val
+                BANNER_WA="$new_val"
+                _save_conf
+                print_ok "WhatsApp diubah!"
+                sleep 1
+                ;;
+            2)
+                echo ""
+                echo -e "  ${BYELLOW}Masukkan username Telegram (tanpa t.me/)${NC}"
+                echo -e "  ${BYELLOW}Contoh: zenxnf → akan tampil sebagai t.me/zenxnf${NC}"
+                echo -e "  ${BYELLOW}Kosongkan + Enter untuk hapus${NC}"
+                echo ""
+                read -rp "  Username TG: " new_val
+                # Strip t.me/ kalau user iseng masukin lengkap
+                new_val="${new_val#t.me/}"
+                new_val="${new_val#https://t.me/}"
+                BANNER_TG="$new_val"
+                _save_conf
+                print_ok "Telegram diubah!"
+                sleep 1
+                ;;
+            0) break ;;
+            *) ;;
+        esac
+    done
+}
+
 _edit_theme() {
     _load_conf
     clear
@@ -209,7 +252,6 @@ _edit_theme() {
     sleep 1
 }
 
-# ---- Reset ke default ----
 _reset_default() {
     if confirm "Reset banner ke tampilan default?"; then
         rm -f "$BANNER_CONF"
@@ -219,7 +261,6 @@ _reset_default() {
     fi
 }
 
-# ---- Main menu ----
 edit_banner_menu() {
     while true; do
         _load_conf
@@ -228,18 +269,21 @@ edit_banner_menu() {
         echo -e " │            ${BWHITE}EDIT SERVER BANNER${NC}                │"
         echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
         echo ""
-        echo -e "  ${BWHITE}Judul    :${NC} ${BYELLOW}${BANNER_TITLE}${NC}"
-        echo -e "  ${BWHITE}Subtitle :${NC} ${BYELLOW}${BANNER_SUBTITLE}${NC}"
+        echo -e "  ${BWHITE}Welcome  :${NC} ${BYELLOW}${BANNER_WELCOME}${NC}"
+        echo -e "  ${BWHITE}T&C      :${NC} ${BYELLOW}${BANNER_SUBTITLE}${NC}"
+        echo -e "  ${BWHITE}WA       :${NC} ${BGREEN}${BANNER_WA:-(tidak diset)}${NC}"
+        echo -e "  ${BWHITE}Telegram :${NC} ${BGREEN}${BANNER_TG:-(tidak diset)}${NC}"
         echo -e "  ${BWHITE}Tema     :${NC} ${BYELLOW}${BANNER_THEME}${NC}"
         echo ""
         echo -e "${BCYAN}  ──────────────────────────────────────────────${NC}"
         echo ""
-        echo -e "  ${BGREEN}[1]${NC} Edit Judul"
-        echo -e "  ${BGREEN}[2]${NC} Edit Subtitle"
-        echo -e "  ${BGREEN}[3]${NC} Edit Rules"
+        echo -e "  ${BGREEN}[1]${NC} Edit Teks Welcome"
+        echo -e "  ${BGREEN}[2]${NC} Edit Header Terms & Conditions"
+        echo -e "  ${BGREEN}[3]${NC} Edit Rules Larangan"
         echo -e "  ${BGREEN}[4]${NC} Edit Peringatan"
-        echo -e "  ${BGREEN}[5]${NC} Ganti Tema Warna"
-        echo -e "  ${BGREEN}[6]${NC} Preview Banner"
+        echo -e "  ${BGREEN}[5]${NC} Edit Kontak Promosi (WA / Telegram)"
+        echo -e "  ${BGREEN}[6]${NC} Ganti Tema Warna"
+        echo -e "  ${BGREEN}[7]${NC} Preview Banner"
         echo -e "  ${BYELLOW}[a]${NC} Apply ke Server"
         echo -e "  ${BWHITE}[r]${NC} Reset Default"
         echo ""
@@ -248,12 +292,13 @@ edit_banner_menu() {
         read -rp "  Pilihan: " choice
 
         case "$choice" in
-            1) _edit_title    ;;
+            1) _edit_welcome  ;;
             2) _edit_subtitle ;;
             3) _edit_rules    ;;
             4) _edit_warn     ;;
-            5) _edit_theme    ;;
-            6) _preview_banner ;;
+            5) _edit_promo    ;;
+            6) _edit_theme    ;;
+            7) _preview_banner ;;
             a|A) _apply_banner ;;
             r|R) _reset_default ;;
             0) break ;;
