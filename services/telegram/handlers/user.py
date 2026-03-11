@@ -525,7 +525,7 @@ def _status_label(exp_ts_raw: str, now_ts: int):
         if sisa <= 0:
             return disp, "❌ Expired", "Sudah habis"
         elif sisa < 3600:
-            return disp, "⚠️ Aktif", "< 1 jam lagi"
+            return disp, "⚠️ Aktif", "&lt; 1 jam lagi"
         elif sisa < 86400:
             return disp, "⚠️ Aktif", f"{sisa//3600} jam lagi"
         else:
