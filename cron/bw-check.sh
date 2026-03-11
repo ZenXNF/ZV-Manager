@@ -33,8 +33,11 @@ for conf_file in "$ACCOUNT_DIR"/*.conf; do
     user=$(grep "^USERNAME=" "$conf_file" | cut -d= -f2 | tr -d '[:space:]')
     quota=$(grep "^BW_QUOTA_BYTES=" "$conf_file" | cut -d= -f2 | tr -d '[:space:]')
     tg_uid=$(grep "^TG_USER_ID=" "$conf_file" | cut -d= -f2 | tr -d '[:space:]')
+    exp_ts=$(grep "^EXPIRED_TS=" "$conf_file" | cut -d= -f2 | tr -d '[:space:]')
 
     [[ -z "$user" || "${quota:-0}" == "0" ]] && continue
+    # Skip akun expired
+    [[ -n "$exp_ts" && "$exp_ts" =~ ^[0-9]+$ && "$exp_ts" -lt "$(date +%s)" ]] && continue
 
     # ── Hitung sesi aktif via proses sshd per user ────────────
     # Format: "sshd: USERNAME" di ps — lebih akurat dari auth.log+ss

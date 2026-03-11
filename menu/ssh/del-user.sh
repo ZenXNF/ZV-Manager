@@ -56,6 +56,9 @@ del_ssh_user() {
         result=$(remote_agent "$target" "del" "$username")
 
         if [[ "$result" == DEL-OK* ]]; then
+            rm -f "/etc/zv-manager/accounts/ssh/${username}.conf"
+            rm -f "/etc/zv-manager/accounts/notified/${username}.notified"
+            rm -f "/etc/zv-manager/accounts/notified/${username}.bw_warn"
             print_ok "User '$username' berhasil dihapus dari ${target_info}"
         elif [[ "$result" == DEL-ERR* ]]; then
             print_error "Gagal: ${result#DEL-ERR|}"

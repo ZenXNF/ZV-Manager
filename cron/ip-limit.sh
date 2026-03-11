@@ -140,6 +140,7 @@ _main() {
     local user_ips_json
     user_ips_json=$(_get_user_ips)
 
+    local _now_ts; _now_ts=$(date +%s)
     for conf in "${VMESS_DIR}"/*.conf; do
         [[ -f "$conf" ]] || continue
 
@@ -148,6 +149,10 @@ _main() {
         uuid=$(grep "^UUID=" "$conf" | cut -d= -f2 | tr -d '"')
         tg_uid=$(grep "^TG_USER_ID=" "$conf" | cut -d= -f2 | tr -d '"')
         [[ -z "$username" || -z "$uuid" ]] && continue
+
+        # Skip akun expired
+        local _exp_ts; _exp_ts=$(grep "^EXPIRED_TS=" "$conf" | cut -d= -f2 | tr -d '"' | tr -d '[:space:]')
+        [[ -n "$_exp_ts" && "$_exp_ts" =~ ^[0-9]+$ && "$_exp_ts" -lt "$_now_ts" ]] && continue
 
         # Cek cooldown kick
         local kick_flag="${KICK_STATE}/${username}.kick"
