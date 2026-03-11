@@ -6,7 +6,6 @@
 
 BANNER_CONF="/etc/zv-manager/banner.conf"
 
-# Default config kalau belum ada
 _init_banner_conf() {
     [[ -f "$BANNER_CONF" ]] && return
     cat > "$BANNER_CONF" <<'CONFEOF'
@@ -24,54 +23,17 @@ BANNER_THEME="magenta"
 CONFEOF
 }
 
-# Ambil warna berdasarkan tema
 _get_theme_colors() {
     local theme="$1"
     case "$theme" in
-        magenta)
-            CLR_GARIS="#ff4081"
-            CLR_WELCOME="#ffd600"
-            CLR_SUBTITLE="#ffffff"
-            CLR_RULES="#00e5ff"
-            CLR_WARN="#ff1744"
-            CLR_PROMO="#69ff47"
-            ;;
-        cyan)
-            CLR_GARIS="#00e5ff"
-            CLR_WELCOME="#ffd600"
-            CLR_SUBTITLE="#ffffff"
-            CLR_RULES="#69ff47"
-            CLR_WARN="#ff1744"
-            CLR_PROMO="#ffd600"
-            ;;
-        orange)
-            CLR_GARIS="#ff6d00"
-            CLR_WELCOME="#ffffff"
-            CLR_SUBTITLE="#ffd600"
-            CLR_RULES="#00e5ff"
-            CLR_WARN="#ff4081"
-            CLR_PROMO="#69ff47"
-            ;;
-        green)
-            CLR_GARIS="#69ff47"
-            CLR_WELCOME="#ffd600"
-            CLR_SUBTITLE="#ffffff"
-            CLR_RULES="#00e5ff"
-            CLR_WARN="#ff1744"
-            CLR_PROMO="#ffd600"
-            ;;
-        *)
-            CLR_GARIS="#ff4081"
-            CLR_WELCOME="#ffd600"
-            CLR_SUBTITLE="#ffffff"
-            CLR_RULES="#00e5ff"
-            CLR_WARN="#ff1744"
-            CLR_PROMO="#69ff47"
-            ;;
+        magenta) CLR_GARIS="#ff4081"; CLR_WELCOME="#ffd600"; CLR_SUBTITLE="#ffffff"; CLR_RULES="#00e5ff"; CLR_WARN="#ff1744"; CLR_PROMO="#69ff47" ;;
+        cyan)    CLR_GARIS="#00e5ff"; CLR_WELCOME="#ffd600"; CLR_SUBTITLE="#ffffff"; CLR_RULES="#69ff47"; CLR_WARN="#ff1744"; CLR_PROMO="#ffd600" ;;
+        orange)  CLR_GARIS="#ff6d00"; CLR_WELCOME="#ffffff"; CLR_SUBTITLE="#ffd600"; CLR_RULES="#00e5ff"; CLR_WARN="#ff4081"; CLR_PROMO="#69ff47" ;;
+        green)   CLR_GARIS="#69ff47"; CLR_WELCOME="#ffd600"; CLR_SUBTITLE="#ffffff"; CLR_RULES="#00e5ff"; CLR_WARN="#ff1744"; CLR_PROMO="#ffd600" ;;
+        *)       CLR_GARIS="#ff4081"; CLR_WELCOME="#ffd600"; CLR_SUBTITLE="#ffffff"; CLR_RULES="#00e5ff"; CLR_WARN="#ff1744"; CLR_PROMO="#69ff47" ;;
     esac
 }
 
-# Generate /etc/issue.net dari config
 generate_banner() {
     _init_banner_conf
 
@@ -87,22 +49,18 @@ generate_banner() {
     done
 
     {
-        echo "<center>"
-        echo "<font color=\"${CLR_WELCOME}\"><b>${BANNER_WELCOME:-Selamat Datang!}</b></font><br>"
-        echo "<font color=\"${CLR_GARIS}\">&#9644;&#9644;&#9644;&#9001;&#11835;&#9002;&#9644;&#9644;&#9644;</font><br>"
+        echo "<font color=\"${CLR_WELCOME}\"><b>✦ ${BANNER_WELCOME:-Selamat Datang!} ✦</b></font><br>"
+        echo "<font color=\"${CLR_GARIS}\">▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬</font><br>"
         echo "<font color=\"${CLR_SUBTITLE}\"><b>${BANNER_SUBTITLE}</b></font><br>"
         for rule in "${rules[@]}"; do
-            echo "<font color=\"${CLR_RULES}\">&#10007;  ${rule}</font><br>"
+            echo "<font color=\"${CLR_RULES}\">  ✗  ${rule}</font><br>"
         done
         [[ -n "$BANNER_WARN" ]] && \
-        echo "<font color=\"${CLR_WARN}\">&#10003;  ${BANNER_WARN}</font><br>"
-        echo "<font color=\"${CLR_GARIS}\">&#9644;&#9644;&#9644;&#9001;&#11835;&#9002;&#9644;&#9644;&#9644;</font><br>"
-        if [[ -n "$BANNER_WA" ]]; then
-            echo "<font color=\"${CLR_PROMO}\">&#128241; WA: ${BANNER_WA}</font><br>"
-        fi
-        if [[ -n "$BANNER_TG" ]]; then
-            echo "<font color=\"${CLR_PROMO}\">&#9992;  TG: t.me/${BANNER_TG}</font><br>"
-        fi
-        echo "</center>"
+        echo "<font color=\"${CLR_WARN}\">  ✔  ${BANNER_WARN}</font><br>"
+        echo "<font color=\"${CLR_GARIS}\">▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬</font><br>"
+        [[ -n "$BANNER_WA" ]] && \
+        echo "<font color=\"${CLR_PROMO}\">  📱 WA: ${BANNER_WA}</font><br>"
+        [[ -n "$BANNER_TG" ]] && \
+        echo "<font color=\"${CLR_PROMO}\">  ✈  TG: t.me/${BANNER_TG}</font><br>"
     } > /etc/issue.net
 }
