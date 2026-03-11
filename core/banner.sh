@@ -2,6 +2,8 @@
 # ============================================================
 #   ZV-Manager - Banner Generator
 #   Generate /etc/issue.net dari banner.conf
+#   NOTE: HTTP Custom auto-center semua teks banner di level
+#         app-nya — tidak perlu padding manual sama sekali.
 # ============================================================
 
 BANNER_CONF="/etc/zv-manager/banner.conf"
@@ -34,41 +36,6 @@ _get_theme_colors() {
     esac
 }
 
-# ── Hitung lebar visual teks ───────────────────────────────
-# Emoji & unicode special char dihitung 2x karena
-# Html.fromHtml() Android render mereka lebih lebar
-_visual_len() {
-    local text="$1" len=0 i char code
-    for (( i=0; i<${#text}; i++ )); do
-        char="${text:$i:1}"
-        code=$(printf '%d' "'$char" 2>/dev/null || echo 0)
-        (( code > 8000 )) && len=$(( len + 2 )) || len=$(( len + 1 ))
-    done
-    echo "$len"
-}
-
-# ── Center teks pakai &#160; (non-breaking space HTML) ────
-# &#160; tidak di-collapse oleh Html.fromHtml() Android
-# sehingga padding kiri tetap terjaga → efek center
-_center() {
-    local text="$1"
-    local width="${BANNER_WIDTH:-22}"
-    local vlen; vlen=$(_visual_len "$text")
-    local pad=$(( (width - vlen) / 2 ))
-    [[ $pad -lt 0 ]] && pad=0
-    local spaces=""
-    for (( i=0; i<pad; i++ )); do spaces+="&#160;"; done
-    echo "${spaces}${text}"
-}
-
-# ── Baris garis tipis (─) sepanjang BANNER_WIDTH ──────────
-_garis() {
-    local w="${BANNER_WIDTH:-22}"
-    local g=""
-    for (( i=0; i<w; i++ )); do g+="─"; done
-    echo "$g"
-}
-
 generate_banner() {
     _init_banner_conf
 
@@ -78,36 +45,27 @@ generate_banner() {
 
     _get_theme_colors "${BANNER_THEME:-magenta}"
 
-    # Lebar 22 = proporsional untuk layar HP rata-rata
-    # Teks > 22 char: pad=0 (tetap rapi, tanpa overflow)
-    BANNER_WIDTH=22
-
     local rules=()
     for r in "$BANNER_RULE_1" "$BANNER_RULE_2" "$BANNER_RULE_3" "$BANNER_RULE_4" "$BANNER_RULE_5"; do
         [[ -n "$r" ]] && rules+=("$r")
     done
 
-    local garis; garis=$(_garis)
-
     {
-        echo "<font color=\"${CLR_GARIS}\">$(_center "$garis")</font><br>"
-        echo "<font color=\"${CLR_WELCOME}\"><b>$(_center "✦ ${BANNER_WELCOME:-Selamat Datang!} ✦")</b></font><br>"
-        echo "<font color=\"${CLR_GARIS}\">$(_center "$garis")</font><br>"
+        echo "<font color=\"${CLR_GARIS}\">▬▬▬ஜ۩۞۩ஜ▬▬▬</font><br>"
+        echo "<font color=\"${CLR_WELCOME}\"><b>✦ ${BANNER_WELCOME:-Selamat Datang!} ✦</b></font><br>"
         [[ -n "$BANNER_SUBTITLE" ]] && \
-        echo "<font color=\"${CLR_SUBTITLE}\"><b>$(_center "${BANNER_SUBTITLE}")</b></font><br>"
-        echo "<font color=\"${CLR_GARIS}\">$(_center "$garis")</font><br>"
+        echo "<font color=\"${CLR_SUBTITLE}\"><b>! ${BANNER_SUBTITLE} !</b></font><br>"
         for rule in "${rules[@]}"; do
-            echo "<font color=\"${CLR_RULES}\">$(_center "✗ ${rule}")</font><br>"
+            echo "<font color=\"${CLR_RULES}\"><b>${rule}</b></font><br>"
         done
-        echo "<font color=\"${CLR_GARIS}\">$(_center "$garis")</font><br>"
         [[ -n "$BANNER_WARN" ]] && \
-        echo "<font color=\"${CLR_WARN}\"><b>$(_center "⚠ ${BANNER_WARN}")</b></font><br>"
-        echo "<font color=\"${CLR_GARIS}\">$(_center "$garis")</font><br>"
+        echo "<font color=\"${CLR_WARN}\"><b>${BANNER_WARN}</b></font><br>"
+        echo "<font color=\"${CLR_GARIS}\">▬▬▬ஜ۩۞۩ஜ▬▬▬</font><br>"
         [[ -n "$BANNER_WA" ]] && \
-        echo "<font color=\"${CLR_PROMO}\">$(_center "📱 WA: ${BANNER_WA}")</font><br>"
+        echo "<font color=\"${CLR_PROMO}\">📱 WA: ${BANNER_WA}</font><br>"
         [[ -n "$BANNER_TG" ]] && \
-        echo "<font color=\"${CLR_PROMO}\">$(_center "✈ TG: t.me/${BANNER_TG}")</font><br>"
+        echo "<font color=\"${CLR_PROMO}\">✈ TG: t.me/${BANNER_TG}</font><br>"
         [[ -n "$BANNER_WA" || -n "$BANNER_TG" ]] && \
-        echo "<font color=\"${CLR_GARIS}\">$(_center "$garis")</font><br>"
+        echo "<font color=\"${CLR_GARIS}\">▬▬▬ஜ۩۞۩ஜ▬▬▬</font><br>"
     } > /etc/issue.net
 }
