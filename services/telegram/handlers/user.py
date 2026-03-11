@@ -11,7 +11,7 @@ import random
 import re
 import string
 import subprocess
-import time as _time
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -534,7 +534,7 @@ def _status_label(exp_ts_raw: str, now_ts: int):
 
 def _collect_ssh_akun(uid: int) -> list:
     items = []
-    now_ts = int(_time.time())
+    now_ts = int(time.time())
     try:
         for f in sorted(Path(ACCOUNT_DIR).glob("*.conf")):
             ac = load_account_conf(f.stem)
@@ -550,7 +550,7 @@ def _collect_ssh_akun(uid: int) -> list:
 
 def _collect_vmess_akun(uid: int) -> list:
     items = []
-    now_ts = int(_time.time())
+    now_ts = int(time.time())
     try:
         if Path(VMESS_DIR).exists():
             for vf in sorted(Path(VMESS_DIR).glob("*.conf")):
