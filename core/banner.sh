@@ -34,6 +34,28 @@ _get_theme_colors() {
     esac
 }
 
+# ── Center teks pakai &#160; (non-breaking space HTML) ────────
+# Http.fromHtml() Android tidak collapse &#160; seperti spasi biasa
+# sehingga padding kiri tetap terjaga → efek center
+_center() {
+    local text="$1"
+    local width="${BANNER_WIDTH:-28}"
+    local len=${#text}
+    local pad=$(( (width - len) / 2 ))
+    [[ $pad -lt 0 ]] && pad=0
+    local spaces=""
+    for (( i=0; i<pad; i++ )); do spaces+="&#160;"; done
+    echo "${spaces}${text}"
+}
+
+# ── Baris garis: panjang = BANNER_WIDTH karakter ──────────────
+_garis() {
+    local w="${BANNER_WIDTH:-28}"
+    local g=""
+    for (( i=0; i<w; i++ )); do g+="═"; done
+    echo "$g"
+}
+
 generate_banner() {
     _init_banner_conf
 
@@ -43,24 +65,34 @@ generate_banner() {
 
     _get_theme_colors "${BANNER_THEME:-magenta}"
 
+    # Lebar banner — 28 cocok untuk layar HP rata-rata
+    BANNER_WIDTH=28
+
     local rules=()
     for r in "$BANNER_RULE_1" "$BANNER_RULE_2" "$BANNER_RULE_3" "$BANNER_RULE_4" "$BANNER_RULE_5"; do
         [[ -n "$r" ]] && rules+=("$r")
     done
 
+    local garis; garis=$(_garis)
+
     {
-        echo "<font color=\"${CLR_WELCOME}\"><b>✦ ${BANNER_WELCOME:-Selamat Datang!} ✦</b></font><br>"
-        echo "<font color=\"${CLR_GARIS}\">▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬</font><br>"
-        echo "<font color=\"${CLR_SUBTITLE}\"><b>${BANNER_SUBTITLE}</b></font><br>"
+        echo "<font color=\"${CLR_GARIS}\">$(_center "$garis")</font><br>"
+        echo "<font color=\"${CLR_WELCOME}\"><b>$(_center "✦ ${BANNER_WELCOME:-Selamat Datang!} ✦")</b></font><br>"
+        echo "<font color=\"${CLR_GARIS}\">$(_center "$garis")</font><br>"
+        echo "<font color=\"${CLR_SUBTITLE}\"><b>$(_center "${BANNER_SUBTITLE}")</b></font><br>"
+        echo "<font color=\"${CLR_GARIS}\">$(_center "$garis")</font><br>"
         for rule in "${rules[@]}"; do
-            echo "<font color=\"${CLR_RULES}\">  ✗  ${rule}</font><br>"
+            echo "<font color=\"${CLR_RULES}\">$(_center "✗ ${rule}")</font><br>"
         done
+        echo "<font color=\"${CLR_GARIS}\">$(_center "$garis")</font><br>"
         [[ -n "$BANNER_WARN" ]] && \
-        echo "<font color=\"${CLR_WARN}\">  ✔  ${BANNER_WARN}</font><br>"
-        echo "<font color=\"${CLR_GARIS}\">▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬</font><br>"
+        echo "<font color=\"${CLR_WARN}\"><b>$(_center "⚠ ${BANNER_WARN}")</b></font><br>"
+        echo "<font color=\"${CLR_GARIS}\">$(_center "$garis")</font><br>"
         [[ -n "$BANNER_WA" ]] && \
-        echo "<font color=\"${CLR_PROMO}\">  📱 WA: ${BANNER_WA}</font><br>"
+        echo "<font color=\"${CLR_PROMO}\">$(_center "📱 WA: ${BANNER_WA}")</font><br>"
         [[ -n "$BANNER_TG" ]] && \
-        echo "<font color=\"${CLR_PROMO}\">  ✈  TG: t.me/${BANNER_TG}</font><br>"
+        echo "<font color=\"${CLR_PROMO}\">$(_center "✈ TG: t.me/${BANNER_TG}")</font><br>"
+        [[ -n "$BANNER_WA" || -n "$BANNER_TG" ]] && \
+        echo "<font color=\"${CLR_GARIS}\">$(_center "$garis")</font><br>"
     } > /etc/issue.net
 }
