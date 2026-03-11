@@ -43,7 +43,7 @@ _sweep_local() {
         EXPIRED=$(grep "^EXPIRED=" "$conf_file" | cut -d= -f2 | tr -d '"' | tr -d "[:space:]")
         [[ -z "$USERNAME" || -z "$EXPIRED" ]] && continue
 
-        if [[ "$EXPIRED" < "$today" ]]; then
+        if [[ "$EXPIRED" < "$today" || "$EXPIRED" == "$today" ]]; then
             local tg_uid_del; tg_uid_del=$(grep "^TG_USER_ID=" "$conf_file" | cut -d= -f2 | tr -d '"' | tr -d "[:space:]")
             local server_del; server_del=$(grep "^SERVER=" "$conf_file" | cut -d= -f2 | tr -d '"')
             # Hapus file notified agar slot bersih
