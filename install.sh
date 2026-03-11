@@ -417,21 +417,29 @@ if [[ "$install_mode" == restore_* ]]; then
     } >> "$_INSTALL_LOG" 2>&1
     _ok "Telegram Bot" "aktif"
 
+    # Delay: tunggu bot fully started sebelum kirim notif
+    _step_inline "Menunggu bot ready" "siap" sleep 15
+
     # Notif Telegram ke admin
     {
-        source /etc/zv-manager/core/telegram.sh
-        tg_load 2>/dev/null || true
-        if [[ -n "$TG_TOKEN" && -n "$TG_ADMIN" ]]; then
+        _tg_token=$(grep "^TG_TOKEN=" /etc/zv-manager/telegram.conf 2>/dev/null | cut -d= -f2 | tr -d '"\n')
+        _tg_admin=$(grep "^TG_ADMIN=" /etc/zv-manager/telegram.conf 2>/dev/null | cut -d= -f2 | tr -d '"\n')
+        _new_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null | tr -d '[:space:]')
+        _restore_date=$(TZ="Asia/Jakarta" date +"%Y-%m-%d %H:%M WIB")
+        if [[ -n "$_tg_token" && -n "$_tg_admin" ]]; then
             _msg="🔄 <b>Restore Otak Selesai</b>
-
-✅ SSH   : ${ssh_ok} akun di-recreate
-⚡ VMess : ${vmess_ok} akun di-inject
-🤖 Bot   : aktif
-
-VPS siap digunakan."
-            curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
-                -d "chat_id=${TG_ADMIN}&parse_mode=HTML&text=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.stdin.read()))" <<< "$_msg")" \
-                --max-time 10 &>/dev/null || true
+━━━━━━━━━━━━━━━━━━━
+✅ SSH      : ${ssh_ok} akun di-recreate
+⚡ VMess    : ${vmess_ok} akun di-inject
+🤖 Bot      : aktif
+🌐 IP VPS   : ${_new_ip}
+📅 Waktu    : ${_restore_date}
+━━━━━━━━━━━━━━━━━━━
+<i>VPS siap digunakan. Tambah server via Menu Server → Tambah Server.</i>"
+            curl -s -X POST "https://api.telegram.org/bot${_tg_token}/sendMessage" \
+                -d "chat_id=${_tg_admin}&parse_mode=HTML" \
+                --data-urlencode "text=${_msg}" \
+                --max-time 15 &>/dev/null || true
         fi
     } >> "$_INSTALL_LOG" 2>&1
     _ok "Notifikasi admin" "terkirim"
