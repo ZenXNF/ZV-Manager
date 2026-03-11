@@ -55,10 +55,12 @@ if [[ -d "$VMESS_DIR" ]]; then
         [[ -z "$EXPIRED_TS" ]] && continue
         if [[ "$now_ts" -ge "$EXPIRED_TS" ]]; then
             [[ -n "$TG_USER_ID" ]] &&                 _tg_send "$TG_USER_ID" "⏰ <b>Trial VMess Habis</b>\n\nAkun trial VMess <code>${USERNAME}</code> kamu sudah berakhir.\n\nMau lanjut? Buat akun VMess premium lewat bot."
+            # Hapus dari Xray via agent (lokal/remote)
+            local sname_trial; sname_trial=$(grep "^SERVER=" "$vconf" | cut -d= -f2 | tr -d '"' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            source /etc/zv-manager/utils/remote.sh 2>/dev/null
+            remote_vmess_agent "${sname_trial:-local}" del "$USERNAME" 2>/dev/null
             rm -f "$vconf"
-            # Reload xray setelah hapus
-            source /etc/zv-manager/services/xray/install.sh 2>/dev/null
-            reload_xray 2>/dev/null
+            rm -f "/tmp/zv-tg-state/vmess_${USERNAME}.notified"
             echo "[$(date '+%Y-%m-%d %H:%M:%S')] VMESS TRIAL expired & deleted: $USERNAME" >> "$LOG"
         fi
     done

@@ -121,10 +121,13 @@ _sweep_remote() {
                     "zv-agent del $r_user" 2>&1)
 
                 if [[ "$result" == DEL-OK* ]]; then
-                    # Cari TG_USER_ID dari conf lokal kalau ada
+                    # Cari TG_USER_ID dari conf lokal kalau ada, lalu hapus conf
                     local r_tg_uid=""
                     local r_conf="/etc/zv-manager/accounts/ssh/${r_user}.conf"
-                    [[ -f "$r_conf" ]] && r_tg_uid=$(grep "^TG_USER_ID=" "$r_conf" | cut -d= -f2 | tr -d "[:space:]")
+                    if [[ -f "$r_conf" ]]; then
+                        r_tg_uid=$(grep "^TG_USER_ID=" "$r_conf" | cut -d= -f2 | tr -d "[:space:]")
+                        rm -f "$r_conf"
+                    fi
                     [[ -n "$r_tg_uid" ]] && _notify_deleted "$r_tg_uid" "$r_user" "$NAME"
                     rm -f "/etc/zv-manager/accounts/notified/${r_user}.notified"
                     rm -f "/etc/zv-manager/accounts/notified/${r_user}.bw_warn"

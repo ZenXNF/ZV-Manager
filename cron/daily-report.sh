@@ -81,7 +81,7 @@ LOG_FILE="/var/log/zv-manager/install.log"
 revenue_today=0
 while IFS= read -r line; do
     [[ "$line" == *"$(date +"%Y-%m-%d")"* ]] || continue
-    if echo "$line" | grep -qE "\] (BELI|RENEW|BW_BELI|VMESS_BELI):"; then
+    if echo "$line" | grep -qE "\] (BELI|RENEW|BW_BELI|VMESS_BELI|VMESS_BW_BELI|VMESS_RENEW):"; then
         total=$(echo "$line" | grep -oP "total=\K[0-9]+")
         [[ -n "$total" ]] && revenue_today=$((revenue_today + total))
     fi

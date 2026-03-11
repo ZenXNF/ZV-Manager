@@ -92,8 +92,10 @@ VMESS_DIR="/etc/zv-manager/accounts/vmess"
 if [[ -d "$VMESS_DIR" ]]; then
     for vconf in "$VMESS_DIR"/*.conf; do
         [[ -f "$vconf" ]] || continue
-        unset USERNAME IS_TRIAL EXPIRED_TS TG_USER_ID SERVER
-        source "$vconf"
+        local USERNAME; USERNAME=$(grep "^USERNAME=" "$vconf" | cut -d= -f2 | tr -d '"' | tr -d '[:space:]')
+        local IS_TRIAL; IS_TRIAL=$(grep "^IS_TRIAL=" "$vconf" | cut -d= -f2 | tr -d '"' | tr -d '[:space:]')
+        local EXPIRED_TS; EXPIRED_TS=$(grep "^EXPIRED_TS=" "$vconf" | cut -d= -f2 | tr -d '"' | tr -d '[:space:]')
+        local TG_USER_ID; TG_USER_ID=$(grep "^TG_USER_ID=" "$vconf" | cut -d= -f2 | tr -d '"' | tr -d '[:space:]')
         [[ "$IS_TRIAL" == "1" ]] && continue
         [[ -z "$EXPIRED_TS" || -z "$TG_USER_ID" ]] && continue
         [[ "$now_ts" -ge "$EXPIRED_TS" ]] && continue

@@ -29,13 +29,31 @@ except: pass
 
 _hapus_akun() {
     local username="$1" tg_uid="$2" server="$3"
+    local local_ip; local_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null | tr -d '[:space:]')
+    local conf_file="${ACCOUNT_DIR}/${username}.conf"
+
     _bw_cleanup_user "$username" 2>/dev/null
     rm -f "${SESSION_DIR}/${username}.ips" "${SESSION_DIR}/${username}.count" 2>/dev/null
     rm -f "/etc/zv-manager/accounts/notified/${username}.notified" 2>/dev/null
-    pkill -u "$username" -9 &>/dev/null
-    userdel -r "$username" &>/dev/null 2>&1
-    rm -f "${ACCOUNT_DIR}/${username}.conf"
-    _log "AUTOKILL: $username dihapus (multi-login)"
+
+    # Cek apakah akun ada di server lokal atau remote
+    local srv_ip=""
+    if [[ -f "$conf_file" ]]; then
+        local sname; sname=$(grep "^SERVER=" "$conf_file" | cut -d= -f2 | tr -d '"' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+        if [[ -n "$sname" ]]; then
+            local sconf="/etc/zv-manager/servers/${sname}.conf"
+            [[ -f "$sconf" ]] && srv_ip=$(grep "^IP=" "$sconf" | cut -d= -f2 | tr -d '"' | tr -d '[:space:]')
+        fi
+    fi
+
+    if [[ -z "$srv_ip" || "$srv_ip" == "$local_ip" ]]; then
+        # Akun lokal — hapus system user
+        pkill -u "$username" -9 &>/dev/null
+        userdel -r "$username" &>/dev/null 2>&1
+    fi
+    # Selalu hapus conf lokal di otak
+    rm -f "$conf_file"
+    _log "AUTOKILL: $username dihapus (multi-login) server=$server"
     [[ -n "$tg_uid" ]] && _tg_send "$tg_uid" "🚫 Akun Dihapus! Username: $username | Server: $server | Alasan: Multi Login melebihi batas. Buat akun baru via bot."
 }
 
