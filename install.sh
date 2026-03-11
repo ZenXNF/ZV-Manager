@@ -147,6 +147,13 @@ case "$install_mode" in
 
             _step_inline "Restore data backup" "berhasil" \
                 tar -xzf "$BACKUP_FILE" -C "$INSTALL_DIR/" 2>/dev/null
+            # Patch telegram.conf jika token/admin diganti
+            if [[ -n "$RESTORE_NEW_TOKEN" && -n "$RESTORE_NEW_ADMIN" ]]; then
+                sed -i "s|^TG_TOKEN=.*|TG_TOKEN=\"${RESTORE_NEW_TOKEN}\"|" \
+                    "$INSTALL_DIR/telegram.conf" 2>/dev/null
+                sed -i "s|^TG_ADMIN=.*|TG_ADMIN=\"${RESTORE_NEW_ADMIN}\"|" \
+                    "$INSTALL_DIR/telegram.conf" 2>/dev/null
+            fi
             echo ""
 
             echo -e "  \033[1;33mApakah domain berubah dari sebelumnya?\033[0m"
@@ -155,6 +162,20 @@ case "$install_mode" in
                 install_mode="restore_with_domain"
             else
                 install_mode="restore_skip_domain"
+            fi
+
+            # Tanya ganti token/admin bot
+            _cur_token=$(grep "^TG_TOKEN=" "$BACKUP_FILE" 2>/dev/null ||                 tar -xOf "$BACKUP_FILE" ./telegram.conf 2>/dev/null |                 grep "^TG_TOKEN=" | cut -d= -f2 | tr -d '"')
+            echo ""
+            echo -e "  \033[1;33mApakah Telegram Bot Token & Admin ID masih sama?\033[0m"
+            read -rp "  Token & Admin masih sama? [y/n]: " same_tg
+            if [[ "$same_tg" =~ ^[Nn]$ ]]; then
+                echo ""
+                read -rp "  Bot Token baru: " _new_token
+                read -rp "  Admin Telegram ID baru: " _new_admin
+                # Patch telegram.conf setelah extract
+                RESTORE_NEW_TOKEN="$_new_token"
+                RESTORE_NEW_ADMIN="$_new_admin"
             fi
         fi
         ;;
@@ -436,10 +457,19 @@ if [[ "$install_mode" == restore_* ]]; then
 📅 Waktu    : ${_restore_date}
 ━━━━━━━━━━━━━━━━━━━
 <i>VPS siap digunakan. Tambah server via Menu Server → Tambah Server.</i>"
-            curl -s -X POST "https://api.telegram.org/bot${_tg_token}/sendMessage" \
-                -d "chat_id=${_tg_admin}&parse_mode=HTML" \
-                --data-urlencode "text=${_msg}" \
-                --max-time 15 &>/dev/null || true
+            python3 - << PYNOTIF
+import urllib.request, urllib.parse, json
+url = "https://api.telegram.org/bot${_tg_token}/sendMessage"
+data = urllib.parse.urlencode({
+    "chat_id": "${_tg_admin}",
+    "parse_mode": "HTML",
+    "text": """${_msg}"""
+}).encode()
+try:
+    urllib.request.urlopen(urllib.request.Request(url, data), timeout=15)
+except Exception as e:
+    print(f"notif error: {e}")
+PYNOTIF
         fi
     } >> "$_INSTALL_LOG" 2>&1
     _ok "Notifikasi admin" "terkirim"

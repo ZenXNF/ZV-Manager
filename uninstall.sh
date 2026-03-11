@@ -256,9 +256,16 @@ if [[ "$SILENT" == false ]] && [ -t 1 ]; then
         read -rp "  Pilihan: " pilihan
         case $pilihan in
             1)
-                rm -f /root/zv.sh 2>/dev/null
+                rm -f /root/zv.sh /usr/local/bin/zv 2>/dev/null
+                # Hapus .profile agar tidak loop ke notif expired
+                cat > /root/.profile <<'DEFPROFILE'
+if [ "$BASH" ]; then if [ -f ~/.bashrc ]; then . ~/.bashrc; fi; fi
+mesg n 2>/dev/null || true
+DEFPROFILE
                 echo -e "\n  \033[1;32mFile sisa berhasil dihapus.\033[0m\n"
-                break ;;
+                # Kill parent shell (menu) agar tidak balik ke menu
+                kill -9 $PPID 2>/dev/null
+                exit 0 ;;
             2)
                 echo -e "\n  \033[1;36mHubungi: @ZenXNF / t.me/ZenXNF\033[0m"
                 echo -e "  bash <(wget -qO- https://raw.githubusercontent.com/ZenXNF/ZV-Manager/main/zv.sh)\n"
