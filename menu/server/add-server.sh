@@ -286,7 +286,7 @@ TGEOF
 
     local BACKUP_DIR="/var/backups/zv-manager"
     local srv_backups=()
-    while IFS= read -r f; do srv_backups+=("$f"); done < <(ls -t "$BACKUP_DIR"/zv-ssh-*.tar.gz 2>/dev/null)
+    while IFS= read -r f; do srv_backups+=("$f"); done < <(ls -t "$BACKUP_DIR"/zv-ssh-*.zvbak 2>/dev/null)
 
     if [[ ${#srv_backups[@]} -eq 0 ]]; then
         echo -e "  ${BYELLOW}(Tidak ada backup server tersimpan — lewati)${NC}"
@@ -307,7 +307,7 @@ TGEOF
     local i=1
     for f in "${srv_backups[@]}"; do
         local nm sz
-        nm=$(basename "$f" | sed 's/zv-ssh-//;s/.tar.gz//' | tr '_' ' ')
+        nm=$(basename "$f" | sed 's/zv-ssh-//;s/.zvbak//' | tr '_' ' ')
         sz=$(stat -c%s "$f" 2>/dev/null || echo 0)
         if   [[ $sz -ge 1048576 ]]; then sz=$(printf "%.1f MB" "$(echo "scale=1; $sz/1048576" | bc)")
         elif [[ $sz -ge 1024    ]]; then sz=$(printf "%.1f KB" "$(echo "scale=1; $sz/1024" | bc)")

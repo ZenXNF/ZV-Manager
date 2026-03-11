@@ -117,8 +117,8 @@ read -rp "  Pilihan: " install_mode
 case "$install_mode" in
     2)
         echo ""
-        echo -e "  \033[1;33mMasukkan path lengkap file backup (.tar.gz):\033[0m"
-        echo    "  Contoh: /root/zv-backup-otak-2026-03-06.tar.gz"
+        echo -e "  \033[1;33mMasukkan path lengkap file backup (.zvbak):\033[0m"
+        echo    "  Contoh: /root/zv-backup-otak-2026-03-06.zvbak"
         echo ""
         read -rp "  Path file backup: " BACKUP_FILE
         if [[ ! -f "$BACKUP_FILE" ]]; then

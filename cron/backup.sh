@@ -233,8 +233,8 @@ NOTETXT
 
 # ── Bersihkan backup lama (> 7 hari) ───────────────────────
 cleanup_old() {
-    find "$BACKUP_DIR" -name "zv-backup-*.tar.gz" -mtime +7 -delete 2>/dev/null
-    find "$BACKUP_DIR" -name "zv-ssh-*.tar.gz"    -mtime +7 -delete 2>/dev/null
+    find "$BACKUP_DIR" -name "zv-backup-*.zvbak" -mtime +7 -delete 2>/dev/null
+    find "$BACKUP_DIR" -name "zv-ssh-*.zvbak"    -mtime +7 -delete 2>/dev/null
 }
 
 # ── Hapus file realtime setelah backup full selesai ─────────
@@ -275,7 +275,7 @@ _tg_msg "🗄 <b>Backup Harian Dimulai</b>
 
 # ── Backup & kirim otak ─────────────────────────────────────
 backup_otak
-OTAK_FILE="${BACKUP_DIR}/zv-backup-otak-${DATE}.tar.gz"
+OTAK_FILE="${BACKUP_DIR}/zv-backup-otak-${DATE}.zvbak"
 tar -czf "$OTAK_FILE" -C "${TMP_DIR}/otak" . 2>/dev/null
 OTAK_SIZE=$(_fmt_size "$OTAK_FILE")
 
@@ -301,7 +301,7 @@ for conf in "${BASE_DIR}/servers"/*.conf; do
     ssh_c=$(echo "$result" | cut -d'|' -f2)
     vmess_c=$(echo "$result" | cut -d'|' -f3)
 
-    SRV_FILE="${BACKUP_DIR}/zv-ssh-${sname}-${DATE}.tar.gz"
+    SRV_FILE="${BACKUP_DIR}/zv-ssh-${sname}-${DATE}.zvbak"
     tar -czf "$SRV_FILE" -C "${TMP_DIR}/ssh-${sname}" . 2>/dev/null
     SRV_SIZE=$(_fmt_size "$SRV_FILE")
 
