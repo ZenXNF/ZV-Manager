@@ -20,7 +20,7 @@ SERVICES=(
     "ssh|OpenSSH"
     "dropbear|Dropbear"
     "nginx|Nginx"
-    "xray|Xray (VMess)"
+    "zv-xray|Xray (VMess)"
     "zv-stunnel|SSL (Stunnel)"
     "zv-wss|WebSocket"
     "zv-udp|UDP Custom"

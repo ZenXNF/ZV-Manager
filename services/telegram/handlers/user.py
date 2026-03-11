@@ -618,6 +618,7 @@ def _render_ssh_page(items: list, page: int, now_ts: int, uid: int) -> tuple[str
             InlineKeyboardButton(text="🔄 Perpanjang", callback_data="m_perpanjang_ssh"),
             InlineKeyboardButton(text="📶 Bandwidth",  callback_data="m_tambah_bw_ssh")
         )
+    b.row(InlineKeyboardButton(text="📨 Kirim Ulang Info", callback_data="kirim_ulang_ssh"))
     b.row(InlineKeyboardButton(text="🏠 Menu", callback_data="home"))
     return out, b.as_markup()
 
@@ -677,6 +678,7 @@ def _render_vmess_page(items: list, page: int, now_ts: int, uid: int) -> tuple[s
             InlineKeyboardButton(text="🔄 Perpanjang", callback_data="m_perpanjang_vmess"),
             InlineKeyboardButton(text="📶 Bandwidth",  callback_data="m_tambah_bw_vmess")
         )
+    b.row(InlineKeyboardButton(text="📨 Kirim Ulang Info", callback_data="kirim_ulang_vmess"))
     b.row(InlineKeyboardButton(text="🏠 Menu", callback_data="home"))
     return out, b.as_markup()
 
@@ -778,8 +780,76 @@ async def cb_akun_vmess_page(cb: CallbackQuery):
     except Exception: pass
 
 
+# ── Kirim Ulang Info Akun ────────────────────────────────────
+
+@router.callback_query(F.data == "kirim_ulang_ssh")
+async def cb_kirim_ulang_ssh(cb: CallbackQuery):
+    uid    = cb.from_user.id
+    now_ts = int(time.time())
+    await cb.answer("📨 Mengirim ulang info akun...", show_alert=False)
+
+    items = _collect_ssh_akun(uid)
+    if not items:
+        await cb.message.answer("❌ Tidak ada akun SSH aktif yang ditemukan.")
+        return
+
+    for ac in items:
+        uname   = ac.get("USERNAME", "")
+        passwd  = ac.get("PASSWORD", "")
+        sname   = ac.get("SERVER", "")
+        sc      = load_server_conf(sname)
+        tgsc    = load_tg_server_conf(sname)
+        domain  = sc.get("DOMAIN") or sc.get("IP") or ac.get("DOMAIN", "")
+        if not domain:
+            try: domain = open("/etc/zv-manager/domain").read().strip()
+            except Exception: pass
+        slabel  = tgsc.get("TG_SERVER_LABEL", "") or sname
+        isp     = tgsc.get("TG_ISP", "") or sc.get("ISP", "")
+        tipe    = "TRIAL" if ac.get("IS_TRIAL", "0") == "1" else "BELI"
+        exp_d, _, _ = _status_label(ac.get("EXPIRED_TS", ""), now_ts)
+        limit   = ac.get("LIMIT", "2")
+        text    = text_akun_info(tipe, uname, passwd, domain,
+                                 exp_d, limit, slabel, isp=isp)
+        try:
+            await cb.message.answer(text, parse_mode="HTML")
+        except Exception:
+            pass
+
+@router.callback_query(F.data == "kirim_ulang_vmess")
+async def cb_kirim_ulang_vmess(cb: CallbackQuery):
+    uid    = cb.from_user.id
+    now_ts = int(time.time())
+    await cb.answer("📨 Mengirim ulang info akun...", show_alert=False)
+
+    items = _collect_vmess_akun(uid)
+    if not items:
+        await cb.message.answer("❌ Tidak ada akun VMess aktif yang ditemukan.")
+        return
+
+    for vc in items:
+        vuname  = vc.get("USERNAME", "")
+        vuuid   = vc.get("UUID", "")
+        vsname  = vc.get("SERVER", "")
+        vsc     = load_server_conf(vsname)
+        vtgsc   = load_tg_server_conf(vsname)
+        domain  = vsc.get("DOMAIN") or vsc.get("IP") or vc.get("DOMAIN", "")
+        if not domain:
+            try: domain = open("/etc/zv-manager/domain").read().strip()
+            except Exception: pass
+        slabel  = vtgsc.get("TG_SERVER_LABEL", "") or vsname
+        isp     = vtgsc.get("TG_ISP", "") or vsc.get("ISP", "")
+        tipe    = "TRIAL" if vc.get("IS_TRIAL", "0") == "1" else "BELI"
+        exp_d, _, _ = _status_label(vc.get("EXPIRED_TS", ""), now_ts)
+        text    = text_vmess_info(tipe, vuname, vuuid, domain,
+                                  exp_d, slabel, isp=isp)
+        try:
+            await cb.message.answer(text, parse_mode="HTML")
+        except Exception:
+            pass
+
+
 # ── Perpanjang ────────────────────────────────────────────────
-async def _show_perpanjang(cb: CallbackQuery, proto: str):
+
     """proto: 'ssh' atau 'vmess'"""
     uid       = cb.from_user.id
     akun_list = []
