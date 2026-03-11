@@ -11,7 +11,7 @@ import random
 import re
 import string
 import subprocess
-import time
+import time as _time
 from datetime import datetime
 from pathlib import Path
 
@@ -534,23 +534,33 @@ def _status_label(exp_ts_raw: str, now_ts: int):
 
 def _collect_ssh_akun(uid: int) -> list:
     items = []
+    now_ts = int(_time.time())
     try:
         for f in sorted(Path(ACCOUNT_DIR).glob("*.conf")):
             ac = load_account_conf(f.stem)
             if str(ac.get("TG_USER_ID", "")).strip() != str(uid): continue
             if not ac.get("USERNAME"): continue
+            # Skip akun expired — sudah tidak relevan untuk user
+            exp_ts = ac.get("EXPIRED_TS", "")
+            if exp_ts and str(exp_ts).strip().isdigit() and int(exp_ts) < now_ts:
+                continue
             items.append(ac)
     except Exception: pass
     return items
 
 def _collect_vmess_akun(uid: int) -> list:
     items = []
+    now_ts = int(_time.time())
     try:
         if Path(VMESS_DIR).exists():
             for vf in sorted(Path(VMESS_DIR).glob("*.conf")):
                 vc = load_vmess_conf(vf.stem)
                 if str(vc.get("TG_USER_ID", "")).strip() != str(uid): continue
                 if not vc.get("USERNAME"): continue
+                # Skip akun expired — sudah tidak relevan untuk user
+                exp_ts = vc.get("EXPIRED_TS", "")
+                if exp_ts and str(exp_ts).strip().isdigit() and int(exp_ts) < now_ts:
+                    continue
                 items.append(vc)
     except Exception: pass
     return items
@@ -589,7 +599,8 @@ def _render_ssh_page(items: list, page: int, now_ts: int, uid: int) -> tuple[str
             f"━━━━━━━━━━━━━━━━━━━"
         )
 
-    # Cek apakah user punya akun premium SSH (bukan trial) untuk perpanjang/bw
+    # Cek apakah user punya akun premium SSH aktif untuk perpanjang/bw
+    # (expired sudah difilter di _collect_ssh_akun, jadi semua items = aktif)
     has_premium = any(
         ac.get("IS_TRIAL","0") != "1"
         for ac in items
@@ -647,7 +658,8 @@ def _render_vmess_page(items: list, page: int, now_ts: int, uid: int) -> tuple[s
             f"━━━━━━━━━━━━━━━━━━━"
         )
 
-    # Cek apakah user punya akun premium VMess untuk perpanjang
+    # Cek apakah user punya akun premium VMess aktif untuk perpanjang
+    # (expired sudah difilter di _collect_vmess_akun, jadi semua items = aktif)
     has_premium = any(
         vc.get("IS_TRIAL","0") != "1"
         for vc in items
