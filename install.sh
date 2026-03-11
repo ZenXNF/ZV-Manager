@@ -289,8 +289,8 @@ cat > /etc/cron.d/zv-tg-notify <<'CRONEOF'
 CRONEOF
 
 cat > /etc/cron.d/zv-expired <<'CRONEOF'
-# ZV-Manager - Auto Delete Expired Users
-2 0 * * * root /bin/bash /etc/zv-manager/cron/expired.sh
+# ZV-Manager - Auto Delete Expired Users (tiap 5 menit)
+* * * * * root for i in 1 2 3 4 5; do /bin/bash /etc/zv-manager/cron/expired.sh; sleep 12; done
 CRONEOF
 
 cat > /etc/cron.d/zv-license <<'CRONEOF'

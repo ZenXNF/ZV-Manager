@@ -249,15 +249,24 @@ cleanup_realtime() {
 zv_log "BACKUP: Mulai backup harian..." 2>/dev/null || true
 
 # Hitung hanya akun premium (bukan trial)
+_now_ts=$(date +%s)
 TOTAL_SSH=0
 for _f in "${BASE_DIR}/accounts/ssh/"*.conf; do
     [[ -f "$_f" ]] || continue
-    grep -qE 'IS_TRIAL="1"|IS_TRIAL=1' "$_f" || TOTAL_SSH=$((TOTAL_SSH+1))
+    grep -qE 'IS_TRIAL="1"|IS_TRIAL=1' "$_f" && continue
+    # Skip expired
+    _exp=$(grep "^EXPIRED_TS=" "$_f" 2>/dev/null | cut -d= -f2 | tr -d '"[:space:]')
+    [[ -n "$_exp" && "$_exp" =~ ^[0-9]+$ && "$_exp" -lt "$_now_ts" ]] && continue
+    TOTAL_SSH=$((TOTAL_SSH+1))
 done
 TOTAL_VMESS=0
 for _f in "${BASE_DIR}/accounts/vmess/"*.conf; do
     [[ -f "$_f" ]] || continue
-    grep -qE 'IS_TRIAL="1"|IS_TRIAL=1' "$_f" || TOTAL_VMESS=$((TOTAL_VMESS+1))
+    grep -qE 'IS_TRIAL="1"|IS_TRIAL=1' "$_f" && continue
+    # Skip expired
+    _exp=$(grep "^EXPIRED_TS=" "$_f" 2>/dev/null | cut -d= -f2 | tr -d '"[:space:]')
+    [[ -n "$_exp" && "$_exp" =~ ^[0-9]+$ && "$_exp" -lt "$_now_ts" ]] && continue
+    TOTAL_VMESS=$((TOTAL_VMESS+1))
 done
 TOTAL_USER=$(ls "${BASE_DIR}/accounts/users/"*.user 2>/dev/null | wc -l)
 TOTAL_SRV=$(ls "${BASE_DIR}/servers/"*.conf 2>/dev/null | grep -v "\.tg\.conf" | wc -l)
