@@ -170,12 +170,19 @@ def count_ssh_accounts(srv_ip: str) -> int:
     if not srv_ip:
         srv_ip = lip
     count = 0
+    now_ts = int(time.time())
     if srv_ip == lip:
         try:
             for f in Path(ACCOUNT_DIR).glob("*.conf"):
                 txt = f.read_text()
-                if "IS_TRIAL=1" not in txt and 'IS_TRIAL="1"' not in txt:
-                    count += 1
+                if "IS_TRIAL=1" in txt or 'IS_TRIAL="1"' in txt:
+                    continue
+                # Skip expired
+                ac = _read_conf_file(str(f))
+                exp = ac.get("EXPIRED_TS", "")
+                if exp and str(exp).strip().isdigit() and int(exp) < now_ts:
+                    continue
+                count += 1
         except Exception:
             pass
     else:
@@ -212,12 +219,19 @@ def count_vmess_accounts(srv_ip: str) -> int:
     if not srv_ip:
         srv_ip = lip
     count = 0
+    now_ts = int(time.time())
     if srv_ip == lip:
         try:
             for f in Path(VMESS_DIR).glob("*.conf"):
                 txt = f.read_text()
-                if "IS_TRIAL=1" not in txt and 'IS_TRIAL="1"' not in txt:
-                    count += 1
+                if "IS_TRIAL=1" in txt or 'IS_TRIAL="1"' in txt:
+                    continue
+                # Skip expired
+                vc = _read_conf_file(str(f))
+                exp = vc.get("EXPIRED_TS", "")
+                if exp and str(exp).strip().isdigit() and int(exp) < now_ts:
+                    continue
+                count += 1
         except Exception:
             pass
     else:
