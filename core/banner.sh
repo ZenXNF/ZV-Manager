@@ -10,13 +10,13 @@ _init_banner_conf() {
     [[ -f "$BANNER_CONF" ]] && return
     cat > "$BANNER_CONF" <<'CONFEOF'
 BANNER_WELCOME="Selamat Datang!"
-BANNER_SUBTITLE="! TERMS AND CONDITIONS !"
+BANNER_SUBTITLE="TERMS AND CONDITIONS"
 BANNER_RULE_1="NO SPAM"
 BANNER_RULE_2="NO DDOS / SERANGAN"
 BANNER_RULE_3="NO HACKING / CARDING"
 BANNER_RULE_4="NO TORRENT"
 BANNER_RULE_5="NO MULTI LOGIN"
-BANNER_WARN="VIOLATION = PERMANENT BAN"
+BANNER_WARN="VIOLATION = BAN"
 BANNER_WA=""
 BANNER_TG=""
 BANNER_THEME="magenta"
@@ -34,25 +34,38 @@ _get_theme_colors() {
     esac
 }
 
-# ── Center teks pakai &#160; (non-breaking space HTML) ────────
-# Http.fromHtml() Android tidak collapse &#160; seperti spasi biasa
+# ── Hitung lebar visual teks ───────────────────────────────
+# Emoji & unicode special char dihitung 2x karena
+# Html.fromHtml() Android render mereka lebih lebar
+_visual_len() {
+    local text="$1" len=0 i char code
+    for (( i=0; i<${#text}; i++ )); do
+        char="${text:$i:1}"
+        code=$(printf '%d' "'$char" 2>/dev/null || echo 0)
+        (( code > 8000 )) && len=$(( len + 2 )) || len=$(( len + 1 ))
+    done
+    echo "$len"
+}
+
+# ── Center teks pakai &#160; (non-breaking space HTML) ────
+# &#160; tidak di-collapse oleh Html.fromHtml() Android
 # sehingga padding kiri tetap terjaga → efek center
 _center() {
     local text="$1"
-    local width="${BANNER_WIDTH:-28}"
-    local len=${#text}
-    local pad=$(( (width - len) / 2 ))
+    local width="${BANNER_WIDTH:-22}"
+    local vlen; vlen=$(_visual_len "$text")
+    local pad=$(( (width - vlen) / 2 ))
     [[ $pad -lt 0 ]] && pad=0
     local spaces=""
     for (( i=0; i<pad; i++ )); do spaces+="&#160;"; done
     echo "${spaces}${text}"
 }
 
-# ── Baris garis: panjang = BANNER_WIDTH karakter ──────────────
+# ── Baris garis tipis (─) sepanjang BANNER_WIDTH ──────────
 _garis() {
-    local w="${BANNER_WIDTH:-28}"
+    local w="${BANNER_WIDTH:-22}"
     local g=""
-    for (( i=0; i<w; i++ )); do g+="═"; done
+    for (( i=0; i<w; i++ )); do g+="─"; done
     echo "$g"
 }
 
@@ -65,8 +78,9 @@ generate_banner() {
 
     _get_theme_colors "${BANNER_THEME:-magenta}"
 
-    # Lebar banner — 28 cocok untuk layar HP rata-rata
-    BANNER_WIDTH=28
+    # Lebar 22 = proporsional untuk layar HP rata-rata
+    # Teks > 22 char: pad=0 (tetap rapi, tanpa overflow)
+    BANNER_WIDTH=22
 
     local rules=()
     for r in "$BANNER_RULE_1" "$BANNER_RULE_2" "$BANNER_RULE_3" "$BANNER_RULE_4" "$BANNER_RULE_5"; do
@@ -79,6 +93,7 @@ generate_banner() {
         echo "<font color=\"${CLR_GARIS}\">$(_center "$garis")</font><br>"
         echo "<font color=\"${CLR_WELCOME}\"><b>$(_center "✦ ${BANNER_WELCOME:-Selamat Datang!} ✦")</b></font><br>"
         echo "<font color=\"${CLR_GARIS}\">$(_center "$garis")</font><br>"
+        [[ -n "$BANNER_SUBTITLE" ]] && \
         echo "<font color=\"${CLR_SUBTITLE}\"><b>$(_center "${BANNER_SUBTITLE}")</b></font><br>"
         echo "<font color=\"${CLR_GARIS}\">$(_center "$garis")</font><br>"
         for rule in "${rules[@]}"; do
