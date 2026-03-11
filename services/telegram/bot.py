@@ -49,25 +49,17 @@ async def _check_restore_flag(bot: Bot) -> None:
         ip       = data.get("IP", "?")
         date     = data.get("DATE", "?")
 
-        msg = (
-            "🔄 <b>Restore Otak Selesai</b>
-"
-            "━━━━━━━━━━━━━━━━━━━
-"
-            f"✅ SSH      : {ssh_ok} akun di-recreate
-"
-            f"⚡ VMess    : {vmess_ok} akun di-inject
-"
-            "🤖 Bot      : aktif
-"
-            f"🌐 IP VPS   : {ip}
-"
-            f"📅 Waktu    : {date}
-"
-            "━━━━━━━━━━━━━━━━━━━
-"
-            "<i>VPS siap digunakan. Tambah server via Menu Server → Tambah Server.</i>"
-        )
+        msg = "\n".join([
+            "🔄 <b>Restore Otak Selesai</b>",
+            "━━━━━━━━━━━━━━━━━━━",
+            f"✅ SSH      : {ssh_ok} akun di-recreate",
+            f"⚡ VMess    : {vmess_ok} akun di-inject",
+            "🤖 Bot      : aktif",
+            f"🌐 IP VPS   : {ip}",
+            f"📅 Waktu    : {date}",
+            "━━━━━━━━━━━━━━━━━━━",
+            "<i>VPS siap digunakan. Tambah server via Menu Server → Tambah Server.</i>",
+        ])
 
         await bot.send_message(ADMIN_ID, msg, parse_mode="HTML")
         os.remove(flag_file)
