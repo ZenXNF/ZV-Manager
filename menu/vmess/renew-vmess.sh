@@ -41,7 +41,9 @@ renew_vmess() {
         [[ -z "$cur_exp" || "$cur_exp" -lt "$now_ts" ]] && cur_exp=$now_ts
         new_exp_ts=$(( cur_exp + days * 86400 ))
         new_exp_display=$(TZ="Asia/Jakarta" date -d "@${new_exp_ts}" +"%d %b %Y %H:%M WIB")
+        local new_exp_date; new_exp_date=$(date -d "@${new_exp_ts}" +"%Y-%m-%d")
         sed -i "s/^EXPIRED_TS=.*/EXPIRED_TS=${new_exp_ts}/" "$conf"
+        sed -i "s/^EXPIRED_DATE=.*/EXPIRED_DATE=${new_exp_date}/" "$conf"
         print_ok "Akun '${username}' diperpanjang hingga: ${new_exp_display}"
     else
         print_info "Memperpanjang VMess di ${target_info}..."

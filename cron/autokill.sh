@@ -57,6 +57,25 @@ _hapus_akun() {
     [[ -n "$tg_uid" ]] && _tg_send "$tg_uid" "🚫 Akun Dihapus! Username: $username | Server: $server | Alasan: Multi Login melebihi batas. Buat akun baru via bot."
 }
 
+# ── Sync session count akun SSH remote via zv-agent online ──────
+local _local_ip_ak; _local_ip_ak=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null | tr -d '[:space:]')
+for _sconf in /etc/zv-manager/servers/*.conf; do
+    [[ -f "$_sconf" && "$_sconf" != *.tg.conf ]] || continue
+    local _srv_ip; _srv_ip=$(grep "^IP=" "$_sconf" | cut -d= -f2 | tr -d '"' | tr -d '[:space:]')
+    [[ -z "$_srv_ip" || "$_srv_ip" == "$_local_ip_ak" ]] && continue
+    local _srv_name; _srv_name=$(grep "^NAME=" "$_sconf" | cut -d= -f2 | tr -d '"' | tr -d '[:space:]')
+    [[ -z "$_srv_name" ]] && continue
+    # Ambil session count semua user di server remote ini
+    local _online_raw; _online_raw=$(remote_agent "$_srv_name" online 2>/dev/null)
+    if [[ -n "$_online_raw" ]]; then
+        while IFS='|' read -r _ruser _rcount; do
+            [[ -z "$_ruser" || -z "$_rcount" ]] && continue
+            [[ "$_rcount" =~ ^[0-9]+$ ]] || continue
+            echo "$_rcount" > "${SESSION_DIR}/${_ruser}.count"
+        done <<< "$_online_raw"
+    fi
+done
+
 for conf_file in "$ACCOUNT_DIR"/*.conf; do
     [[ -f "$conf_file" ]] || continue
     uname=$(grep "^USERNAME="    "$conf_file" | cut -d= -f2 | tr -d '[:space:]')
