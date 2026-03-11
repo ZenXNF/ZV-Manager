@@ -26,11 +26,7 @@ _tg_send() {
         -d "chat_id=${chat}&text=${text}&parse_mode=HTML" > /dev/null 2>&1
 }
 
-# Ambil semua client IP yang sedang konek ke SSH port
-estab_ips=$(ss -tn state established 2>/dev/null | \
-    awk '$3 ~ /:22$|:500$|:40000$|:109$|:143$/ {print $4}' | \
-    cut -d: -f1 | grep -v '^$' | sort -u)
-
+# Hitung sesi SSH aktif per user via proses sshd (akurat untuk HTTP Custom)
 for conf_file in "$ACCOUNT_DIR"/*.conf; do
     [[ -f "$conf_file" ]] || continue
 
@@ -40,30 +36,25 @@ for conf_file in "$ACCOUNT_DIR"/*.conf; do
 
     [[ -z "$user" || "${quota:-0}" == "0" ]] && continue
 
-    # ── Update IP rules untuk user yang sedang konek ─────────
-    if [[ -n "$estab_ips" ]]; then
-        user_ips=$(grep "Accepted.*for ${user} from" /var/log/auth.log 2>/dev/null | \
-            grep -oP 'from \K[\d.]+' | sort -u | \
-            while IFS= read -r ip; do
-                echo "$estab_ips" | grep -qx "$ip" && echo "$ip"
-            done)
+    # ── Hitung sesi aktif via proses sshd per user ────────────
+    # Format: "sshd: USERNAME" di ps — lebih akurat dari auth.log+ss
+    session_count=$(ps aux 2>/dev/null | grep "sshd: ${user}" | grep -v "priv\|grep" | wc -l | tr -d ' ')
 
-        if [[ -n "$user_ips" ]]; then
-            # Simpan IP aktif ke session file
-            echo "$user_ips" > "${BW_SESSION_DIR}/${user}.ips"
-            # Tulis count
-            echo "$user_ips" | wc -l | tr -d ' ' > "${BW_SESSION_DIR}/${user}.count"
-            # Tambah iptables rule untuk tiap IP
+    if [[ "${session_count:-0}" -gt 0 ]]; then
+        echo "$session_count" > "${BW_SESSION_DIR}/${user}.count"
+        # Ambil IP dari ss untuk iptables rule
+        estab_ips=$(ss -tn state established 2>/dev/null | \
+            awk '$3 ~ /:22$|:500$|:40000$|:109$|:143$/ {print $4}' | \
+            cut -d: -f1 | grep -v '^$' | sort -u)
+        if [[ -n "$estab_ips" ]]; then
+            echo "$estab_ips" > "${BW_SESSION_DIR}/${user}.ips"
             while IFS= read -r ip; do
                 _bw_add_ip_rule "$user" "$ip"
-            done <<< "$user_ips"
-        else
-            # Tidak ada IP aktif → reset count
-            echo "0" > "${BW_SESSION_DIR}/${user}.count"
-            rm -f "${BW_SESSION_DIR}/${user}.ips" 2>/dev/null
+            done <<< "$estab_ips"
         fi
     else
         echo "0" > "${BW_SESSION_DIR}/${user}.count"
+        rm -f "${BW_SESSION_DIR}/${user}.ips" 2>/dev/null
     fi
 
     # ── Akumulasi bytes ───────────────────────────────────────
