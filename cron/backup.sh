@@ -114,6 +114,19 @@ NOTETXT
     [[ -f "${BASE_DIR}/web-host"    ]] && cp "${BASE_DIR}/web-host"    "$dst/"
     [[ -f "${BASE_DIR}/domain"      ]] && cp "${BASE_DIR}/domain"      "$dst/"
     [[ -f "${BASE_DIR}/banner.conf" ]] && cp "${BASE_DIR}/banner.conf" "$dst/"
+
+    # File kredit
+    local _hash; _hash=$(grep "^COMMIT_HASH=" "${BASE_DIR}/config.conf" 2>/dev/null | cut -d= -f2 | tr -d '"')
+    cat > "${dst}/ZV-Manager.txt" << CREDITEOF
+╔══════════════════════════════════════╗
+║         Z V - M A N A G E R         ║
+╚══════════════════════════════════════╝
+
+Repository : https://github.com/ZenXNF/ZV-Manager
+Telegram   : https://t.me/ZenXNF
+Versi      : #${_hash:-unknown}
+Dibuat     : $(TZ="Asia/Jakarta" date +"%Y-%m-%d %H:%M WIB")
+CREDITEOF
 }
 
 # ── 2. Backup per-server tunneling ─────────────────────────
