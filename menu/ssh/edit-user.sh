@@ -226,8 +226,10 @@ edit_expired_local() {
         return 1
     fi
     new_exp=$(date -d "$new_exp" +"%Y-%m-%d")
+    local new_exp_ts; new_exp_ts=$(date -d "$new_exp" +%s 2>/dev/null || echo "")
     chage -E "$new_exp" "$username" &>/dev/null
     sed -i "s/^EXPIRED=.*/EXPIRED=${new_exp}/" "$conf"
+    [[ -n "$new_exp_ts" ]] && sed -i "s/^EXPIRED_TS=.*/EXPIRED_TS=${new_exp_ts}/" "$conf"
     print_ok "Expired berhasil diubah ke ${new_exp}!"
 }
 

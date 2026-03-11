@@ -131,6 +131,20 @@ EOF
             echo ""
             local domain
             domain=$(get_target_domain "$target")
+            # Simpan conf lokal di otak (untuk notif expired, backup, dll)
+            local r_exp_ts; r_exp_ts=$(date -d "$r_exp" +%s 2>/dev/null || echo "")
+            mkdir -p /etc/zv-manager/accounts/ssh
+            cat > "/etc/zv-manager/accounts/ssh/${r_user}.conf" <<CONFEOF
+USERNAME=${r_user}
+PASSWORD=${r_pass}
+LIMIT=${r_limit}
+EXPIRED=${r_exp}
+EXPIRED_TS=${r_exp_ts}
+CREATED=$(date +"%Y-%m-%d")
+IS_TRIAL=0
+SERVER=${target}
+DOMAIN=${domain}
+CONFEOF
             _show_account_info "$r_user" "$r_pass" "$r_limit" "$r_exp" "$domain"
         elif [[ "$result" == ADD-ERR* ]]; then
             local reason="${result#ADD-ERR|}"

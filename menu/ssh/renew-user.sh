@@ -45,7 +45,9 @@ renew_ssh_user() {
 
         local conf_file="/etc/zv-manager/accounts/ssh/${username}.conf"
         if [[ -f "$conf_file" ]]; then
+            local new_exp_ts; new_exp_ts=$(date -d "$new_exp" +%s 2>/dev/null || echo "")
             sed -i "s/^EXPIRED=.*/EXPIRED=${new_exp}/" "$conf_file"
+            [[ -n "$new_exp_ts" ]] && sed -i "s/^EXPIRED_TS=.*/EXPIRED_TS=${new_exp_ts}/" "$conf_file"
         fi
 
         print_ok "Akun '$username' diperpanjang hingga: $new_exp"

@@ -70,14 +70,22 @@ _main() {
 
     for conf in "${VMESS_DIR}"/*.conf; do
         [[ -f "$conf" ]] || continue
+        local _username _exp_ts _is_trial _bw_limit
+        _username=$(grep "^USERNAME=" "$conf" | cut -d= -f2 | tr -d '"' | tr -d '[:space:]')
+        _exp_ts=$(grep "^EXPIRED_TS=" "$conf" | cut -d= -f2 | tr -d '"' | tr -d '[:space:]')
+        _is_trial=$(grep "^IS_TRIAL=" "$conf" | cut -d= -f2 | tr -d '"' | tr -d '[:space:]')
+        _bw_limit=$(grep "^BW_LIMIT_GB=" "$conf" | cut -d= -f2 | tr -d '"' | tr -d '[:space:]')
+
+        # Skip trial, unlimited, atau sudah expired
+        [[ "$_is_trial" == "1" ]] && continue
+        [[ "${_bw_limit:-0}" == "0" ]] && continue
+        [[ -n "$_exp_ts" && "$_exp_ts" =~ ^[0-9]+$ && "$_exp_ts" -lt "$(date +%s)" ]] && continue
+
         unset USERNAME UUID TG_USER_ID BW_LIMIT_GB BW_USED_BYTES IS_TRIAL SERVER
         source "$conf"
 
         BW_LIMIT_GB="${BW_LIMIT_GB:-0}"
         BW_USED_BYTES="${BW_USED_BYTES:-0}"
-
-        # Skip unlimited atau trial
-        [[ "$BW_LIMIT_GB" == "0" || "$IS_TRIAL" == "1" ]] && continue
 
         local sname="${SERVER:-local}"
 
