@@ -780,72 +780,247 @@ async def cb_akun_vmess_page(cb: CallbackQuery):
     except Exception: pass
 
 
-# ── Kirim Ulang Info Akun ────────────────────────────────────
+# ── Kirim Ulang — Pilih Username (paginasi 4 per halaman) ────
+
+_KU_PAGE_SIZE = 4
+
+def _ku_ssh_kb(items: list, page: int) -> tuple[str, InlineKeyboardMarkup]:
+    """Bangun teks + keyboard pilih username SSH premium untuk kirim ulang."""
+    # Filter hanya akun premium (bukan trial)
+    premium = [ac for ac in items if ac.get("IS_TRIAL","0") != "1"]
+    total   = len(premium)
+    n_pages = max(1, (total + _KU_PAGE_SIZE - 1) // _KU_PAGE_SIZE)
+    page    = max(0, min(page, n_pages - 1))
+    chunk   = premium[page * _KU_PAGE_SIZE:(page + 1) * _KU_PAGE_SIZE]
+
+    text = (
+        f"📨 <b>Kirim Ulang Info SSH</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"Pilih akun yang ingin dikirim ulang:\n"
+        f"<i>({total} akun · hal. {page+1}/{n_pages})</i>"
+    )
+    b = InlineKeyboardBuilder()
+    for ac in chunk:
+        uname = ac.get("USERNAME", "")
+        b.row(InlineKeyboardButton(
+            text=f"🔑 {uname}",
+            callback_data=f"ku_ssh_{uname}"
+        ))
+    nav = []
+    if page > 0:
+        nav.append(InlineKeyboardButton(text="◀ Sebelumnya", callback_data=f"ku_ssh_p_{page-1}"))
+    if page < n_pages - 1:
+        nav.append(InlineKeyboardButton(text="Berikutnya ▶", callback_data=f"ku_ssh_p_{page+1}"))
+    if nav: b.row(*nav)
+    b.row(InlineKeyboardButton(text="↩ Kembali", callback_data="akun_proto_ssh"))
+    return text, b.as_markup()
+
+def _ku_vmess_kb(items: list, page: int) -> tuple[str, InlineKeyboardMarkup]:
+    """Bangun teks + keyboard pilih username VMess premium untuk kirim ulang."""
+    # Filter hanya akun premium (bukan trial)
+    premium = [vc for vc in items if vc.get("IS_TRIAL","0") != "1"]
+    total   = len(premium)
+    n_pages = max(1, (total + _KU_PAGE_SIZE - 1) // _KU_PAGE_SIZE)
+    page    = max(0, min(page, n_pages - 1))
+    chunk   = premium[page * _KU_PAGE_SIZE:(page + 1) * _KU_PAGE_SIZE]
+
+    text = (
+        f"📨 <b>Kirim Ulang Info VMess</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"Pilih akun yang ingin dikirim ulang:\n"
+        f"<i>({total} akun · hal. {page+1}/{n_pages})</i>"
+    )
+    b = InlineKeyboardBuilder()
+    for vc in chunk:
+        uname = vc.get("USERNAME", "")
+        b.row(InlineKeyboardButton(
+            text=f"⚡ {uname}",
+            callback_data=f"ku_vmess_{uname}"
+        ))
+    nav = []
+    if page > 0:
+        nav.append(InlineKeyboardButton(text="◀ Sebelumnya", callback_data=f"ku_vmess_p_{page-1}"))
+    if page < n_pages - 1:
+        nav.append(InlineKeyboardButton(text="Berikutnya ▶", callback_data=f"ku_vmess_p_{page+1}"))
+    if nav: b.row(*nav)
+    b.row(InlineKeyboardButton(text="↩ Kembali", callback_data="akun_proto_vmess"))
+    return text, b.as_markup()
+
+# ── Entry: buka halaman pilih username ───────────────────────
 
 @router.callback_query(F.data == "kirim_ulang_ssh")
-async def cb_kirim_ulang_ssh(cb: CallbackQuery):
-    uid    = cb.from_user.id
-    now_ts = int(time.time())
-    await cb.answer("📨 Mengirim ulang info akun...", show_alert=False)
-
-    items = _collect_ssh_akun(uid)
-    if not items:
-        await cb.message.answer("❌ Tidak ada akun SSH aktif yang ditemukan.")
+async def cb_kirim_ulang_ssh_menu(cb: CallbackQuery):
+    uid   = cb.from_user.id
+    await cb.answer()
+    items   = _collect_ssh_akun(uid)
+    premium = [ac for ac in items if ac.get("IS_TRIAL","0") != "1"]
+    if not premium:
+        await cb.message.edit_text(
+            "❌ Tidak ada akun SSH premium aktif.",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                InlineKeyboardButton(text="↩ Kembali", callback_data="akun_proto_ssh")
+            ]])
+        )
         return
-
-    for ac in items:
-        uname   = ac.get("USERNAME", "")
-        passwd  = ac.get("PASSWORD", "")
-        sname   = ac.get("SERVER", "")
-        sc      = load_server_conf(sname)
-        tgsc    = load_tg_server_conf(sname)
-        domain  = sc.get("DOMAIN") or sc.get("IP") or ac.get("DOMAIN", "")
-        if not domain:
-            try: domain = open("/etc/zv-manager/domain").read().strip()
-            except Exception: pass
-        slabel  = tgsc.get("TG_SERVER_LABEL", "") or sname
-        isp     = tgsc.get("TG_ISP", "") or sc.get("ISP", "")
-        tipe    = "TRIAL" if ac.get("IS_TRIAL", "0") == "1" else "BELI"
-        exp_d, _, _ = _status_label(ac.get("EXPIRED_TS", ""), now_ts)
-        limit   = ac.get("LIMIT", "2")
-        text    = text_akun_info(tipe, uname, passwd, domain,
-                                 exp_d, limit, slabel, isp=isp)
-        try:
-            await cb.message.answer(text, parse_mode="HTML")
-        except Exception:
-            pass
+    text, kb = _ku_ssh_kb(items, 0)
+    await cb.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
 
 @router.callback_query(F.data == "kirim_ulang_vmess")
-async def cb_kirim_ulang_vmess(cb: CallbackQuery):
-    uid    = cb.from_user.id
-    now_ts = int(time.time())
-    await cb.answer("📨 Mengirim ulang info akun...", show_alert=False)
+async def cb_kirim_ulang_vmess_menu(cb: CallbackQuery):
+    uid   = cb.from_user.id
+    await cb.answer()
+    items   = _collect_vmess_akun(uid)
+    premium = [vc for vc in items if vc.get("IS_TRIAL","0") != "1"]
+    if not premium:
+        await cb.message.edit_text(
+            "❌ Tidak ada akun VMess premium aktif.",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                InlineKeyboardButton(text="↩ Kembali", callback_data="akun_proto_vmess")
+            ]])
+        )
+        return
+    text, kb = _ku_vmess_kb(items, 0)
+    await cb.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
 
+# ── Navigasi halaman pilih username ──────────────────────────
+
+@router.callback_query(F.data.startswith("ku_ssh_p_"))
+async def cb_ku_ssh_page(cb: CallbackQuery):
+    uid  = cb.from_user.id
+    await cb.answer()
+    try: page = int(cb.data.split("_")[-1])
+    except (ValueError, IndexError): page = 0
+    items = _collect_ssh_akun(uid)
+    text, kb = _ku_ssh_kb(items, page)
+    await cb.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
+
+@router.callback_query(F.data.startswith("ku_vmess_p_"))
+async def cb_ku_vmess_page(cb: CallbackQuery):
+    uid  = cb.from_user.id
+    await cb.answer()
+    try: page = int(cb.data.split("_")[-1])
+    except (ValueError, IndexError): page = 0
     items = _collect_vmess_akun(uid)
-    if not items:
-        await cb.message.answer("❌ Tidak ada akun VMess aktif yang ditemukan.")
+    text, kb = _ku_vmess_kb(items, page)
+    await cb.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
+
+# ── Kirim info akun yang dipilih ─────────────────────────────
+
+@router.callback_query(F.data.startswith("ku_ssh_") & ~F.data.startswith("ku_ssh_p_"))
+async def cb_ku_ssh_send(cb: CallbackQuery):
+    uid      = cb.from_user.id
+    username = cb.data.removeprefix("ku_ssh_")
+    await cb.answer("📨 Mengirim info akun...", show_alert=False)
+
+    ac = load_account_conf(username)
+    if not ac or str(ac.get("TG_USER_ID","")).strip() != str(uid):
+        await cb.message.answer("❌ Akun tidak ditemukan.", parse_mode="HTML")
         return
 
-    for vc in items:
-        vuname  = vc.get("USERNAME", "")
-        vuuid   = vc.get("UUID", "")
-        vsname  = vc.get("SERVER", "")
-        vsc     = load_server_conf(vsname)
-        vtgsc   = load_tg_server_conf(vsname)
-        domain  = vsc.get("DOMAIN") or vsc.get("IP") or vc.get("DOMAIN", "")
-        if not domain:
-            try: domain = open("/etc/zv-manager/domain").read().strip()
-            except Exception: pass
-        slabel  = vtgsc.get("TG_SERVER_LABEL", "") or vsname
-        isp     = vtgsc.get("TG_ISP", "") or vsc.get("ISP", "")
-        tipe    = "TRIAL" if vc.get("IS_TRIAL", "0") == "1" else "BELI"
-        exp_d, _, _ = _status_label(vc.get("EXPIRED_TS", ""), now_ts)
-        text    = text_vmess_info(tipe, vuname, vuuid, domain,
-                                  exp_d, slabel, isp=isp)
-        try:
-            await cb.message.answer(text, parse_mode="HTML")
-        except Exception:
-            pass
+    sname  = ac.get("SERVER","")
+    sc     = load_server_conf(sname)
+    tgsc   = load_tg_server_conf(sname)
+    domain = sc.get("DOMAIN") or sc.get("IP") or ac.get("DOMAIN","")
+    if not domain:
+        try: domain = open("/etc/zv-manager/domain").read().strip()
+        except Exception: pass
+    slabel = tgsc.get("TG_SERVER_LABEL","") or sname or domain
+    now_ts = int(time.time())
+    exp_d, status, sisa_l = _status_label(ac.get("EXPIRED_TS",""), now_ts)
+    limit  = ac.get("LIMIT","2")
+    passwd = ac.get("PASSWORD","")
+    bw_used   = int(ac.get("BW_USED_BYTES","0") or "0")
+    bw_quota  = int(ac.get("BW_QUOTA_BYTES","0") or "0")
+    bw_line   = f"\n📶 Bandwidth : {fmt_bytes(bw_used)} / {fmt_bytes(bw_quota)}" if bw_quota > 0 else ""
+
+    text = (
+        f"📋 <b>Info Akun SSH Kamu</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"👤 Username : <code>{username}</code>\n"
+        f"🔑 Password : <code>{passwd}</code>\n"
+        f"🌐 Host     : <code>{domain}</code>\n"
+        f"🖥 Server   : {slabel}\n"
+        f"📅 Expired  : {exp_d} · {sisa_l}\n"
+        f"📊 Status   : {status}"
+        f"{bw_line}\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"📡 <b>Port</b>\n"
+        f"  SSH  : <code>22, 500, 40000</code>\n"
+        f"  DB   : <code>109, 143</code>\n"
+        f"  BVPN : <code>7300</code>  WS/WSS/UDP\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"🔗 <b>Format HTTP Custom</b>\n"
+        f"  Port 80     : <code>{domain}:80@{username}:{passwd}</code>\n"
+        f"  Port 443    : <code>{domain}:443@{username}:{passwd}</code>\n"
+        f"  UDP 1-65535 : <code>{domain}:1-65535@{username}:{passwd}</code>"
+    )
+    try:
+        await cb.message.bot.send_message(uid, text, parse_mode="HTML")
+        items = _collect_ssh_akun(uid)
+        ku_text, ku_kb = _ku_ssh_kb(items, 0)
+        await cb.message.edit_text(
+            f"✅ Info <code>{username}</code> sudah dikirim!\n\n" + ku_text,
+            parse_mode="HTML", reply_markup=ku_kb
+        )
+    except Exception as e:
+        await cb.message.answer(f"❌ Gagal kirim: {e}", parse_mode="HTML")
+
+@router.callback_query(F.data.startswith("ku_vmess_") & ~F.data.startswith("ku_vmess_p_"))
+async def cb_ku_vmess_send(cb: CallbackQuery):
+    uid      = cb.from_user.id
+    username = cb.data.removeprefix("ku_vmess_")
+    await cb.answer("📨 Mengirim info akun...", show_alert=False)
+
+    vc = load_vmess_conf(username)
+    if not vc or str(vc.get("TG_USER_ID","")).strip() != str(uid):
+        await cb.message.answer("❌ Akun tidak ditemukan.", parse_mode="HTML")
+        return
+
+    sname  = vc.get("SERVER","")
+    sc     = load_server_conf(sname)
+    tgsc   = load_tg_server_conf(sname)
+    domain = sc.get("DOMAIN") or sc.get("IP") or vc.get("DOMAIN","")
+    if not domain:
+        try: domain = open("/etc/zv-manager/domain").read().strip()
+        except Exception: pass
+    slabel = tgsc.get("TG_SERVER_LABEL","") or sname or domain
+    now_ts = int(time.time())
+    exp_d, status, sisa_l = _status_label(vc.get("EXPIRED_TS",""), now_ts)
+    uuid   = vc.get("UUID","")
+    url_tls, url_http, url_grpc = vmess_build_urls(username, uuid, domain)
+
+    text = (
+        f"📋 <b>Info Akun VMess Kamu</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"⚡ Username : <code>{username}</code>\n"
+        f"🌐 Server   : {slabel}\n"
+        f"🔑 UUID     : <code>{uuid}</code>\n"
+        f"📅 Expired  : {exp_d} · {sisa_l}\n"
+        f"📊 Status   : {status}\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"📡 Port TLS  : 443 (WS + gRPC)\n"
+        f"📡 Port HTTP : 80 (WS)\n"
+        f"📎 Path WS   : /vmess\n"
+        f"📎 Path gRPC : vmess-grpc\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"🔐 <b>URL VMESS TLS</b>\n"
+        f"<code>{url_tls}</code>\n\n"
+        f"🔓 <b>URL VMESS HTTP</b>\n"
+        f"<code>{url_http}</code>\n\n"
+        f"🔒 <b>URL VMESS gRPC</b>\n"
+        f"<code>{url_grpc}</code>\n"
+        f"━━━━━━━━━━━━━━━━━━━"
+    )
+    try:
+        await cb.message.bot.send_message(uid, text, parse_mode="HTML")
+        items = _collect_vmess_akun(uid)
+        ku_text, ku_kb = _ku_vmess_kb(items, 0)
+        await cb.message.edit_text(
+            f"✅ Info <code>{username}</code> sudah dikirim!\n\n" + ku_text,
+            parse_mode="HTML", reply_markup=ku_kb
+        )
+    except Exception as e:
+        await cb.message.answer(f"❌ Gagal kirim: {e}", parse_mode="HTML")
 
 
 # ── Perpanjang ────────────────────────────────────────────────
