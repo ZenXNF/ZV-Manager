@@ -20,9 +20,6 @@ def kb_home() -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="📋 Akun Saya",      callback_data="m_akun"),
         InlineKeyboardButton(text="💰 Riwayat Saldo",  callback_data="m_saldo_history")
     )
-    b.row(
-        InlineKeyboardButton(text="💳 Top Up Saldo",   callback_data="m_topup")
-    )
     return b.as_markup()
 
 def kb_home_admin() -> InlineKeyboardMarkup:
@@ -34,9 +31,6 @@ def kb_home_admin() -> InlineKeyboardMarkup:
     b.row(
         InlineKeyboardButton(text="📋 Akun Saya",      callback_data="m_akun"),
         InlineKeyboardButton(text="💰 Riwayat Saldo",  callback_data="m_saldo_history")
-    )
-    b.row(
-        InlineKeyboardButton(text="💳 Top Up Saldo",   callback_data="m_topup")
     )
     b.row(
         InlineKeyboardButton(text="🔧 Admin",          callback_data="m_admin")
@@ -113,6 +107,7 @@ def kb_admin_panel() -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="🟢 Online VMess",      callback_data="adm_online_vmess")
     )
     b.row(
+        InlineKeyboardButton(text="🖥 Akun per Server",  callback_data="adm_akun_per_server"),
         InlineKeyboardButton(text="⚡ Kelola VMess",      callback_data="adm_vmess_menu")
     )
     b.row(

@@ -18,11 +18,13 @@ from aiogram.types import (
 )
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from config import ACCOUNT_DIR, ADMIN_ID, NOTIFY_DIR, USERS_DIR, log
+from config import ACCOUNT_DIR, ADMIN_ID, NOTIFY_DIR, USERS_DIR, BASE_DIR, log
 from keyboards import kb_admin_panel, kb_home_btn
+import time
 from storage import (
     load_account_conf, load_server_conf, load_user_info,
-    saldo_get, state_clear, state_set, invalidate_account_cache
+    saldo_get, state_clear, state_set, invalidate_account_cache,
+    get_server_list_by_type, get_server_list,
 )
 from utils import fmt, tail_log, zv_log
 
@@ -203,6 +205,41 @@ async def do_broadcast_stiker(msg: Message, file_id: str):
         parse_mode="HTML"
     )
 
+async def do_broadcast_server(msg: Message, text: str, server_name: str):
+    """Broadcast teks ke user di server tertentu saja."""
+    _bot   = msg.bot
+    sender = msg.from_user.id
+    sc     = load_server_conf(server_name)
+    label  = sc.get("TG_SERVER_LABEL") or sc.get("DOMAIN") or server_name
+    uids   = _collect_uids_by_server(server_name)
+    uids.discard(sender)
+    if not uids:
+        await msg.answer(f"❌ Tidak ada user di server {label}."); return
+    await msg.answer(f"⏳ Mengirim ke {len(uids)} user di {label}...")
+    ok = 0; fail = 0; fail_reasons = []
+    for target_uid in uids:
+        try:
+            await _bot.send_message(target_uid, text, parse_mode="HTML")
+            ok += 1
+        except Exception as e:
+            fail += 1
+            reason = f"{type(e).__name__}: {str(e) or '(no message)'}'"[:80]
+            fail_reasons.append(f"uid {target_uid} → {reason}")
+            zv_log(f"BROADCAST_SERVER FAIL uid={target_uid} err={e}")
+        await asyncio.sleep(0.05)
+    zv_log(f"BROADCAST_SERVER DONE server={server_name} total={len(uids)} ok={ok} fail={fail}")
+    reason_txt = ""
+    if fail_reasons:
+        lines = "\n".join(f"• <code>{r}</code>" for r in fail_reasons[:5])
+        reason_txt = f"\n\n🔍 <b>Detail Error:</b>\n{lines}"
+    await msg.answer(
+        f"🖥 <b>Broadcast {label} Selesai</b>\n━━━━━━━━━━━━━━━━━━━\n"
+        f"✅ Terkirim : {ok} user\n"
+        f"❌ Gagal    : {fail} user\n"
+        f"━━━━━━━━━━━━━━━━━━━{reason_txt}",
+        parse_mode="HTML"
+    )
+
 def _collect_uids() -> set[int]:
     uids: set[int] = set()
     if Path(USERS_DIR).exists():
@@ -258,9 +295,10 @@ async def cb_broadcast(cb: CallbackQuery):
         "📢 <b>Broadcast</b>\n━━━━━━━━━━━━━━━━━━━\nPilih jenis broadcast:",
         parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="✉️ Teks / HTML", callback_data="bc_teks")],
-            [InlineKeyboardButton(text="🎭 Stiker",      callback_data="bc_stiker")],
-            [InlineKeyboardButton(text="❌ Batal",       callback_data="home")],
+            [InlineKeyboardButton(text="✉️ Semua User",     callback_data="bc_teks")],
+            [InlineKeyboardButton(text="🖥 Per Server",     callback_data="bc_server")],
+            [InlineKeyboardButton(text="🎭 Stiker",         callback_data="bc_stiker")],
+            [InlineKeyboardButton(text="❌ Batal",          callback_data="home")],
         ])
     )
 
@@ -273,7 +311,7 @@ async def cb_bc_teks(cb: CallbackQuery):
     state_clear(uid)
     state_set(uid, "STATE", "broadcast_msg")
     await cb.message.edit_text(
-        "📢 <b>Broadcast Teks</b>\n━━━━━━━━━━━━━━━━━━━\n"
+        "📢 <b>Broadcast — Semua User</b>\n━━━━━━━━━━━━━━━━━━━\n"
         "Ketik pesan yang akan dikirim ke semua user.\n"
         "Bisa pakai format HTML: <code>&lt;b&gt;bold&lt;/b&gt;</code>\n\nKetik pesan:",
         parse_mode="HTML",
@@ -294,6 +332,97 @@ async def cb_bc_stiker(cb: CallbackQuery):
         "🎭 <b>Broadcast Stiker</b>\n━━━━━━━━━━━━━━━━━━━\n"
         "Kirim satu stiker yang ingin di-broadcast ke semua user.\n\n"
         "<i>Kirim stiker sekarang:</i>",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="❌ Batal", callback_data="home")
+        ]])
+    )
+
+# ── Broadcast Per Server ──────────────────────────────────────
+
+def _collect_uids_by_server(server_name: str) -> set[int]:
+    """Kumpulkan TG_USER_ID dari semua akun SSH + VMess di server tertentu."""
+    uids: set[int] = set()
+    # SSH
+    try:
+        for f in Path(ACCOUNT_DIR).glob("*.conf"):
+            ac = load_account_conf(f.stem)
+            if ac.get("SERVER","") == server_name:
+                tid = ac.get("TG_USER_ID","").strip()
+                if tid.isdigit(): uids.add(int(tid))
+    except Exception: pass
+    # VMess
+    vmess_dir = f"{BASE_DIR}/accounts/vmess"
+    try:
+        for f in Path(vmess_dir).glob("*.conf"):
+            from storage import load_vmess_conf
+            vc = load_vmess_conf(f.stem)
+            if vc.get("SERVER","") == server_name:
+                tid = vc.get("TG_USER_ID","").strip()
+                if tid.isdigit(): uids.add(int(tid))
+    except Exception: pass
+    return uids
+
+@router.callback_query(F.data == "bc_server")
+async def cb_bc_server(cb: CallbackQuery):
+    uid = cb.from_user.id
+    if uid != ADMIN_ID:
+        await cb.answer("❌ Akses ditolak"); return
+    await cb.answer()
+    state_clear(uid)
+    servers = get_server_list()
+    if not servers:
+        await cb.message.edit_text(
+            "❌ Tidak ada server terdaftar.",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                InlineKeyboardButton(text="↩ Kembali", callback_data="m_broadcast")
+            ]])
+        )
+        return
+    b = InlineKeyboardBuilder()
+    for s in servers:
+        name  = s.get("NAME","")
+        label = s.get("TG_SERVER_LABEL") or name
+        # Hitung jumlah user unik di server ini
+        count = len(_collect_uids_by_server(name))
+        b.row(InlineKeyboardButton(
+            text=f"🖥 {label} ({count} user)",
+            callback_data=f"bc_srv_{name}"
+        ))
+    b.row(InlineKeyboardButton(text="↩ Kembali", callback_data="m_broadcast"))
+    await cb.message.edit_text(
+        "🖥 <b>Broadcast Per Server</b>\n━━━━━━━━━━━━━━━━━━━\nPilih server tujuan:",
+        parse_mode="HTML",
+        reply_markup=b.as_markup()
+    )
+
+@router.callback_query(F.data.startswith("bc_srv_"))
+async def cb_bc_srv_pick(cb: CallbackQuery):
+    uid = cb.from_user.id
+    if uid != ADMIN_ID:
+        await cb.answer("❌ Akses ditolak"); return
+    await cb.answer()
+    server_name = cb.data.removeprefix("bc_srv_")
+    sc    = load_server_conf(server_name)
+    label = sc.get("TG_SERVER_LABEL") or sc.get("DOMAIN") or server_name
+    uids  = _collect_uids_by_server(server_name)
+    if not uids:
+        await cb.message.edit_text(
+            f"❌ Tidak ada user di server <b>{label}</b>.",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                InlineKeyboardButton(text="↩ Kembali", callback_data="bc_server")
+            ]])
+        )
+        return
+    # Simpan target server di state
+    state_clear(uid)
+    state_set(uid, "STATE",      "broadcast_server_msg")
+    state_set(uid, "BC_SERVER",  server_name)
+    await cb.message.edit_text(
+        f"🖥 <b>Broadcast → {label}</b>\n━━━━━━━━━━━━━━━━━━━\n"
+        f"Pesan akan dikirim ke <b>{len(uids)} user</b> di server ini.\n\n"
+        "Ketik pesan (bisa HTML):",
         parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
             InlineKeyboardButton(text="❌ Batal", callback_data="home")
@@ -776,3 +905,177 @@ async def cb_adm_venable_exec(cb: CallbackQuery):
             InlineKeyboardButton(text="↩ Kembali", callback_data="adm_vmess_menu")
         ]])
     )
+
+# ============================================================
+#   AKUN PER SERVER
+# ============================================================
+
+_APS_PAGE_SIZE = 6
+
+def _status_label_adm(exp_ts: str, now_ts: int) -> tuple[str, str]:
+    """Return (exp_date_str, status_label)"""
+    try:
+        ts = int(exp_ts)
+        from datetime import datetime
+        exp_d = datetime.fromtimestamp(ts).strftime("%d %b %Y")
+        if ts < now_ts:
+            return exp_d, "❌ Expired"
+        sisa = ts - now_ts
+        if sisa < 86400:
+            return exp_d, "⚠️ < 1 hari"
+        return exp_d, f"✅ {sisa // 86400} hari"
+    except Exception:
+        return "-", "❓"
+
+def _collect_server_akun_ssh(server_name: str) -> list[dict]:
+    """Kumpulkan semua akun SSH di server tertentu."""
+    result = []
+    try:
+        for f in sorted(Path(ACCOUNT_DIR).glob("*.conf")):
+            ac = load_account_conf(f.stem)
+            if ac.get("SERVER", "") == server_name and ac.get("USERNAME"):
+                result.append(ac)
+    except Exception:
+        pass
+    return result
+
+def _collect_server_akun_vmess(server_name: str) -> list[dict]:
+    """Kumpulkan semua akun VMess di server tertentu."""
+    result = []
+    vmess_dir = f"{BASE_DIR}/accounts/vmess"
+    try:
+        for f in sorted(Path(vmess_dir).glob("*.conf")):
+            from storage import load_vmess_conf
+            vc = load_vmess_conf(f.stem)
+            if vc.get("SERVER", "") == server_name and vc.get("USERNAME"):
+                result.append(vc)
+    except Exception:
+        pass
+    return result
+
+def _kb_server_list_adm() -> tuple[str, InlineKeyboardMarkup]:
+    """Keyboard daftar server untuk dipilih."""
+    servers = get_server_list()
+    b = InlineKeyboardBuilder()
+    if not servers:
+        b.row(InlineKeyboardButton(text="↩ Kembali", callback_data="m_admin"))
+        return "❌ Tidak ada server terdaftar.", b.as_markup()
+
+    text = (
+        "🖥 <b>Akun per Server</b>\n"
+        "━━━━━━━━━━━━━━━━━━━\n"
+        "Pilih server untuk lihat daftar akun:"
+    )
+    for s in servers:
+        name  = s.get("NAME", "")
+        label = s.get("TG_SERVER_LABEL") or name
+        stype = s.get("TG_SERVER_TYPE", s.get("SERVER_TYPE", "both"))
+        icon  = "⚡" if stype == "vmess" else "🔑" if stype == "ssh" else "🌐"
+        b.row(InlineKeyboardButton(
+            text=f"{icon} {label}",
+            callback_data=f"adm_aps_{name}"
+        ))
+    b.row(InlineKeyboardButton(text="↩ Kembali", callback_data="m_admin"))
+    return text, b.as_markup()
+
+def _render_server_akun(server_name: str, proto: str, page: int) -> tuple[str, InlineKeyboardMarkup]:
+    """Render halaman akun SSH/VMess di server tertentu."""
+    now_ts = int(time.time())
+    sc     = load_server_conf(server_name)
+    label  = sc.get("TG_SERVER_LABEL") or sc.get("DOMAIN") or server_name
+
+    if proto == "ssh":
+        items = _collect_server_akun_ssh(server_name)
+        proto_label = "SSH"
+        proto_icon  = "🔑"
+    else:
+        items = _collect_server_akun_vmess(server_name)
+        proto_label = "VMess"
+        proto_icon  = "⚡"
+
+    total   = len(items)
+    n_pages = max(1, (total + _APS_PAGE_SIZE - 1) // _APS_PAGE_SIZE)
+    page    = max(0, min(page, n_pages - 1))
+    chunk   = items[page * _APS_PAGE_SIZE:(page + 1) * _APS_PAGE_SIZE]
+
+    # Hitung ringkasan
+    now_ts_  = int(time.time())
+    aktif    = sum(1 for ac in items if not (
+        str(ac.get("EXPIRED_TS","")).isdigit() and int(ac.get("EXPIRED_TS",0)) < now_ts_
+    ))
+    expired  = total - aktif
+    trial    = sum(1 for ac in items if ac.get("IS_TRIAL","0") == "1")
+
+    text = (
+        f"🖥 <b>{label}</b> — {proto_icon} {proto_label}\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"📊 Total: {total} akun · ✅ {aktif} aktif · ❌ {expired} expired"
+        + (f" · 🎁 {trial} trial" if trial > 0 else "") +
+        f"\n<i>Hal. {page+1}/{n_pages}</i>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+    )
+
+    for ac in chunk:
+        uname   = ac.get("USERNAME", "")
+        exp_ts  = ac.get("EXPIRED_TS", "")
+        exp_d, status = _status_label_adm(exp_ts, now_ts)
+        is_trial = ac.get("IS_TRIAL","0") == "1"
+        tipe_icon = "🎁" if is_trial else proto_icon
+        text += f"{tipe_icon} <code>{uname}</code> · {status} · {exp_d}\n"
+
+    b = InlineKeyboardBuilder()
+    # Toggle SSH / VMess
+    other_proto = "vmess" if proto == "ssh" else "ssh"
+    other_label = "⚡ VMess" if proto == "ssh" else "🔑 SSH"
+    b.row(InlineKeyboardButton(
+        text=f"Ganti ke {other_label}",
+        callback_data=f"adm_aps_proto_{server_name}_{other_proto}_0"
+    ))
+    # Navigasi halaman
+    nav = []
+    if page > 0:
+        nav.append(InlineKeyboardButton(text="◀", callback_data=f"adm_aps_proto_{server_name}_{proto}_{page-1}"))
+    if page < n_pages - 1:
+        nav.append(InlineKeyboardButton(text="▶", callback_data=f"adm_aps_proto_{server_name}_{proto}_{page+1}"))
+    if nav:
+        b.row(*nav)
+    b.row(InlineKeyboardButton(text="↩ Pilih Server", callback_data="adm_akun_per_server"))
+    b.row(InlineKeyboardButton(text="🔧 Admin Panel",  callback_data="m_admin"))
+    return text, b.as_markup()
+
+# ── Entry: pilih server ──────────────────────────────────────
+@router.callback_query(F.data == "adm_akun_per_server")
+async def cb_adm_akun_per_server(cb: CallbackQuery):
+    if cb.from_user.id != ADMIN_ID:
+        await cb.answer("❌ Akses ditolak"); return
+    await cb.answer()
+    text, kb = _kb_server_list_adm()
+    await cb.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
+
+# ── Pilih server → tampil akun SSH default ───────────────────
+@router.callback_query(F.data.startswith("adm_aps_") & ~F.data.startswith("adm_aps_proto_"))
+async def cb_adm_aps_server(cb: CallbackQuery):
+    if cb.from_user.id != ADMIN_ID:
+        await cb.answer("❌ Akses ditolak"); return
+    await cb.answer()
+    server_name = cb.data.removeprefix("adm_aps_")
+    text, kb = _render_server_akun(server_name, "ssh", 0)
+    await cb.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
+
+# ── Ganti proto / navigasi halaman ──────────────────────────
+@router.callback_query(F.data.startswith("adm_aps_proto_"))
+async def cb_adm_aps_proto(cb: CallbackQuery):
+    if cb.from_user.id != ADMIN_ID:
+        await cb.answer("❌ Akses ditolak"); return
+    await cb.answer()
+    # format: adm_aps_proto_{server}_{proto}_{page}
+    parts = cb.data.removeprefix("adm_aps_proto_").rsplit("_", 2)
+    if len(parts) != 3:
+        return
+    server_name, proto, page_str = parts
+    try:
+        page = int(page_str)
+    except ValueError:
+        page = 0
+    text, kb = _render_server_akun(server_name, proto, page)
+    await cb.message.edit_text(text, parse_mode="HTML", reply_markup=kb)

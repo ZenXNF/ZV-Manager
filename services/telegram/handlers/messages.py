@@ -19,7 +19,7 @@ from storage import (
     state_clear, state_get, state_set, zv_log as _zv_log
 )
 from utils import fmt, zv_log
-from handlers.admin import do_broadcast, do_broadcast_stiker, do_cek_user, do_hapus_akun
+from handlers.admin import do_broadcast, do_broadcast_stiker, do_broadcast_server, do_cek_user, do_hapus_akun
 
 router = Router()
 
@@ -63,6 +63,17 @@ async def _handle_state(msg: Message, uid: int, text: str, state: str):
             await msg.answer("❌ Pesan tidak boleh kosong. Ketik pesan teks:"); return
         state_clear(uid)
         await do_broadcast(msg, text)
+        return
+
+    # ── Broadcast per server ────────────────────────────────
+    if state == "broadcast_server_msg":
+        if uid != ADMIN_ID:
+            state_clear(uid); return
+        if not text:
+            await msg.answer("❌ Pesan tidak boleh kosong. Ketik pesan teks:"); return
+        server_name = state_get(uid, "BC_SERVER")
+        state_clear(uid)
+        await do_broadcast_server(msg, text, server_name)
         return
 
     # ── Broadcast stiker ───────────────────────────────────

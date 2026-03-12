@@ -232,9 +232,25 @@ async def cb_vs_trial(cb: CallbackQuery):
     await cb.answer()
 
     if already_trial_vmess(uid, sname):
+        from config import TRIAL_DIR
+        import time as _time, os as _os
+        _marker = f"{TRIAL_DIR}/vmess_{uid}_{sname}"
+        try:
+            _last    = _os.path.getmtime(_marker)
+            _sisa_s  = max(0, int(86400 - (_time.time() - _last)))
+            _jam     = _sisa_s // 3600
+            _menit   = (_sisa_s % 3600) // 60
+            _countdown = f"{_jam} jam {_menit} menit" if _jam > 0 else f"{_menit} menit"
+        except Exception:
+            _countdown = "beberapa saat"
         await cb.message.answer(
-            "⚠️ Kamu sudah trial VMess di server ini dalam 24 jam terakhir.\n"
-            "Coba server lain atau tunggu 24 jam."
+            f"⚠️ <b>Trial Sudah Digunakan</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━\n"
+            f"Kamu sudah trial VMess di server ini.\n"
+            f"⏳ Bisa trial lagi dalam: <b>{_countdown}</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━\n"
+            f"Coba server lain atau beli akun premium.",
+            parse_mode="HTML"
         ); return
 
     from pathlib import Path as P
@@ -450,9 +466,25 @@ async def cb_s_trial(cb: CallbackQuery):
     await cb.answer()
 
     if already_trial(uid, sname):
+        from config import TRIAL_DIR
+        import time as _time
+        _ts_file = f"{TRIAL_DIR}/{uid}_{sname}.ts"
+        try:
+            _last    = int(open(_ts_file).read().strip())
+            _sisa_s  = max(0, int(86400 - (_time.time() - _last)))
+            _jam     = _sisa_s // 3600
+            _menit   = (_sisa_s % 3600) // 60
+            _countdown = f"{_jam} jam {_menit} menit" if _jam > 0 else f"{_menit} menit"
+        except Exception:
+            _countdown = "beberapa saat"
         await cb.message.answer(
-            "⚠️ Kamu sudah trial di server ini dalam 24 jam terakhir.\n"
-            "Coba server lain atau tunggu 24 jam."
+            f"⚠️ <b>Trial Sudah Digunakan</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━\n"
+            f"Kamu sudah trial SSH di server ini.\n"
+            f"⏳ Bisa trial lagi dalam: <b>{_countdown}</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━\n"
+            f"Coba server lain atau beli akun premium.",
+            parse_mode="HTML"
         ); return
 
     sconf = load_server_conf(sname)
@@ -785,13 +817,13 @@ async def cb_akun_vmess_page(cb: CallbackQuery):
 _KU_PAGE_SIZE = 4
 
 def _ku_ssh_kb(items: list, page: int) -> tuple[str, InlineKeyboardMarkup]:
-    """Bangun teks + keyboard pilih username SSH premium untuk kirim ulang."""
-    # Filter hanya akun premium (bukan trial)
-    premium = [ac for ac in items if ac.get("IS_TRIAL","0") != "1"]
-    total   = len(premium)
+    """Bangun teks + keyboard pilih username SSH premium untuk kirim ulang.
+    Expects: items sudah difilter premium (IS_TRIAL != 1) dari caller.
+    """
+    total   = len(items)
     n_pages = max(1, (total + _KU_PAGE_SIZE - 1) // _KU_PAGE_SIZE)
     page    = max(0, min(page, n_pages - 1))
-    chunk   = premium[page * _KU_PAGE_SIZE:(page + 1) * _KU_PAGE_SIZE]
+    chunk   = items[page * _KU_PAGE_SIZE:(page + 1) * _KU_PAGE_SIZE]
 
     text = (
         f"📨 <b>Kirim Ulang Info SSH</b>\n"
@@ -816,13 +848,13 @@ def _ku_ssh_kb(items: list, page: int) -> tuple[str, InlineKeyboardMarkup]:
     return text, b.as_markup()
 
 def _ku_vmess_kb(items: list, page: int) -> tuple[str, InlineKeyboardMarkup]:
-    """Bangun teks + keyboard pilih username VMess premium untuk kirim ulang."""
-    # Filter hanya akun premium (bukan trial)
-    premium = [vc for vc in items if vc.get("IS_TRIAL","0") != "1"]
-    total   = len(premium)
+    """Bangun teks + keyboard pilih username VMess premium untuk kirim ulang.
+    Expects: items sudah difilter premium (IS_TRIAL != 1) dari caller.
+    """
+    total   = len(items)
     n_pages = max(1, (total + _KU_PAGE_SIZE - 1) // _KU_PAGE_SIZE)
     page    = max(0, min(page, n_pages - 1))
-    chunk   = premium[page * _KU_PAGE_SIZE:(page + 1) * _KU_PAGE_SIZE]
+    chunk   = items[page * _KU_PAGE_SIZE:(page + 1) * _KU_PAGE_SIZE]
 
     text = (
         f"📨 <b>Kirim Ulang Info VMess</b>\n"
@@ -862,7 +894,7 @@ async def cb_kirim_ulang_ssh_menu(cb: CallbackQuery):
             ]])
         )
         return
-    text, kb = _ku_ssh_kb(items, 0)
+    text, kb = _ku_ssh_kb(premium, 0)
     await cb.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
 
 @router.callback_query(F.data == "kirim_ulang_vmess")
@@ -879,7 +911,7 @@ async def cb_kirim_ulang_vmess_menu(cb: CallbackQuery):
             ]])
         )
         return
-    text, kb = _ku_vmess_kb(items, 0)
+    text, kb = _ku_vmess_kb(premium, 0)
     await cb.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
 
 # ── Navigasi halaman pilih username ──────────────────────────
@@ -890,8 +922,10 @@ async def cb_ku_ssh_page(cb: CallbackQuery):
     await cb.answer()
     try: page = int(cb.data.split("_")[-1])
     except (ValueError, IndexError): page = 0
-    items = _collect_ssh_akun(uid)
-    text, kb = _ku_ssh_kb(items, page)
+    # Pass premium saja agar page calculation konsisten dengan _ku_ssh_kb
+    items   = _collect_ssh_akun(uid)
+    premium = [ac for ac in items if ac.get("IS_TRIAL","0") != "1"]
+    text, kb = _ku_ssh_kb(premium, page)
     await cb.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
 
 @router.callback_query(F.data.startswith("ku_vmess_p_"))
@@ -900,8 +934,10 @@ async def cb_ku_vmess_page(cb: CallbackQuery):
     await cb.answer()
     try: page = int(cb.data.split("_")[-1])
     except (ValueError, IndexError): page = 0
-    items = _collect_vmess_akun(uid)
-    text, kb = _ku_vmess_kb(items, page)
+    # Pass premium saja agar page calculation konsisten dengan _ku_vmess_kb
+    items   = _collect_vmess_akun(uid)
+    premium = [vc for vc in items if vc.get("IS_TRIAL","0") != "1"]
+    text, kb = _ku_vmess_kb(premium, page)
     await cb.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
 
 # ── Kirim info akun yang dipilih ─────────────────────────────
@@ -956,8 +992,9 @@ async def cb_ku_ssh_send(cb: CallbackQuery):
     )
     try:
         await cb.message.bot.send_message(uid, text, parse_mode="HTML")
-        items = _collect_ssh_akun(uid)
-        ku_text, ku_kb = _ku_ssh_kb(items, 0)
+        items   = _collect_ssh_akun(uid)
+        premium = [ac for ac in items if ac.get("IS_TRIAL","0") != "1"]
+        ku_text, ku_kb = _ku_ssh_kb(premium, 0)
         await cb.message.edit_text(
             f"✅ Info <code>{username}</code> sudah dikirim!\n\n" + ku_text,
             parse_mode="HTML", reply_markup=ku_kb
@@ -1013,8 +1050,9 @@ async def cb_ku_vmess_send(cb: CallbackQuery):
     )
     try:
         await cb.message.bot.send_message(uid, text, parse_mode="HTML")
-        items = _collect_vmess_akun(uid)
-        ku_text, ku_kb = _ku_vmess_kb(items, 0)
+        items   = _collect_vmess_akun(uid)
+        premium = [vc for vc in items if vc.get("IS_TRIAL","0") != "1"]
+        ku_text, ku_kb = _ku_vmess_kb(premium, 0)
         await cb.message.edit_text(
             f"✅ Info <code>{username}</code> sudah dikirim!\n\n" + ku_text,
             parse_mode="HTML", reply_markup=ku_kb
@@ -1580,39 +1618,50 @@ async def cb_konfirm_vbw(cb: CallbackQuery):
 # ── Riwayat Saldo ─────────────────────────────────────────────
 @router.callback_query(F.data == "m_saldo_history")
 async def cb_saldo_history(cb: CallbackQuery):
-    uid        = cb.from_user.id
-    saldo      = saldo_get(uid)
-    entries    = []
-    total_bln  = 0
-    bulan_ini  = datetime.now().strftime("%Y-%m")
-    uid_str    = str(uid)
+    uid       = cb.from_user.id
+    saldo     = saldo_get(uid)
+    entries   = []   # list of (ts_str, amount, source)
+    total_bln = 0
+    bulan_ini = datetime.now().strftime("%Y-%m")
+    uid_str   = str(uid)
     await cb.answer()
-    for line in tail_log(300):
-        if "] TOPUP:" not in line or f"target={uid_str} " not in line: continue
+
+    for line in tail_log(400):
+        if "] TOPUP:" not in line: continue
         ts_m = re.search(r"^\[([^\]]+)\]", line)
         am_m = re.search(r"amount=(\d+)", line)
         if not ts_m or not am_m: continue
-        ts = ts_m.group(1); amount = int(am_m.group(1))
-        entries.append((ts, amount))
-        if ts[:7] == bulan_ini: total_bln += amount
+        ts     = ts_m.group(1)
+        amount = int(am_m.group(1))
+        # Format admin manual: TOPUP: admin=xxx target=uid ...
+        if f"target={uid_str} " in line or f"target={uid_str}\n" in line:
+            entries.append((ts, amount, "admin"))
+            if ts[:7] == bulan_ini: total_bln += amount
+        # Format Tripay otomatis: TOPUP: uid=uid amount=xxx ref=ZV-...
+        elif f"uid={uid_str} " in line and "ref=ZV-" in line:
+            entries.append((ts, amount, "tripay"))
+            if ts[:7] == bulan_ini: total_bln += amount
+
     bulan_label = datetime.now().strftime("%B %Y")
     msg = (
-        f"💰 <b>Riwayat Saldo</b>\n"
+        f"💰 <b>Riwayat Top Up</b>\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
-        f"💳 Saldo sekarang : Rp{fmt(saldo)}\n"
-        f"📅 Total topup {bulan_label} : Rp{fmt(total_bln)}\n"
+        f"💳 Saldo sekarang    : <b>Rp{fmt(saldo)}</b>\n"
+        f"📅 Total topup bulan ini : <b>Rp{fmt(total_bln)}</b>\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
     )
     if not entries:
         msg += "Belum ada riwayat top up."
     else:
-        for ts, amount in entries[-10:]:
-            msg += f"💰 +Rp{fmt(amount)}\n   <i>{ts}</i>\n─────────────────\n"
+        for ts, amount, source in entries[-10:]:
+            icon = "🤖" if source == "tripay" else "👤"
+            src_label = "Tripay (otomatis)" if source == "tripay" else "Admin"
+            msg += f"💰 +Rp{fmt(amount)}  {icon} {src_label}\n   <i>{ts}</i>\n─────────────────\n"
     msg += "━━━━━━━━━━━━━━━━━━━"
     b = InlineKeyboardBuilder()
     b.row(
         InlineKeyboardButton(text="📝 Riwayat Transaksi", callback_data="m_history"),
-        InlineKeyboardButton(text="🏠 Menu Utama", callback_data="home")
+        InlineKeyboardButton(text="🏠 Menu Utama",        callback_data="home")
     )
     await cb.message.edit_text(msg, parse_mode="HTML", reply_markup=b.as_markup())
 
@@ -1621,46 +1670,71 @@ async def cb_saldo_history(cb: CallbackQuery):
 @router.callback_query(F.data == "m_history")
 async def cb_history(cb: CallbackQuery):
     uid     = cb.from_user.id
-    entries = []
     uid_str = str(uid)
     await cb.answer()
+
+    # list of (ts_epoch_approx, display_str) untuk sorting kronologis
+    entries = []
+
     for line in tail_log(500):
-        if f"] BELI: {uid_str} " in line:
-            try:
-                ts    = re.search(r"^\[([^\]]+)\]", line).group(1)
+        try:
+            ts_m = re.search(r"^\[([^\]]+)\]", line)
+            if not ts_m: continue
+            ts = ts_m.group(1)
+
+            if f"] BELI: {uid_str} " in line:
                 user  = re.search(r"user=(\S+)", line).group(1)
                 days  = re.search(r"days=(\d+)", line).group(1)
                 total = re.search(r"total=(\d+)", line).group(1)
-                entries.append(f"🛒 Buat Akun <code>{user}</code>\n   {days} hari — Rp{fmt(total)}\n   <i>{ts}</i>")
-            except Exception: pass
-        elif f"] RENEW: {uid_str} " in line:
-            try:
-                ts    = re.search(r"^\[([^\]]+)\]", line).group(1)
+                entries.append((ts, f"🛒 <b>Beli Akun</b> <code>{user}</code>\n   {days} hari · <b>-Rp{fmt(total)}</b>\n   <i>{ts}</i>"))
+
+            elif f"] RENEW: {uid_str} " in line:
                 user  = re.search(r"user=(\S+)", line).group(1)
                 days  = re.search(r"days=(\d+)", line).group(1)
                 total = re.search(r"total=(\d+)", line).group(1)
-                entries.append(f"🔄 Perpanjang <code>{user}</code>\n   +{days} hari — Rp{fmt(total)}\n   <i>{ts}</i>")
-            except Exception: pass
-        elif f"] BW_BELI: {uid_str} " in line:
-            try:
-                ts    = re.search(r"^\[([^\]]+)\]", line).group(1)
+                entries.append((ts, f"🔄 <b>Perpanjang</b> <code>{user}</code>\n   +{days} hari · <b>-Rp{fmt(total)}</b>\n   <i>{ts}</i>"))
+
+            elif f"] BW_BELI: {uid_str} " in line:
                 user  = re.search(r"user=(\S+)", line).group(1)
                 gb    = re.search(r"gb=(\d+)", line).group(1)
                 total = re.search(r"total=(\d+)", line).group(1)
-                entries.append(f"📶 Tambah Bandwidth <code>{user}</code>\n   +{gb} GB — Rp{fmt(total)}\n   <i>{ts}</i>")
-            except Exception: pass
+                entries.append((ts, f"📶 <b>Tambah BW</b> <code>{user}</code>\n   +{gb} GB · <b>-Rp{fmt(total)}</b>\n   <i>{ts}</i>"))
+
+            elif "] TOPUP:" in line and (
+                f"target={uid_str} " in line or f"target={uid_str}\n" in line
+            ):
+                amount = re.search(r"amount=(\d+)", line).group(1)
+                entries.append((ts, f"💰 <b>Top Up Saldo</b> (admin)\n   <b>+Rp{fmt(amount)}</b>\n   <i>{ts}</i>"))
+
+            elif "] TOPUP:" in line and f"uid={uid_str} " in line and "ref=ZV-" in line:
+                amount = re.search(r"amount=(\d+)", line).group(1)
+                ref_m  = re.search(r"ref=(\S+)", line)
+                ref    = ref_m.group(1) if ref_m else "-"
+                entries.append((ts, f"🤖 <b>Top Up Saldo</b> (Tripay)\n   <b>+Rp{fmt(amount)}</b> · <code>{ref}</code>\n   <i>{ts}</i>"))
+
+        except Exception:
+            pass
+
     if not entries:
         await cb.message.edit_text(
             "📝 <b>Riwayat Transaksi</b>\n\nBelum ada transaksi.",
             parse_mode="HTML", reply_markup=kb_home_btn()
         ); return
-    msg = f"📝 <b>Riwayat Transaksi</b> ({len(entries)} total)\n━━━━━━━━━━━━━━━━━━━\n"
-    for i, e in enumerate(entries[-10:]):
+
+    # Tampil 10 terakhir
+    shown = entries[-10:]
+    msg   = f"📝 <b>Riwayat Transaksi</b> ({len(entries)} total, 10 terakhir)\n━━━━━━━━━━━━━━━━━━━\n"
+    for i, (_, e) in enumerate(shown):
         msg += e + "\n"
-        if i < min(9, len(entries) - 1):
+        if i < len(shown) - 1:
             msg += "─────────────────\n"
-    msg += f"━━━━━━━━━━━━━━━━━━━\n💳 Saldo saat ini: Rp{fmt(saldo_get(uid))}"
-    await cb.message.edit_text(msg, parse_mode="HTML", reply_markup=kb_home_btn())
+    msg += f"━━━━━━━━━━━━━━━━━━━\n💳 Saldo saat ini: <b>Rp{fmt(saldo_get(uid))}</b>"
+    b = InlineKeyboardBuilder()
+    b.row(
+        InlineKeyboardButton(text="💰 Riwayat Top Up", callback_data="m_saldo_history"),
+        InlineKeyboardButton(text="🏠 Menu Utama",     callback_data="home")
+    )
+    await cb.message.edit_text(msg, parse_mode="HTML", reply_markup=b.as_markup())
 
 
 # ── Konfirmasi buat akun ──────────────────────────────────────

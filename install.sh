@@ -314,6 +314,11 @@ cat > /etc/cron.d/zv-watchdog <<'CRONEOF'
 */5 * * * * root /bin/bash /etc/zv-manager/cron/watchdog.sh
 CRONEOF
 
+cat > /etc/cron.d/zv-worker-check <<'CRONEOF'
+# ZV-Manager - Worker Health Check: notif user kalau server tunneling down
+*/5 * * * * root /bin/bash /etc/zv-manager/cron/worker-check.sh
+CRONEOF
+
 cat > /etc/cron.d/zv-status-page <<'CRONEOF'
 # ZV-Manager - Generate Status Page
 */5 * * * * root /bin/bash /etc/zv-manager/cron/status-page.sh

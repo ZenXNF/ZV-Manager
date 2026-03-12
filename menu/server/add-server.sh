@@ -308,6 +308,93 @@ TGEOF
         fi
     fi
 
+    # --- Tanya kirim notif server baru ke user ---
+    echo ""
+    echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
+    echo -e " │         ${BWHITE}NOTIFIKASI SERVER BARU${NC}                │"
+    echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+    echo ""
+    echo -e "  Kirim notif ke user tentang server baru ini?"
+
+    # Tentukan target user berdasarkan tipe server
+    case "$server_type" in
+        ssh)   echo -e "  ${BYELLOW}→ Akan dikirim ke user yang punya akun SSH${NC}" ;;
+        vmess) echo -e "  ${BYELLOW}→ Akan dikirim ke user yang punya akun VMess${NC}" ;;
+        both)  echo -e "  ${BYELLOW}→ Akan dikirim ke semua user (SSH + VMess)${NC}" ;;
+    esac
+    echo ""
+
+    read -rp "  Kirim notif? [y/n]: " do_notif
+    if [[ "$do_notif" =~ ^[Yy]$ ]]; then
+        echo ""
+        print_info "Mengumpulkan daftar user..."
+
+        local BASE_DIR="/etc/zv-manager"
+        local _notif_uids=()
+
+        # Kumpulkan UID berdasarkan tipe server
+        _collect_uid_from_dir() {
+            local dir="$1"
+            [[ ! -d "$dir" ]] && return
+            for _f in "${dir}"/*.conf; do
+                [[ -f "$_f" ]] || continue
+                local _uid
+                _uid=$(grep "^TG_USER_ID=" "$_f" | cut -d= -f2 | tr -d '"[:space:]')
+                [[ -z "$_uid" || "$_uid" == "0" ]] && continue
+                # Cek duplikat
+                local _dup=false
+                for _x in "${_notif_uids[@]}"; do
+                    [[ "$_x" == "$_uid" ]] && _dup=true && break
+                done
+                [[ "$_dup" == false ]] && _notif_uids+=("$_uid")
+            done
+        }
+
+        case "$server_type" in
+            ssh)   _collect_uid_from_dir "${BASE_DIR}/accounts/ssh" ;;
+            vmess) _collect_uid_from_dir "${BASE_DIR}/accounts/vmess" ;;
+            both)
+                _collect_uid_from_dir "${BASE_DIR}/accounts/ssh"
+                _collect_uid_from_dir "${BASE_DIR}/accounts/vmess"
+                ;;
+        esac
+
+        if [[ ${#_notif_uids[@]} -eq 0 ]]; then
+            print_warning "Belum ada user yang bisa dinotif (belum ada akun terdaftar)."
+        else
+            # Susun isi pesan
+            local _type_label=""
+            case "$server_type" in
+                ssh)   _type_label="✅ Tersedia: 🔑 SSH" ;;
+                vmess) _type_label="✅ Tersedia: ⚡ VMess" ;;
+                both)  _type_label="✅ Tersedia: 🔑 SSH + ⚡ VMess" ;;
+            esac
+
+            local _notif_msg="🆕 <b>Server Baru Tersedia!</b>
+━━━━━━━━━━━━━━━━━━━
+🖥 ${tg_label}
+🌐 <code>${domain}</code>
+🏢 ${isp}
+━━━━━━━━━━━━━━━━━━━
+${_type_label}
+━━━━━━━━━━━━━━━━━━━
+Buka bot untuk beli akun di server ini! 🚀"
+
+            print_info "Mengirim ke ${#_notif_uids[@]} user..."
+            local _ok=0 _fail=0
+            for _uid in "${_notif_uids[@]}"; do
+                _tg_send "$_uid" "$_notif_msg"
+                if [[ $? -eq 0 ]]; then
+                    _ok=$((_ok + 1))
+                else
+                    _fail=$((_fail + 1))
+                fi
+                sleep 0.1
+            done
+            print_ok "Notif terkirim: ${_ok} user ✅  Gagal: ${_fail} user"
+        fi
+    fi
+
     # --- Tanya restore akun dari backup ---
     echo ""
     echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
