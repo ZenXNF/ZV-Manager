@@ -17,7 +17,8 @@ menu_system() {
         echo -e "  ${BGREEN}[1]${NC} Clear Cache          ${BGREEN}[2]${NC} Auto Reboot"
         echo -e "  ${BGREEN}[3]${NC} Edit Banner          ${BGREEN}[4]${NC} Manajemen SSL"
         echo -e "  ${BGREEN}[5]${NC} Setup Telegram Bot   ${BGREEN}[6]${NC} Backup & Restore"
-        echo -e "  ${BGREEN}[7]${NC} Halaman Web Status   ${BGREEN}[8]${NC} Uninstall"
+        echo -e "  ${BGREEN}[7]${NC} Halaman Web Status   ${BGREEN}[8]${NC} Setup Tripay"
+        echo -e "  ${BGREEN}[9]${NC} Uninstall"
         echo ""
         echo -e "  ${BRED}[0]${NC} Kembali"
         echo ""
@@ -31,7 +32,8 @@ menu_system() {
             5) bash /etc/zv-manager/menu/system/setup-telegram.sh ;;
             6) bash /etc/zv-manager/menu/system/backup.sh ;;
             7) bash /etc/zv-manager/menu/system/setup-web.sh ;;
-            8)
+            8) bash /etc/zv-manager/menu/system/setup-tripay.sh ;;
+            9)
                 clear
                 echo -e "${BRED}  ╔══════════════════════════════════════════════════╗${NC}"
                 echo -e "${BRED}  ║   ⚠  PERINGATAN: UNINSTALL ZV-MANAGER           ║${NC}"

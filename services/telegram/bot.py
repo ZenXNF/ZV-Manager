@@ -27,7 +27,7 @@ from aiogram import Bot, Dispatcher
 
 from config import TOKEN, ADMIN_ID, log
 from middleware import RateLimitMiddleware
-from handlers import user, admin, messages
+from handlers import user, admin, messages, topup
 
 
 async def _check_restore_flag(bot: Bot) -> None:
@@ -85,6 +85,7 @@ async def main():
     # (messages pakai @router.message() tanpa filter — harus paling akhir)
     dp.include_router(user.router)
     dp.include_router(admin.router)
+    dp.include_router(topup.router)
     dp.include_router(messages.router)
 
     log.info(f"ZV-Manager Bot starting... Admin: {ADMIN_ID}")
