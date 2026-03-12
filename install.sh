@@ -234,14 +234,27 @@ _step "System Setup" "selesai" \
 
 if [[ "$install_mode" == "restore_skip_domain" ]]; then
     _note "Domain" "dipertahankan dari backup"
-else
-    _step "Setup Domain" "selesai" \
-        bash -c "source '$INSTALL_DIR/core/domain.sh' && setup_domain"
-fi
-
-if [[ "$install_mode" == "restore_skip_domain" ]]; then
     _note "SSL / Stunnel" "dipertahankan dari backup"
 else
+    # Tanya domain SEBELUM _step (agar prompt terlihat, tidak tertelan redirect)
+    echo -e "\033[33m  ──────────────────────────────────────\033[0m"
+    echo -e "  \033[1mSetup Domain\033[0m"
+    echo -e "\033[33m  ──────────────────────────────────────\033[0m"
+    PUBLIC_IP=$(curl -s --max-time 10 ipv4.icanhazip.com 2>/dev/null || hostname -I | awk '{print $1}')
+    echo ""
+    echo -e "  IP Publik VPS: \033[1;37m${PUBLIC_IP}\033[0m"
+    echo ""
+    read -rp "  Domain untuk VPS ini (kosongkan = pakai IP): " _input_domain
+    _input_domain=$(echo "$_input_domain" | tr -d '[:space:]')
+    if [[ -n "$_input_domain" && ! "$_input_domain" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        echo "$_input_domain" > /etc/zv-manager/domain
+        _ok "Domain" "$_input_domain"
+    else
+        echo "$PUBLIC_IP" > /etc/zv-manager/domain
+        _ok "Domain" "menggunakan IP: $PUBLIC_IP"
+    fi
+    echo ""
+
     _step "Setup SSL" "sertifikat dipasang" \
         bash -c "source '$INSTALL_DIR/core/ssl.sh' && setup_ssl"
 fi

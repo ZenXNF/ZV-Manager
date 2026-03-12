@@ -1062,7 +1062,7 @@ async def cb_ku_vmess_send(cb: CallbackQuery):
 
 
 # ── Perpanjang ────────────────────────────────────────────────
-
+async def _show_perpanjang(cb: CallbackQuery, proto: str):
     """proto: 'ssh' atau 'vmess'"""
     uid       = cb.from_user.id
     akun_list = []
@@ -1686,19 +1686,37 @@ async def cb_history(cb: CallbackQuery):
                 user  = re.search(r"user=(\S+)", line).group(1)
                 days  = re.search(r"days=(\d+)", line).group(1)
                 total = re.search(r"total=(\d+)", line).group(1)
-                entries.append((ts, f"🛒 <b>Beli Akun</b> <code>{user}</code>\n   {days} hari · <b>-Rp{fmt(total)}</b>\n   <i>{ts}</i>"))
+                entries.append((ts, f"🛒 <b>Beli SSH</b> <code>{user}</code>\n   {days} hari · <b>-Rp{fmt(total)}</b>\n   <i>{ts}</i>"))
+
+            elif f"] VMESS_BELI: {uid_str} " in line:
+                user  = re.search(r"user=(\S+)", line).group(1)
+                days  = re.search(r"days=(\d+)", line).group(1)
+                total = re.search(r"total=(\d+)", line).group(1)
+                entries.append((ts, f"🛒 <b>Beli VMess</b> <code>{user}</code>\n   {days} hari · <b>-Rp{fmt(total)}</b>\n   <i>{ts}</i>"))
 
             elif f"] RENEW: {uid_str} " in line:
                 user  = re.search(r"user=(\S+)", line).group(1)
                 days  = re.search(r"days=(\d+)", line).group(1)
                 total = re.search(r"total=(\d+)", line).group(1)
-                entries.append((ts, f"🔄 <b>Perpanjang</b> <code>{user}</code>\n   +{days} hari · <b>-Rp{fmt(total)}</b>\n   <i>{ts}</i>"))
+                entries.append((ts, f"🔄 <b>Perpanjang SSH</b> <code>{user}</code>\n   +{days} hari · <b>-Rp{fmt(total)}</b>\n   <i>{ts}</i>"))
+
+            elif f"] VMESS_RENEW: {uid_str} " in line:
+                user  = re.search(r"user=(\S+)", line).group(1)
+                days  = re.search(r"days=(\d+)", line).group(1)
+                total = re.search(r"total=(\d+)", line).group(1)
+                entries.append((ts, f"🔄 <b>Perpanjang VMess</b> <code>{user}</code>\n   +{days} hari · <b>-Rp{fmt(total)}</b>\n   <i>{ts}</i>"))
 
             elif f"] BW_BELI: {uid_str} " in line:
                 user  = re.search(r"user=(\S+)", line).group(1)
                 gb    = re.search(r"gb=(\d+)", line).group(1)
                 total = re.search(r"total=(\d+)", line).group(1)
-                entries.append((ts, f"📶 <b>Tambah BW</b> <code>{user}</code>\n   +{gb} GB · <b>-Rp{fmt(total)}</b>\n   <i>{ts}</i>"))
+                entries.append((ts, f"📶 <b>Tambah BW SSH</b> <code>{user}</code>\n   +{gb} GB · <b>-Rp{fmt(total)}</b>\n   <i>{ts}</i>"))
+
+            elif f"] VMESS_BW_BELI: {uid_str} " in line:
+                user  = re.search(r"user=(\S+)", line).group(1)
+                gb    = re.search(r"gb=(\d+)", line).group(1)
+                total = re.search(r"total=(\d+)", line).group(1)
+                entries.append((ts, f"📶 <b>Tambah BW VMess</b> <code>{user}</code>\n   +{gb} GB · <b>-Rp{fmt(total)}</b>\n   <i>{ts}</i>"))
 
             elif "] TOPUP:" in line and (
                 f"target={uid_str} " in line or f"target={uid_str}\n" in line

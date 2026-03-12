@@ -534,7 +534,7 @@ async def cb_adm_history(cb: CallbackQuery):
     await cb.answer()
     entries = []
     for line in tail_log(200):
-        for tag in ["BELI", "RENEW", "BW_BELI", "TOPUP", "KURANGI"]:
+        for tag in ["BELI", "VMESS_BELI", "RENEW", "VMESS_RENEW", "BW_BELI", "VMESS_BW_BELI", "TOPUP", "KURANGI"]:
             if f"] {tag}:" in line:
                 entries.append(line.strip()); break
     if not entries:
@@ -553,19 +553,38 @@ async def cb_adm_history(cb: CallbackQuery):
             u = re.search(r"user=(\S+)", line); d = re.search(r"days=(\d+)", line)
             t = re.search(r"total=(\d+)", line); s = re.search(r"server=(\S+)", line)
             uid_m = re.search(r"BELI: (\S+)", line)
-            msg += (f"🛒 <b>Beli</b> — <code>{u.group(1) if u else '?'}</code> ({s.group(1) if s else '?'})\n"
+            msg += (f"🛒 <b>Beli SSH</b> — <code>{u.group(1) if u else '?'}</code> ({s.group(1) if s else '?'})\n"
+                    f"   {d.group(1) if d else '?'} hari · Rp{fmt(t.group(1) if t else 0)} · uid:{uid_m.group(1) if uid_m else '?'}\n"
+                    f"   <i>{ts}</i>\n")
+        elif "] VMESS_BELI:" in line:
+            u = re.search(r"user=(\S+)", line); d = re.search(r"days=(\d+)", line)
+            t = re.search(r"total=(\d+)", line); s = re.search(r"server=(\S+)", line)
+            uid_m = re.search(r"VMESS_BELI: (\S+)", line)
+            msg += (f"🛒 <b>Beli VMess</b> — <code>{u.group(1) if u else '?'}</code> ({s.group(1) if s else '?'})\n"
                     f"   {d.group(1) if d else '?'} hari · Rp{fmt(t.group(1) if t else 0)} · uid:{uid_m.group(1) if uid_m else '?'}\n"
                     f"   <i>{ts}</i>\n")
         elif "] RENEW:" in line:
             u = re.search(r"user=(\S+)", line); d = re.search(r"days=(\d+)", line)
             t = re.search(r"total=(\d+)", line); uid_m = re.search(r"RENEW: (\S+)", line)
-            msg += (f"🔄 <b>Renew</b> — <code>{u.group(1) if u else '?'}</code>\n"
+            msg += (f"🔄 <b>Renew SSH</b> — <code>{u.group(1) if u else '?'}</code>\n"
+                    f"   +{d.group(1) if d else '?'} hari · Rp{fmt(t.group(1) if t else 0)} · uid:{uid_m.group(1) if uid_m else '?'}\n"
+                    f"   <i>{ts}</i>\n")
+        elif "] VMESS_RENEW:" in line:
+            u = re.search(r"user=(\S+)", line); d = re.search(r"days=(\d+)", line)
+            t = re.search(r"total=(\d+)", line); uid_m = re.search(r"VMESS_RENEW: (\S+)", line)
+            msg += (f"🔄 <b>Renew VMess</b> — <code>{u.group(1) if u else '?'}</code>\n"
                     f"   +{d.group(1) if d else '?'} hari · Rp{fmt(t.group(1) if t else 0)} · uid:{uid_m.group(1) if uid_m else '?'}\n"
                     f"   <i>{ts}</i>\n")
         elif "] BW_BELI:" in line:
             u = re.search(r"user=(\S+)", line); g = re.search(r"gb=(\d+)", line)
             t = re.search(r"total=(\d+)", line); uid_m = re.search(r"BW_BELI: (\S+)", line)
-            msg += (f"📶 <b>Beli BW</b> — <code>{u.group(1) if u else '?'}</code>\n"
+            msg += (f"📶 <b>Beli BW SSH</b> — <code>{u.group(1) if u else '?'}</code>\n"
+                    f"   +{g.group(1) if g else '?'} GB · Rp{fmt(t.group(1) if t else 0)} · uid:{uid_m.group(1) if uid_m else '?'}\n"
+                    f"   <i>{ts}</i>\n")
+        elif "] VMESS_BW_BELI:" in line:
+            u = re.search(r"user=(\S+)", line); g = re.search(r"gb=(\d+)", line)
+            t = re.search(r"total=(\d+)", line); uid_m = re.search(r"VMESS_BW_BELI: (\S+)", line)
+            msg += (f"📶 <b>Beli BW VMess</b> — <code>{u.group(1) if u else '?'}</code>\n"
                     f"   +{g.group(1) if g else '?'} GB · Rp{fmt(t.group(1) if t else 0)} · uid:{uid_m.group(1) if uid_m else '?'}\n"
                     f"   <i>{ts}</i>\n")
         elif "] TOPUP:" in line:

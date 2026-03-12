@@ -29,7 +29,16 @@ add_server() {
     echo ""
     echo -e "  ${BYELLOW}Tip: Neva (VPS ini sendiri) juga bisa ditambahkan.${NC}"
     echo ""
-    read -rp "  Nama server (contoh: vps1, vps-sg)  : " name
+    while true; do
+        read -rp "  Nama server (contoh: vps1, vps-sg)  : " name
+        if [[ -z "$name" ]]; then
+            echo -e "  ${BRED}Nama server wajib diisi.${NC}"
+        elif [[ "$name" =~ [[:space:]] ]]; then
+            echo -e "  ${BRED}Nama server tidak boleh mengandung spasi. Gunakan tanda hubung, contoh: neva-jakarta${NC}"
+        else
+            break
+        fi
+    done
     read -rp "  IP Address                           : " ip
     read -rp "  Domain (contoh: server.zenxnf.com)   : " domain
     read -rp "  Port SSH              [default: 22]  : " port
@@ -42,8 +51,8 @@ add_server() {
     [[ -z "$user" ]] && user=root
     [[ -z "$domain" ]] && domain="$ip"
 
-    [[ -z "$name" || -z "$ip" || -z "$pass" ]] && {
-        print_error "Nama, IP, dan password wajib diisi!"
+    [[ -z "$ip" || -z "$pass" ]] && {
+        print_error "IP dan password wajib diisi!"
         press_any_key
         return
     }
@@ -333,14 +342,25 @@ TGEOF
         local _notif_uids=()
 
         # Kumpulkan UID berdasarkan tipe server
-        _collect_uid_from_dir() {
-            local dir="$1"
-            [[ ! -d "$dir" ]] && return
-            for _f in "${dir}"/*.conf; do
-                [[ -f "$_f" ]] || continue
+        # Kumpulkan semua UID dari registered users (accounts/users/*.user)
+        local USERS_DIR="${BASE_DIR}/accounts/users"
+        if [[ -d "$USERS_DIR" ]]; then
+            for _uf in "${USERS_DIR}"/*.user; do
+                [[ -f "$_uf" ]] || continue
                 local _uid
-                _uid=$(grep "^TG_USER_ID=" "$_f" | cut -d= -f2 | tr -d '"[:space:]')
+                _uid=$(basename "$_uf" .user)
                 [[ -z "$_uid" || "$_uid" == "0" ]] && continue
+                # Filter berdasarkan tipe server
+                # ssh   → hanya user yang punya akun SSH
+                # vmess → hanya user yang punya akun VMess
+                # both  → semua registered user
+                if [[ "$server_type" == "ssh" ]]; then
+                    ls "${BASE_DIR}/accounts/ssh"/*.conf 2>/dev/null | \
+                        xargs grep -l "^TG_USER_ID=\"${_uid}\"" 2>/dev/null | grep -q . || continue
+                elif [[ "$server_type" == "vmess" ]]; then
+                    ls "${BASE_DIR}/accounts/vmess"/*.conf 2>/dev/null | \
+                        xargs grep -l "^TG_USER_ID=\"${_uid}\"" 2>/dev/null | grep -q . || continue
+                fi
                 # Cek duplikat
                 local _dup=false
                 for _x in "${_notif_uids[@]}"; do
@@ -348,16 +368,7 @@ TGEOF
                 done
                 [[ "$_dup" == false ]] && _notif_uids+=("$_uid")
             done
-        }
-
-        case "$server_type" in
-            ssh)   _collect_uid_from_dir "${BASE_DIR}/accounts/ssh" ;;
-            vmess) _collect_uid_from_dir "${BASE_DIR}/accounts/vmess" ;;
-            both)
-                _collect_uid_from_dir "${BASE_DIR}/accounts/ssh"
-                _collect_uid_from_dir "${BASE_DIR}/accounts/vmess"
-                ;;
-        esac
+        fi
 
         if [[ ${#_notif_uids[@]} -eq 0 ]]; then
             print_warning "Belum ada user yang bisa dinotif (belum ada akun terdaftar)."
