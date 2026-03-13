@@ -283,11 +283,10 @@ cat > /etc/cron.d/zv-license <<'CRONEOF'
 CRONEOF
 
 cat > /etc/cron.d/zv-bw-check <<'CRONEOF'
-# ZV-Manager - Bandwidth SSH + VMess + IP Limit + Online Counter
+# ZV-Manager - Bandwidth SSH + VMess + IP Limit
 */5 * * * * root /bin/bash /etc/zv-manager/cron/bw-check.sh
 */5 * * * * root /bin/bash /etc/zv-manager/cron/bw-vmess.sh
 * * * * * root /bin/bash /etc/zv-manager/cron/ip-limit.sh
-* * * * * root /bin/bash /etc/zv-manager/cron/vmess-online.sh
 CRONEOF
 
 cat > /etc/cron.d/zv-watchdog <<'CRONEOF'
