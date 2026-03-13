@@ -111,13 +111,13 @@ show_statistik() {
         declare -A srv_count_ssh srv_count_vm
         for ac in "$ACCOUNT_DIR"/*.conf; do
             [[ -f "$ac" ]] || continue
-            local asrv; asrv=$(grep "^SERVER=" "$ac" | cut -d= -f2)
+            local asrv; asrv=$(grep "^SERVER=" "$ac" | cut -d= -f2 | tr -d '"')
             [[ -n "$asrv" ]] && srv_count_ssh["$asrv"]=$(( ${srv_count_ssh["$asrv"]:-0} + 1 ))
         done
         if [[ -d "$VMESS_DIR" ]]; then
             for ac in "$VMESS_DIR"/*.conf; do
                 [[ -f "$ac" ]] || continue
-                local asrv; asrv=$(grep "^SERVER=" "$ac" | cut -d= -f2)
+                local asrv; asrv=$(grep "^SERVER=" "$ac" | cut -d= -f2 | tr -d '"')
                 [[ -n "$asrv" ]] && srv_count_vm["$asrv"]=$(( ${srv_count_vm["$asrv"]:-0} + 1 ))
             done
         fi
