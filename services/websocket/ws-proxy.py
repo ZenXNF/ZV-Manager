@@ -92,6 +92,20 @@ def _vmess_save():
     except Exception:
         pass
 
+def _parse_real_ip(data: str, fallback: str) -> str:
+    """Ambil IP asli dari X-Real-IP atau X-Forwarded-For header."""
+    for line in data.split('\r\n'):
+        l = line.lower()
+        if l.startswith('x-real-ip:'):
+            ip = line.split(':', 1)[1].strip()
+            if ip:
+                return ip
+        elif l.startswith('x-forwarded-for:'):
+            ip = line.split(':', 1)[1].split(',')[0].strip()
+            if ip:
+                return ip
+    return fallback
+
 def _parse_path(data: str) -> str:
     first = data.split('\r\n')[0]
     parts = first.split()
@@ -100,6 +114,7 @@ def _parse_path(data: str) -> str:
 def handle_connection(client_sock, client_ip='unknown'):
     target = None
     vmess_registered = False
+    vmess_real_ip = None
     try:
         client_sock.settimeout(30)
         raw = b''
@@ -156,15 +171,17 @@ def handle_connection(client_sock, client_ip='unknown'):
             path = _parse_path(data)
             is_ws = 'upgrade' in data.lower() and 'websocket' in data.lower()
             if path.startswith('/vmess') and is_ws:
+                # Ambil IP asli dari header (nginx forward X-Real-IP)
+                real_ip = _parse_real_ip(data, client_ip)
                 # Cek dan register VMess IP limit
-                if not _vmess_register(client_ip):
-                    # Tolak koneksi — melebihi limit
+                if not _vmess_register(real_ip):
                     try:
                         client_sock.sendall(b'HTTP/1.1 429 Too Many Connections\r\n\r\n')
                     except Exception:
                         pass
                     return
                 vmess_registered = True
+                vmess_real_ip = real_ip
                 target = socket.create_connection((DEFAULT_HOST, XRAY_PORT), timeout=10)
                 target.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
                 target.sendall(raw)
@@ -191,8 +208,8 @@ def handle_connection(client_sock, client_ip='unknown'):
     except Exception:
         pass
     finally:
-        if vmess_registered:
-            _vmess_unregister(client_ip)
+        if vmess_registered and vmess_real_ip:
+            _vmess_unregister(vmess_real_ip)
         for s in (client_sock, target):
             if s:
                 try: s.close()
