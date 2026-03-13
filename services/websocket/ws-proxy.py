@@ -153,12 +153,13 @@ def handle_connection(client_sock, client_ip='unknown'):
     vmess_registered = False
     vmess_real_ip = None
     try:
+        client_sock.settimeout(30)
+
         # Baca PROXY protocol header jika ada (dari nginx stream proxy_protocol on)
         proxy_ip, proxy_leftover = _read_proxy_protocol(client_sock)
         if proxy_ip:
             client_ip = proxy_ip
 
-        client_sock.settimeout(30)
         raw = proxy_leftover  # Data yang sudah dibaca sebelum header HTTP
         try:
             while b'\r\n\r\n' not in raw:
