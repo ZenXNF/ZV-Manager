@@ -11,10 +11,6 @@ mkdir -p "$SESSION_DIR"
 CONF="/etc/zv-manager/accounts/ssh/${PAM_USER}.conf"
 [[ ! -f "$CONF" ]] && exit 0
 
-# Skip jika bandwidth = 0 (unlimited)
-quota=$(grep "^BW_QUOTA_BYTES=" "$CONF" 2>/dev/null | cut -d= -f2 | tr -d '[:space:]')
-[[ "${quota:-0}" == "0" ]] && exit 0
-
 source /etc/zv-manager/core/bandwidth.sh
 
 if [[ "$PAM_TYPE" == "open_session" ]]; then
@@ -41,6 +37,8 @@ elif [[ "$PAM_TYPE" == "close_session" ]]; then
     if [[ -f "$SESSION_FILE" ]]; then
         grep -v "^${CLIENT_IP}$" "$SESSION_FILE" > "${SESSION_FILE}.tmp" 2>/dev/null
         mv "${SESSION_FILE}.tmp" "$SESSION_FILE"
+        # Hapus file jika kosong
+        [[ ! -s "$SESSION_FILE" ]] && rm -f "$SESSION_FILE"
     fi
 
     # Hapus iptables rule untuk IP ini

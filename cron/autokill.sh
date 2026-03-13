@@ -86,7 +86,13 @@ for conf_file in "$ACCOUNT_DIR"/*.conf; do
     server=$(grep "^SERVER="     "$conf_file" | cut -d= -f2 | tr -d '[:space:]')
     [[ -z "$uname" ]] && continue
     limit=${limit:-2}
-    current=$(cat "${SESSION_DIR}/${uname}.count" 2>/dev/null || echo 0)
+    # Hitung IP unik dari .ips file (ditulis PAM saat session open/close)
+    ips_file="${SESSION_DIR}/${uname}.ips"
+    if [[ -f "$ips_file" ]]; then
+        current=$(grep -c . "$ips_file" 2>/dev/null || echo 0)
+    else
+        current=$(cat "${SESSION_DIR}/${uname}.count" 2>/dev/null || echo 0)
+    fi
     current=${current:-0}
     if (( current > limit )); then
         _hapus_akun "$uname" "$tg_uid" "$server"
