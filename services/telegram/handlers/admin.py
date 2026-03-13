@@ -18,11 +18,11 @@ from aiogram.types import (
 )
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from config import ACCOUNT_DIR, ADMIN_ID, NOTIFY_DIR, USERS_DIR, BASE_DIR, log
+from config import ACCOUNT_DIR, ADMIN_ID, NOTIFY_DIR, USERS_DIR, BASE_DIR, VMESS_DIR, log
 from keyboards import kb_admin_panel, kb_home_btn
 import time
 from storage import (
-    load_account_conf, load_server_conf, load_user_info,
+    load_account_conf, load_server_conf, load_user_info, load_vmess_conf,
     saldo_get, state_clear, state_set, invalidate_account_cache,
     get_server_list_by_type, get_server_list,
 )
@@ -125,6 +125,22 @@ async def do_cek_user(msg: Message, target_uid: int):
             akun_count += 1
     if not akun_info:
         akun_info = "   Tidak ada akun\n"
+
+    vmess_info  = ""
+    vmess_count = 0
+    if Path(VMESS_DIR).exists():
+        for f in Path(VMESS_DIR).glob("*.conf"):
+            vc = load_vmess_conf(f.stem)
+            if str(vc.get("TG_USER_ID", "")).strip() != str(target_uid): continue
+            uname    = vc.get("USERNAME", "")
+            is_trial = vc.get("IS_TRIAL", "0") == "1"
+            exp_ts_r = vc.get("EXPIRED_TS", "0")
+            tipe     = "Trial" if is_trial else "Premium"
+            status   = "✅ Aktif" if (exp_ts_r.isdigit() and int(exp_ts_r) > now_ts) else "❌ Expired"
+            vmess_info  += f"   • <code>{uname}</code> ({tipe}) {status}\n"
+            vmess_count += 1
+    if not vmess_info:
+        vmess_info = "   Tidak ada akun\n"
     await msg.answer(
         f"🔍 <b>Info User</b>\n━━━━━━━━━━━━━━━━━━━\n"
         f"🆔 User ID  : <code>{target_uid}</code>\n"
@@ -133,6 +149,7 @@ async def do_cek_user(msg: Message, target_uid: int):
         f"💰 Saldo    : Rp{fmt(saldo)}\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
         f"🖥️ Akun SSH ({akun_count}):\n{akun_info}"
+        f"⚡ Akun VMess ({vmess_count}):\n{vmess_info}"
         f"━━━━━━━━━━━━━━━━━━━",
         parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
