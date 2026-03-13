@@ -125,7 +125,13 @@ cmd_add() {
         echo "ADD-ERR|Argumen tidak lengkap (user uuid days bw_limit_gb)"; return 1
     }
     [[ -z "$bw" ]] && bw=0
-    _exists "$user" && { echo "ADD-ERR|Akun '${user}' sudah ada"; return 1; }
+    # Kalau conf sudah ada (dibuat oleh brain bot), skip buat conf tapi tetap inject ke xray
+    if _exists "$user"; then
+        _read "$user"
+        _xray_add "$user" "${UUID:-$uuid}"
+        echo "ADD-OK|${user}|${UUID:-$uuid}|${EXPIRED:-?}"
+        return 0
+    fi
     local exp
     exp=$(_exp_from_days "$days")
     [[ -z "$exp" ]] && { echo "ADD-ERR|Format hari tidak valid: $days"; return 1; }
