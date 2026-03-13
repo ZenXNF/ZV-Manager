@@ -67,10 +67,11 @@ def _vmess_register(client_ip):
     """Tambah koneksi aktif untuk IP ini. Return True jika diizinkan, False jika melebihi limit."""
     limit = _vmess_get_limit()
     with _vmess_lock:
-        current = _vmess_active.get(client_ip, 0)
-        if current >= limit:
+        current_ips = set(ip for ip, cnt in _vmess_active.items() if cnt > 0)
+        # Izinkan jika IP sudah terdaftar (multiple conn dari IP sama) atau jumlah unique IP belum >= limit
+        if client_ip not in current_ips and len(current_ips) >= limit:
             return False
-        _vmess_active[client_ip] = current + 1
+        _vmess_active[client_ip] = _vmess_active.get(client_ip, 0) + 1
         _vmess_save()
         return True
 
