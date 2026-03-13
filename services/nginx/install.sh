@@ -59,6 +59,7 @@ stream {
     server {
         listen 80;
         proxy_pass 127.0.0.1:8880;
+        proxy_protocol on;
         proxy_timeout 3600s;
         proxy_connect_timeout 10s;
     }
@@ -89,6 +90,7 @@ stream {
         ssl_session_cache   shared:SSLSTREAM:10m;
         ssl_session_timeout 10m;
         proxy_pass          127.0.0.1:8880;
+        proxy_protocol      on;
         proxy_timeout       3600s;
         proxy_connect_timeout 10s;
     }

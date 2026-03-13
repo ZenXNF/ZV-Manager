@@ -92,6 +92,43 @@ def _vmess_save():
     except Exception:
         pass
 
+def _read_proxy_protocol(sock) -> tuple:
+    """
+    Baca PROXY protocol v1 header dari socket jika ada.
+    Return: (src_ip, leftover_bytes)
+    leftover_bytes = data yang sudah dibaca tapi bukan PROXY header
+    """
+    try:
+        # Baca 6 byte pertama untuk cek apakah PROXY header
+        peek = b''
+        while len(peek) < 6:
+            c = sock.recv(1)
+            if not c:
+                return ('', peek)
+            peek += c
+
+        if not peek.startswith(b'PROXY '):
+            # Bukan PROXY protocol, kembalikan data
+            return ('', peek)
+
+        # Baca sisa sampai \r\n
+        line = peek
+        while len(line) < 108:
+            c = sock.recv(1)
+            if not c:
+                break
+            line += c
+            if line.endswith(b'\r\n'):
+                break
+
+        text = line.decode('ascii', errors='ignore').strip()
+        parts = text.split()
+        if len(parts) >= 3 and parts[2] not in ('UNKNOWN',):
+            return (parts[2], b'')
+    except Exception:
+        pass
+    return ('', b'')
+
 def _parse_real_ip(data: str, fallback: str) -> str:
     """Ambil IP asli dari X-Real-IP atau X-Forwarded-For header."""
     for line in data.split('\r\n'):
@@ -116,8 +153,13 @@ def handle_connection(client_sock, client_ip='unknown'):
     vmess_registered = False
     vmess_real_ip = None
     try:
+        # Baca PROXY protocol header jika ada (dari nginx stream proxy_protocol on)
+        proxy_ip, proxy_leftover = _read_proxy_protocol(client_sock)
+        if proxy_ip:
+            client_ip = proxy_ip
+
         client_sock.settimeout(30)
-        raw = b''
+        raw = proxy_leftover  # Data yang sudah dibaca sebelum header HTTP
         try:
             while b'\r\n\r\n' not in raw:
                 chunk = client_sock.recv(BUFLEN)
