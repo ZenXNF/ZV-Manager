@@ -7,13 +7,12 @@
 import time
 from aiogram import Router, F
 from aiogram.types import (
-    CallbackQuery, Message,
+    CallbackQuery,
     InlineKeyboardMarkup, InlineKeyboardButton,
 )
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.filters import Command
 
-from config import ADMIN_ID, BASE_DIR
+from config import BASE_DIR
 from storage import saldo_get
 from utils import fmt
 
@@ -116,6 +115,7 @@ async def cb_topup_nominal(cb: CallbackQuery):
 # ── Nominal custom (ketik manual) ─────────────────────────────
 @router.callback_query(F.data == "topup_custom")
 async def cb_topup_custom(cb: CallbackQuery):
+    from storage import state_set
     await cb.answer()
     await cb.message.edit_text(
         "✏️ <b>Masukkan Nominal Top Up</b>\n"
@@ -128,47 +128,8 @@ async def cb_topup_custom(cb: CallbackQuery):
             InlineKeyboardButton(text="↩ Kembali", callback_data="m_topup")
         ]])
     )
-    # Tandai state: user sedang input nominal
-    import os
-    os.makedirs("/tmp/zv-tg-state", exist_ok=True)
-    with open(f"/tmp/zv-tg-state/{cb.from_user.id}_topup", "w") as f:
-        f.write("waiting_nominal")
-
-# ── Handle pesan teks (nominal custom) ───────────────────────
-@router.message(F.text)
-async def msg_topup_nominal(msg: Message):
-    uid = msg.from_user.id
-    state_file = f"/tmp/zv-tg-state/{uid}_topup"
-
-    import os
-    if not os.path.exists(state_file):
-        return  # bukan state topup, ignore
-
-    os.remove(state_file)
-
-    text = msg.text.strip().replace(".", "").replace(",", "")
-    if not text.isdigit():
-        await msg.answer(
-            "❌ Nominal tidak valid. Masukkan angka saja, contoh: <code>75000</code>",
-            parse_mode="HTML",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
-                InlineKeyboardButton(text="↩ Kembali", callback_data="m_topup")
-            ]])
-        )
-        return
-
-    amount = int(text)
-    if amount < 10000:
-        await msg.answer(
-            "❌ Minimal top up <b>Rp10.000</b>",
-            parse_mode="HTML",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
-                InlineKeyboardButton(text="↩ Kembali", callback_data="m_topup")
-            ]])
-        )
-        return
-
-    await _process_topup(msg, uid, amount, edit=False)
+    # Set state via state machine (bukan file manual)
+    state_set(cb.from_user.id, "STATE", "topup_custom_nominal")
 
 # ── Core: buat transaksi QRIS dan kirim ke user ───────────────
 async def _process_topup(target, uid: int, amount: int, edit: bool = False):

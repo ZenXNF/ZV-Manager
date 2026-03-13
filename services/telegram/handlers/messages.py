@@ -215,6 +215,31 @@ async def _handle_state(msg: Message, uid: int, text: str, state: str):
         except Exception: pass
         return
 
+    # ── Topup custom nominal (user ketik jumlah) ───────────
+    if state == "topup_custom_nominal":
+        state_clear(uid)
+        clean = text.strip().replace(".", "").replace(",", "")
+        if not clean.isdigit():
+            await msg.answer(
+                "❌ Nominal tidak valid. Masukkan angka saja, contoh: <code>75000</code>",
+                parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                    InlineKeyboardButton(text="↩ Kembali", callback_data="m_topup")
+                ]])
+            ); return
+        amount = int(clean)
+        if amount < 10000:
+            await msg.answer(
+                "❌ Minimal top up <b>Rp10.000</b>",
+                parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                    InlineKeyboardButton(text="↩ Kembali", callback_data="m_topup")
+                ]])
+            ); return
+        from handlers.topup import _process_topup
+        await _process_topup(msg, uid, amount, edit=False)
+        return
+
     # ── Admin: hapus akun ──────────────────────────────────
     if state == "adm_hapus_username":
         if uid != ADMIN_ID:
