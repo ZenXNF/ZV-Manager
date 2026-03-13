@@ -618,8 +618,12 @@ def _render_ssh_page(items: list, page: int, now_ts: int, uid: int) -> tuple[str
         tipe    = "Trial" if ac.get("IS_TRIAL","0") == "1" else "Premium"
         exp_d, status, sisa_l = _status_label(ac.get("EXPIRED_TS",""), now_ts)
         limit   = int(ac.get("LIMIT", "2") or "2")
-        ip_now  = int(open(f"/tmp/zv-bw/{uname}.count").read().strip()
-                      if __import__("os").path.exists(f"/tmp/zv-bw/{uname}.count") else "0")
+        try:
+            import subprocess as _sp
+            ip_now = int(_sp.run(["pgrep", "-x", "sshd", "-u", uname, "-c"],
+                                 capture_output=True, text=True).stdout.strip() or "0")
+        except Exception:
+            ip_now = 0
         ip_warn = " ⚠️ Penuh!" if ip_now >= limit else ""
         out += (
             f"\n👤 <b>{uname}</b> <i>({tipe})</i>\n"
