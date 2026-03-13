@@ -76,6 +76,8 @@ for _sconf in /etc/zv-manager/servers/*.conf; do
     fi
 done
 
+
+# ── Auto Kill SSH ────────────────────────────────────────────
 for conf_file in "$ACCOUNT_DIR"/*.conf; do
     [[ -f "$conf_file" ]] || continue
     uname=$(grep "^USERNAME="    "$conf_file" | cut -d= -f2 | tr -d '[:space:]')
@@ -88,5 +90,57 @@ for conf_file in "$ACCOUNT_DIR"/*.conf; do
     current=${current:-0}
     if (( current > limit )); then
         _hapus_akun "$uname" "$tg_uid" "$server"
+    fi
+done
+
+# ── Auto Kill VMess ──────────────────────────────────────────
+VMESS_DIR="/etc/zv-manager/accounts/vmess"
+XRAY_BIN="/usr/local/bin/xray"
+API_ADDR="127.0.0.1:10085"
+
+[[ -d "$VMESS_DIR" ]] || exit 0
+[[ -x "$XRAY_BIN" ]] || exit 0
+
+for conf_file in "$VMESS_DIR"/*.conf; do
+    [[ -f "$conf_file" ]] || continue
+    v_user=$(grep "^USERNAME="    "$conf_file" | cut -d= -f2 | tr -d '"[:space:]')
+    v_tguid=$(grep "^TG_USER_ID=" "$conf_file" | cut -d= -f2 | tr -d '"[:space:]')
+    v_server=$(grep "^SERVER="    "$conf_file" | cut -d= -f2 | tr -d '"[:space:]')
+    v_trial=$(grep "^IS_TRIAL="   "$conf_file" | cut -d= -f2 | tr -d '"[:space:]')
+    v_exp=$(grep "^EXPIRED_TS="   "$conf_file" | cut -d= -f2 | tr -d '"[:space:]')
+    [[ -z "$v_user" ]] && continue
+    # Skip expired
+    now_ts=$(date +%s)
+    [[ -n "$v_exp" && "$v_exp" =~ ^[0-9]+$ && "$v_exp" -lt "$now_ts" ]] && continue
+    # Ambil limit IP dari tg.conf server
+    v_tgconf="/etc/zv-manager/servers/${v_server}.tg.conf"
+    v_limit=$(grep "^TG_LIMIT_IP_VMESS=" "$v_tgconf" 2>/dev/null | cut -d= -f2 | tr -d '"[:space:]')
+    v_limit=${v_limit:-2}
+
+    # Query online count dari Xray stats API
+    v_online=$("$XRAY_BIN" api statsquery -s "$API_ADDR" \
+        -pattern "user>>>${v_user}@vmess>>>online" 2>/dev/null \
+        | python3 -c "
+import sys,json
+try:
+    d=json.load(sys.stdin)
+    stats=d.get('stat',[])
+    print(int(stats[0].get('value',0)) if stats else 0)
+except: print(0)
+" 2>/dev/null)
+    v_online=${v_online:-0}
+
+    if (( v_online > v_limit )); then
+        # Hapus dari Xray
+        "$XRAY_BIN" api rmu -s "$API_ADDR" -inbound "vmess-ws"   -email "${v_user}@vmess" &>/dev/null
+        "$XRAY_BIN" api rmu -s "$API_ADDR" -inbound "vmess-grpc" -email "${v_user}@vmess" &>/dev/null
+        # Hapus conf
+        rm -f "$conf_file"
+        _log "AUTOKILL VMESS: $v_user dihapus (multi-login online=$v_online limit=$v_limit)"
+        [[ -n "$v_tguid" ]] && _tg_send "$v_tguid" "🚫 <b>Akun VMess Dihapus!</b>
+Username : <code>${v_user}</code>
+Server   : ${v_server}
+Alasan   : Multi Login melebihi batas (${v_online}/${v_limit} IP).
+Buat akun baru via bot."
     fi
 done
