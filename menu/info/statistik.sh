@@ -123,7 +123,7 @@ show_statistik() {
         fi
         for conf in "$SERVER_DIR"/*.conf; do
             [[ -f "$conf" && "$conf" != *.tg.conf ]] || continue
-            local sname; sname=$(grep "^NAME=" "$conf" | cut -d= -f2)
+            local sname; sname=$(grep "^NAME=" "$conf" | cut -d= -f2 | tr -d '"')
             if [[ -n "$sname" ]]; then
                 local s_ssh="${srv_count_ssh[$sname]:-0}" s_vm="${srv_count_vm[$sname]:-0}"
                 server_stats+="  ${BWHITE}${sname}${NC} : SSH ${BGREEN}${s_ssh}${NC} | VMess ${BGREEN}${s_vm}${NC}\n"
