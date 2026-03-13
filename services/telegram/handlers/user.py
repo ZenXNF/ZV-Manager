@@ -675,12 +675,13 @@ def _render_vmess_page(items: list, page: int, now_ts: int, uid: int) -> tuple[s
         slabel   = vtg.get("TG_SERVER_LABEL","") or vsname or vc.get("DOMAIN","")
         tipe     = "Trial" if vc.get("IS_TRIAL","0") == "1" else "Premium"
         exp_d, status, sisa_l = _status_label(vc.get("EXPIRED_TS",""), now_ts)
-        # Ambil IP aktif VMess dari online JSON
+        # Ambil IP aktif VMess dari vmess-active.json (total unique IP on /vmess)
         import json as _json, os as _os
-        _online_f = f"/var/www/zv-manager/api/online-{vuname}.json"
+        _active_f = '/tmp/zv-vmess-active.json'
         try:
-            _od = _json.loads(open(_online_f).read()) if _os.path.exists(_online_f) else {}
-            ip_now_v = len(_od.get("ips", [])) if _od.get("ips") else (_od.get("online", 0))
+            _active = _json.loads(open(_active_f).read()) if _os.path.exists(_active_f) else {}
+            # Total unique IPs yang sedang konek VMess
+            ip_now_v = sum(1 for v in _active.values() if v > 0)
         except Exception:
             ip_now_v = 0
         vlimit = int(load_tg_server_conf(vsname).get("TG_LIMIT_IP_VMESS", "2") if vsname else "2")

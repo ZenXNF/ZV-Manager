@@ -16,6 +16,9 @@ import signal
 import ssl
 import sys
 import os
+import json
+import glob
+import threading
 import logging
 from concurrent.futures import ThreadPoolExecutor
 
@@ -32,6 +35,8 @@ BUFLEN         = 8192
 TIMEOUT        = 120
 MAX_WORKERS    = 200
 LISTEN_BACKLOG = 50
+VMESS_ACTIVE_FILE = '/tmp/zv-vmess-active.json'
+ZV_SERVERS_DIR    = '/etc/zv-manager/servers'
 
 logging.disable(logging.CRITICAL)
 
@@ -40,13 +45,60 @@ SSH_PORTS = {22, 109, 143, 500, 40000}
 WS_RESPONSE      = "HTTP/1.1 101 Switching Protocols\r\nContent-Length: 0\r\n\r\nHTTP/1.1 200 ZV-Manager\r\n\r\n"
 CONNECT_RESPONSE = "HTTP/1.1 200 Connection Established\r\n\r\n"
 
+# ── VMess IP tracking (thread-safe) ──────────────────────────
+_vmess_lock    = threading.Lock()
+_vmess_active  = {}   # {client_ip: active_connection_count}
+
+def _vmess_get_limit():
+    """Baca TG_LIMIT_IP_VMESS dari semua server tg.conf, ambil nilai terkecil (paling ketat)"""
+    limit = 2  # default
+    try:
+        for f in glob.glob(f'{ZV_SERVERS_DIR}/*.tg.conf'):
+            for line in open(f):
+                if line.startswith('TG_LIMIT_IP_VMESS='):
+                    v = line.split('=',1)[1].strip().strip('"\'')
+                    try: limit = min(limit, int(v))
+                    except ValueError: pass
+    except Exception:
+        pass
+    return limit
+
+def _vmess_register(client_ip):
+    """Tambah koneksi aktif untuk IP ini. Return True jika diizinkan, False jika melebihi limit."""
+    limit = _vmess_get_limit()
+    with _vmess_lock:
+        current = _vmess_active.get(client_ip, 0)
+        if current >= limit:
+            return False
+        _vmess_active[client_ip] = current + 1
+        _vmess_save()
+        return True
+
+def _vmess_unregister(client_ip):
+    """Kurangi koneksi aktif untuk IP ini."""
+    with _vmess_lock:
+        if client_ip in _vmess_active:
+            _vmess_active[client_ip] -= 1
+            if _vmess_active[client_ip] <= 0:
+                del _vmess_active[client_ip]
+        _vmess_save()
+
+def _vmess_save():
+    """Simpan state ke file (harus dipanggil dalam _vmess_lock)."""
+    try:
+        with open(VMESS_ACTIVE_FILE, 'w') as fp:
+            json.dump(_vmess_active, fp)
+    except Exception:
+        pass
+
 def _parse_path(data: str) -> str:
     first = data.split('\r\n')[0]
     parts = first.split()
     return parts[1] if len(parts) >= 2 else '/'
 
-def handle_connection(client_sock):
+def handle_connection(client_sock, client_ip='unknown'):
     target = None
+    vmess_registered = False
     try:
         client_sock.settimeout(30)
         raw = b''
@@ -103,6 +155,15 @@ def handle_connection(client_sock):
             path = _parse_path(data)
             is_ws = 'upgrade' in data.lower() and 'websocket' in data.lower()
             if path.startswith('/vmess') and is_ws:
+                # Cek dan register VMess IP limit
+                if not _vmess_register(client_ip):
+                    # Tolak koneksi — melebihi limit
+                    try:
+                        client_sock.sendall(b'HTTP/1.1 429 Too Many Connections\r\n\r\n')
+                    except Exception:
+                        pass
+                    return
+                vmess_registered = True
                 target = socket.create_connection((DEFAULT_HOST, XRAY_PORT), timeout=10)
                 target.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
                 target.sendall(raw)
@@ -129,6 +190,8 @@ def handle_connection(client_sock):
     except Exception:
         pass
     finally:
+        if vmess_registered:
+            _vmess_unregister(client_ip)
         for s in (client_sock, target):
             if s:
                 try: s.close()
@@ -215,7 +278,8 @@ def main():
             break
         for srv in readable:
             try:
-                client, _ = srv.accept()
+                client, addr = srv.accept()
+                client_ip = addr[0] if addr else 'unknown'
                 client.setblocking(True)
                 client.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
                 # Wrap TLS jika dari tls_srv
@@ -226,7 +290,7 @@ def main():
                         try: client.close()
                         except Exception: pass
                         continue
-                executor.submit(handle_connection, client)
+                executor.submit(handle_connection, client, client_ip)
             except socket.timeout:
                 continue
             except Exception:
