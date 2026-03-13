@@ -24,17 +24,15 @@ for f in /etc/zv-manager/accounts/vmess/*.conf; do
         continue
     }
 
-    # Query Xray API + reset stats (pakai --reset agar traffic period = 1 menit)
+    # Query Xray online count (real-time, tidak perlu reset)
     online=$("$XRAY_BIN" api statsquery -s "$API_ADDR" \
-        --pattern "user>>>${USERNAME}@vmess>>>traffic" --reset 2>/dev/null | \
+        --pattern "user>>>${USERNAME}@vmess>>>online" 2>/dev/null | \
         python3 -c "
 import sys, json
 try:
     d = json.load(sys.stdin)
     stats = d.get('stat', [])
-    # Ada traffic dalam 1 menit terakhir = online
-    has_traffic = any(int(s.get('value', 0)) > 0 for s in stats)
-    print(1 if has_traffic else 0)
+    print(int(stats[0].get('value', 0)) if stats else 0)
 except:
     print(0)
 " 2>/dev/null || echo "0")
