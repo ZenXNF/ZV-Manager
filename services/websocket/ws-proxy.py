@@ -39,6 +39,7 @@ VMESS_ACTIVE_FILE = '/tmp/zv-vmess-active.json'
 ZV_SERVERS_DIR    = '/etc/zv-manager/servers'
 
 logging.disable(logging.CRITICAL)
+DEBUG = True  # Sementara untuk debug
 
 SSH_PORTS = {22, 109, 143, 500, 40000}
 
@@ -157,6 +158,7 @@ def handle_connection(client_sock, client_ip='unknown'):
 
         # Baca PROXY protocol header jika ada (dari nginx stream proxy_protocol on)
         proxy_ip, proxy_leftover = _read_proxy_protocol(client_sock)
+        if DEBUG: print(f"[ZV] PROXY proto: ip={proxy_ip!r} leftover={proxy_leftover[:20]!r}", flush=True)
         if proxy_ip:
             client_ip = proxy_ip
 
@@ -216,8 +218,10 @@ def handle_connection(client_sock, client_ip='unknown'):
             if path.startswith('/vmess') and is_ws:
                 # Ambil IP asli dari header (nginx forward X-Real-IP)
                 real_ip = _parse_real_ip(data, client_ip)
+                if DEBUG: print(f"[ZV] VMess conn client_ip={client_ip} real_ip={real_ip}", flush=True)
                 # Cek dan register VMess IP limit
                 if not _vmess_register(real_ip):
+                    if DEBUG: print(f"[ZV] VMess REJECTED {real_ip}", flush=True)
                     try:
                         client_sock.sendall(b'HTTP/1.1 429 Too Many Connections\r\n\r\n')
                     except Exception:
@@ -248,10 +252,9 @@ def handle_connection(client_sock, client_ip='unknown'):
             client_sock.sendall(WS_RESPONSE.encode())
             _relay(client_sock, target, leftover)
 
-    except Exception:
+    except Exception as e:
+        if DEBUG: print(f"[ZV] ERR client={client_ip}: {e}", flush=True)
         pass
-    finally:
-        if vmess_registered and vmess_real_ip:
             _vmess_unregister(vmess_real_ip)
         for s in (client_sock, target):
             if s:
