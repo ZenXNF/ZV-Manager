@@ -254,16 +254,12 @@ def handle_connection(client_sock, client_ip='unknown'):
 
     except Exception as e:
         if DEBUG: print(f"[ZV] ERR client={client_ip}: {e}", flush=True)
-    finally:
-        # Pindahkan cleanup ke block finally agar selalu dieksekusi walau terjadi error/return
-        if vmess_registered and vmess_real_ip:
+        pass
             _vmess_unregister(vmess_real_ip)
         for s in (client_sock, target):
             if s:
-                try: 
-                    s.close()
-                except Exception: 
-                    pass
+                try: s.close()
+                except Exception: pass
 
 def _relay(client, target, leftover=b''):
     if leftover:
