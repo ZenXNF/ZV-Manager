@@ -38,22 +38,22 @@ svc_dot() {
 get_license_display() {
     local info_file="/etc/zv-manager/license.info"
     [[ ! -f "$info_file" ]] && {
-        printf "  \033[38;5;226m%-12s\033[0m : \033[1;97m%s\033[0m\n" "Lisensi" "Belum dicek"
+        printf " \e[1;33m%-14s\e[0m = \e[1;33m%s\e[0m\n" "≥ Lisensi" "Belum dicek"
         return
     }
     local LICENSE_NAME LICENSE_DAYS_LEFT
     source "$info_file" 2>/dev/null
     local txt col
     if [[ "$LICENSE_DAYS_LEFT" -eq 99999 ]] 2>/dev/null; then
-        txt="Seumur hidup"; col="\033[38;5;46m"
+        txt="Seumur hidup"; col="\e[1;32m"
     elif [[ "$LICENSE_DAYS_LEFT" -gt 2 ]] 2>/dev/null; then
-        txt="${LICENSE_DAYS_LEFT} hari lagi"; col="\033[38;5;46m"
+        txt="${LICENSE_DAYS_LEFT} hari lagi"; col="\e[1;32m"
     elif [[ "$LICENSE_DAYS_LEFT" -ge 0 ]] 2>/dev/null; then
-        txt="${LICENSE_DAYS_LEFT} hari lagi — segera perpanjang!"; col="\033[38;5;226m"
+        txt="${LICENSE_DAYS_LEFT} hari lagi — segera perpanjang!"; col="\e[1;33m"
     else
-        txt="Habis! Segera perpanjang!"; col="\033[38;5;196m"
+        txt="Habis! Segera perpanjang!"; col="\e[1;31m"
     fi
-    printf "  \033[38;5;226m%-12s\033[0m : \033[38;5;129m%s\033[0m · ${col}%s\033[0m\n" "Lisensi" "${LICENSE_NAME:-?}" "$txt"
+    printf " \e[1;33m%-14s\e[0m = \e[1;35m%s\e[0m · ${col}%s\e[0m\n" "≥ Lisensi" "${LICENSE_NAME:-?}" "$txt"
 }
 
 # Cek versi GitHub di background (non-blocking)
@@ -78,25 +78,28 @@ get_version_line() {
     if [[ -f "$cache" ]]; then
         local latest; latest=$(cat "$cache" 2>/dev/null | tr -d "[:space:]")
         if [[ -n "$latest" && "$latest" != "$local_hash" ]]; then
-            printf "  \033[38;5;226m%-12s\033[0m : \033[38;5;226m#%s\033[0m \033[38;5;196m→\033[0m \033[38;5;46m#%s\033[0m \033[38;5;226m⚠ Ada update! [6]\033[0m\n" "Versi" "$local_hash" "$latest"
+            printf " \e[1;33m%-14s\e[0m = \e[1;33m#%s\e[0m \e[1;31m→\e[0m \e[1;32m#%s\e[0m \e[1;33m⚠ Ada update! [6]\e[0m\n" "≥ Versi" "$local_hash" "$latest"
             return
         fi
     fi
-    printf "  \033[38;5;226m%-12s\033[0m : \033[38;5;46m#%s ✔\033[0m\n" "Versi" "$local_hash"
+    printf " \e[1;33m%-14s\e[0m = \e[1;32m#%s ✔\e[0m\n" "≥ Versi" "$local_hash"
 }
 
 show_header() {
     # ── Data sistem ───────────────────────────────────────────
-    local ip domain os_name isp ram cpu uptime_str today
+    local ip domain os_name isp city ram cpu uptime_str dt tm
     ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null | tr -d '[:space:]')
     [[ -z "$ip" ]] && ip=$(curl -s --max-time 5 ipv4.icanhazip.com 2>/dev/null | tr -d '[:space:]')
     domain=$(cat /etc/zv-manager/domain 2>/dev/null | tr -d '[:space:]')
     os_name=$(grep "^PRETTY_NAME=" /etc/os-release 2>/dev/null | cut -d= -f2 | tr -d '"' || echo "Linux")
-    isp=$(curl -s --max-time 4 "https://ipinfo.io/${ip}/org" 2>/dev/null | sed 's/^AS[0-9]* //' || echo "-")
+    local _ipinfo; _ipinfo=$(curl -s --max-time 4 "https://ipinfo.io/${ip}/json" 2>/dev/null)
+    isp=$(echo "$_ipinfo"  | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('org','').split(' ',1)[-1])" 2>/dev/null || echo "-")
+    city=$(echo "$_ipinfo" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('city','-'))" 2>/dev/null || echo "-")
     ram=$(free -m 2>/dev/null | awk '/^Mem:/{printf "%d MB", $2}')
     cpu=$(nproc 2>/dev/null || echo "?")
     uptime_str=$(uptime -p 2>/dev/null | sed 's/^up //' || echo "-")
-    today=$(_waktu_indo)
+    dt=$(TZ="Asia/Jakarta" date +"%d-%m-%Y")
+    tm=$(TZ="Asia/Jakarta" date +"%H-%M-%S")
 
     # ── Jumlah akun ───────────────────────────────────────────
     local n_ssh=0 n_vmess=0
@@ -105,58 +108,58 @@ show_header() {
 
     # ── Warna ─────────────────────────────────────────────────
     local R="\e[1;31m" O="\e[1;33m" G="\e[1;32m" C="\e[1;36m"
-    local B="\e[1;34m" P="\e[1;35m" W="\e[1;97m" D="\e[0;37m"
+    local B="\e[1;34m" P="\e[1;35m" W="\e[1;97m" D="\e[0;37m" Y="\e[0;33m"
     local NC="\e[0m"
-    local LINE="${D}----------------------------------------------------${NC}"
+    local BAR="${D}$(printf '=%.0s' {1..52})${NC}"
 
-    _svc_txt() {
+    _dot() {
         systemctl is-active --quiet "$1" 2>/dev/null && \
-            echo -e "${G}ON${NC}" || echo -e "${R}OFF${NC}"
+            echo -e "${G}ON●${NC}" || echo -e "${R}OFF●${NC}"
     }
 
     clear
-    # ── Banner ────────────────────────────────────────────────
-    echo -e "${R}  __   ____${O}     __   __${G}  ____${C}   __  __${P}   __  __ ${NC}"
-    echo -e "${R} |   \  / |${O}    \ \ / /${G} |    \${C} |  \/  |${P}  |  \/  |${NC}"
-    echo -e "${R} | |\ \/ /|${O}     \ V / ${G} | || |${C} | |\/| |${P}  | |\/| |${NC}"
-    echo -e "${R} |_| \__/ |${O}      \_/  ${G} |____/${C} |_|  |_|${P}  |_|  |_|${NC}"
-    echo -e "  ${D}ZV-Manager — SSH & VMess Tunneling Panel${NC}"
-    echo -e "  $LINE"
+    # ── Banner gradient ───────────────────────────────────────
+    echo -e "${D}$(printf '=%.0s' {1..52})${NC}"
+    echo -e " ${R}WELCOME ${O}TO ${Y}ZV-MANAGER ${G}TUNNELING ${C}PANEL ${B}PREMIUM${NC}"
+    echo -e "${D}$(printf '=%.0s' {1..52})${NC}"
+    echo ""
 
     # ── Info Server ───────────────────────────────────────────
-    echo -e "  ${C}>> ${W}INFORMASI SERVER${NC}"
-    echo -e "  $LINE"
-    printf "  ${G}%-10s${NC} : ${W}%s${NC}\n"       "OS"     "$os_name"
-    printf "  ${G}%-10s${NC} : ${W}%s${NC}\n"       "IP"     "$ip"
-    printf "  ${G}%-10s${NC} : ${W}%s${NC}\n"       "Domain" "${domain:--}"
-    printf "  ${G}%-10s${NC} : ${W}%s${NC}\n"       "ISP"    "${isp:--}"
-    printf "  ${G}%-10s${NC} : ${W}%s${NC}\n"       "RAM"    "$ram"
-    printf "  ${G}%-10s${NC} : ${W}%s vCore${NC}\n" "CPU"    "$cpu"
-    printf "  ${G}%-10s${NC} : ${W}%s${NC}\n"       "Uptime" "$uptime_str"
-    printf "  ${G}%-10s${NC} : ${W}%s${NC}\n"       "Waktu"  "$today"
-    echo -e "  $LINE"
+    printf " ${R}%-14s${NC} = ${W}%s${NC}\n"  "\u2265 System OS"  "$os_name"
+    printf " ${O}%-14s${NC} = ${W}%s${NC}\n"  "\u2265 ISP"        "${isp:--}"
+    printf " ${G}%-14s${NC} = ${W}%s${NC}\n"  "\u2265 City"       "${city:--}"
+    printf " ${C}%-14s${NC} = ${W}%s${NC}\n"  "\u2265 Server RAM" "$ram"
+    printf " ${B}%-14s${NC} = ${W}%s${NC}\n"  "\u2265 Core CPU"   "$cpu"
+    printf " ${P}%-14s${NC} = ${W}%s${NC}\n"  "\u2265 Uptime"     "$uptime_str"
+    printf " ${O}%-14s${NC} = ${W}%s${NC}\n"  "\u2265 Date"       "$dt"
+    printf " ${Y}%-14s${NC} = ${W}%s${NC}\n"  "\u2265 Time"       "$tm"
+    printf " ${C}%-14s${NC} = ${W}%s${NC}\n"  "\u2265 Domain"     "${domain:--}"
+    echo ""
 
     # ── Info Akun ─────────────────────────────────────────────
-    echo -e "  ${O}>> ${W}INFORMASI AKUN${NC}"
-    echo -e "  $LINE"
-    printf "  ${O}%-10s${NC} : ${W}%s akun${NC}\n" "SSH"   "$n_ssh"
-    printf "  ${O}%-10s${NC} : ${W}%s akun${NC}\n" "VMess" "$n_vmess"
-    echo -e "  $LINE"
+    echo -e "${D}$(printf '=%.0s' {1..52})${NC}"
+    echo -e " ${C}>>>  ${W}INFORMATION ACCOUNT ON VPS${NC}  ${C}<<<${NC}"
+    echo -e "${D}$(printf '=%.0s' {1..52})${NC}"
+    printf "  ${G}ACCOUNT SSH/UDP${NC}     = ${W}%s${NC}\n" "$n_ssh"
+    printf "  ${C}ACCOUNT VMESS/WS${NC}    = ${W}%s${NC}\n" "$n_vmess"
+    echo ""
 
     # ── Status Service ────────────────────────────────────────
-    echo -e "  ${C}>> ${W}STATUS SERVICE${NC}"
-    echo -e "  $LINE"
-    printf "  ${D}SSH${NC}     : %-12b  ${D}Nginx${NC}   : %-12b  ${D}Xray${NC} : %b\n" \
-        "$(_svc_txt ssh)" "$(_svc_txt nginx)" "$(_svc_txt zv-xray)"
-    printf "  ${D}Dropbear${NC}: %-12b  ${D}WS Proxy${NC}: %-12b  ${D}UDP${NC}  : %b\n" \
-        "$(_svc_txt dropbear)" "$(_svc_txt zv-wss)" "$(_svc_txt zv-udp)"
-    printf "  ${D}Bot TG${NC}  : %b\n" "$(_svc_txt zv-telegram)"
-    echo -e "  $LINE"
+    echo -e "${D}$(printf '=%.0s' {1..52})${NC}"
+    echo -e " ${C}>>>  ${W}ZV-MANAGER TUNNELING${NC}  ${C}<<<${NC}"
+    echo -e "${D}$(printf '=%.0s' {1..52})${NC}"
+    printf " ${W}SSH${NC}     : %-14b ${W}NGINX${NC}   : %-14b ${W}XRAY${NC}  : %b\n" \
+        "$(_dot ssh)" "$(_dot nginx)" "$(_dot zv-xray)"
+    printf " ${W}WS PROXY${NC}: %-14b ${W}DROPBEAR${NC}: %-14b ${W}UDP${NC}   : %b\n" \
+        "$(_dot zv-wss)" "$(_dot dropbear)" "$(_dot zv-udp)"
+    printf " ${W}BOT TG${NC}  : %b\n" "$(_dot zv-telegram)"
+    echo ""
 
     # ── Versi & Lisensi ───────────────────────────────────────
+    echo -e "${D}$(printf '=%.0s' {1..52})${NC}"
     get_version_line
     get_license_display
-    echo -e "  $LINE"
+    echo -e "${D}$(printf '=%.0s' {1..52})${NC}"
     echo ""
 }
 
