@@ -85,6 +85,30 @@ get_version_line() {
     printf " \e[1;33m%-14s\e[0m = \e[1;32m#%s ✔\e[0m\n" "≥ Versi" "$local_hash"
 }
 
+
+# ── Gradient halus true color (kiri→kanan) ───────────────────
+_grad() {
+    local text="$1"
+    local r1=$2 g1=$3 b1=$4 r2=$5 g2=$6 b2=$7
+    local nc="\e[0m"
+    local len=0
+    for (( c=0; c<${#text}; c++ )); do [[ "${text:$c:1}" != " " ]] && len=$((len+1)); done
+    [[ $len -le 1 ]] && len=2
+    local i=0 out=""
+    for (( c=0; c<${#text}; c++ )); do
+        local ch="${text:$c:1}"
+        if [[ "$ch" == " " ]]; then out+=" "
+        else
+            local r=$(( r1 + (r2-r1)*i/(len-1) ))
+            local g=$(( g1 + (g2-g1)*i/(len-1) ))
+            local b=$(( b1 + (b2-b1)*i/(len-1) ))
+            out+="\e[1;38;2;${r};${g};${b}m${ch}${nc}"
+            i=$((i+1))
+        fi
+    done
+    echo -e "$out"
+}
+
 show_header() {
     # ── Data sistem ───────────────────────────────────────────
     local ip domain os_name isp city ram cpu uptime_str dt tm
@@ -118,22 +142,22 @@ show_header() {
     }
 
     clear
-    # ── Banner gradient ───────────────────────────────────────
+    # ── Banner gradient halus pink → cyan ─────────────────────
     echo -e "${D}$(printf '=%.0s' {1..52})${NC}"
-    echo -e " ${R}WELCOME ${O}TO ${Y}ZV-MANAGER ${G}TUNNELING ${C}PANEL ${B}PREMIUM${NC}"
+    _grad " WELCOME TO ZV-MANAGER TUNNELING PANEL PREMIUM" 255 0 127  0 210 255
     echo -e "${D}$(printf '=%.0s' {1..52})${NC}"
     echo ""
 
     # ── Info Server ───────────────────────────────────────────
-    printf " ${R}%-14s${NC} = ${W}%s${NC}\n"  "\u2265 System OS"  "$os_name"
-    printf " ${O}%-14s${NC} = ${W}%s${NC}\n"  "\u2265 ISP"        "${isp:--}"
-    printf " ${G}%-14s${NC} = ${W}%s${NC}\n"  "\u2265 City"       "${city:--}"
-    printf " ${C}%-14s${NC} = ${W}%s${NC}\n"  "\u2265 Server RAM" "$ram"
-    printf " ${B}%-14s${NC} = ${W}%s${NC}\n"  "\u2265 Core CPU"   "$cpu"
-    printf " ${P}%-14s${NC} = ${W}%s${NC}\n"  "\u2265 Uptime"     "$uptime_str"
-    printf " ${O}%-14s${NC} = ${W}%s${NC}\n"  "\u2265 Date"       "$dt"
-    printf " ${Y}%-14s${NC} = ${W}%s${NC}\n"  "\u2265 Time"       "$tm"
-    printf " ${C}%-14s${NC} = ${W}%s${NC}\n"  "\u2265 Domain"     "${domain:--}"
+    printf " ${R}%-14s${NC} = ${W}%s${NC}\n"  "≥ System OS"  "$os_name"
+    printf " ${O}%-14s${NC} = ${W}%s${NC}\n"  "≥ ISP"        "${isp:--}"
+    printf " ${G}%-14s${NC} = ${W}%s${NC}\n"  "≥ City"       "${city:--}"
+    printf " ${C}%-14s${NC} = ${W}%s${NC}\n"  "≥ Server RAM" "$ram"
+    printf " ${B}%-14s${NC} = ${W}%s${NC}\n"  "≥ Core CPU"   "$cpu"
+    printf " ${P}%-14s${NC} = ${W}%s${NC}\n"  "≥ Uptime"     "$uptime_str"
+    printf " ${O}%-14s${NC} = ${W}%s${NC}\n"  "≥ Date"       "$dt"
+    printf " ${Y}%-14s${NC} = ${W}%s${NC}\n"  "≥ Time"       "$tm"
+    printf " ${C}%-14s${NC} = ${W}%s${NC}\n"  "≥ Domain"     "${domain:--}"
     echo ""
 
     # ── Info Akun ─────────────────────────────────────────────
@@ -168,15 +192,15 @@ main_menu() {
 
     while true; do
         show_header
-        echo -e "  ${BCYAN}┌──────────────────────────────────────────────┐${NC}"
-        echo -e "  │                 ${BWHITE}MENU UTAMA${NC}                   │"
-        echo -e "  ${BCYAN}└──────────────────────────────────────────────┘${NC}"
+        echo -e "${D}$(printf '=%.0s' {1..52})${NC}"
+        echo -e " $(_grad ">>> MENU UTAMA <<<" 255 200 0  255 100 200)"
+        echo -e "${D}$(printf '=%.0s' {1..52})${NC}"
         echo ""
-        echo -e "  ${BGREEN}[1]${NC} Akun SSH             ${BGREEN}[2]${NC} Akun VMess"
-        echo -e "  ${BGREEN}[3]${NC} Manajemen Server     ${BGREEN}[4]${NC} Sistem"
-        echo -e "  ${BGREEN}[5]${NC} Info & Statistik     ${BGREEN}[6]${NC} Update Script"
+        echo -e "  ${G}[1]${NC} Akun SSH             ${G}[2]${NC} Akun VMess"
+        echo -e "  ${G}[3]${NC} Manajemen Server     ${G}[4]${NC} Sistem"
+        echo -e "  ${G}[5]${NC} Info & Statistik     ${G}[6]${NC} Update Script"
         echo ""
-        echo -e "  ${BYELLOW}[r]${NC} Restart Semua        ${BRED}[0]${NC} Keluar"
+        echo -e "  ${Y}[r]${NC} Restart Semua        ${R}[0]${NC} Keluar"
         echo ""
         read -rp "  Pilihan: " choice
 
