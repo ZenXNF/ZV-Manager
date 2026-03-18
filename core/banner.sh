@@ -25,14 +25,52 @@ BANNER_THEME="magenta"
 CONFEOF
 }
 
+# Gradient HTML per karakter: _html_grad "text" r1 g1 b1 r2 g2 b2
+_html_grad() {
+    local text="$1" r1=$2 g1=$3 b1=$4 r2=$5 g2=$6 b2=$7
+    python3 -c "
+text = '''$text'''
+r1,g1,b1 = $r1,$g1,$b1
+r2,g2,b2 = $r2,$g2,$b2
+n = max(len([c for c in text if c != ' ']), 2)
+i = 0
+out = ''
+for ch in text:
+    if ch == ' ':
+        out += ' '
+    else:
+        r = r1 + (r2-r1)*i//(n-1)
+        g = g1 + (g2-g1)*i//(n-1)
+        b = b1 + (b2-b1)*i//(n-1)
+        out += f'<font color=\"#{r:02x}{g:02x}{b:02x}\"><b>{ch}</b></font>'
+        i += 1
+print(out)
+" 2>/dev/null
+}
+
 _get_theme_colors() {
     local theme="$1"
     case "$theme" in
-        magenta) CLR_GARIS="#ff4081"; CLR_WELCOME="#ffd600"; CLR_SUBTITLE="#ffffff"; CLR_RULES="#00e5ff"; CLR_WARN="#ff1744"; CLR_PROMO="#69ff47" ;;
-        cyan)    CLR_GARIS="#00e5ff"; CLR_WELCOME="#ffd600"; CLR_SUBTITLE="#ffffff"; CLR_RULES="#69ff47"; CLR_WARN="#ff1744"; CLR_PROMO="#ffd600" ;;
-        orange)  CLR_GARIS="#ff6d00"; CLR_WELCOME="#ffffff"; CLR_SUBTITLE="#ffd600"; CLR_RULES="#00e5ff"; CLR_WARN="#ff4081"; CLR_PROMO="#69ff47" ;;
-        green)   CLR_GARIS="#69ff47"; CLR_WELCOME="#ffd600"; CLR_SUBTITLE="#ffffff"; CLR_RULES="#00e5ff"; CLR_WARN="#ff1744"; CLR_PROMO="#ffd600" ;;
-        *)       CLR_GARIS="#ff4081"; CLR_WELCOME="#ffd600"; CLR_SUBTITLE="#ffffff"; CLR_RULES="#00e5ff"; CLR_WARN="#ff1744"; CLR_PROMO="#69ff47" ;;
+        magenta) CLR_GARIS="#ff4081"; CLR_RULES="#00e5ff"; CLR_WARN="#ff1744"; CLR_PROMO="#69ff47"
+                 GR_WELCOME="255 0 128   0 210 255"   # pink → cyan
+                 GR_SUBTITLE="255 214 0  255 100 200" # kuning → pink
+                 GR_GARIS="255 64 129   255 64 129"   ;;
+        cyan)    CLR_GARIS="#00e5ff"; CLR_RULES="#69ff47"; CLR_WARN="#ff1744"; CLR_PROMO="#ffd600"
+                 GR_WELCOME="0 229 255   0 255 128"
+                 GR_SUBTITLE="255 214 0  0 229 255"
+                 GR_GARIS="0 229 255    0 229 255"    ;;
+        orange)  CLR_GARIS="#ff6d00"; CLR_RULES="#00e5ff"; CLR_WARN="#ff4081"; CLR_PROMO="#69ff47"
+                 GR_WELCOME="255 109 0   255 214 0"
+                 GR_SUBTITLE="255 255 255  255 109 0"
+                 GR_GARIS="255 109 0    255 109 0"    ;;
+        green)   CLR_GARIS="#69ff47"; CLR_RULES="#00e5ff"; CLR_WARN="#ff1744"; CLR_PROMO="#ffd600"
+                 GR_WELCOME="105 255 71   0 210 255"
+                 GR_SUBTITLE="255 214 0   105 255 71"
+                 GR_GARIS="105 255 71   105 255 71"   ;;
+        *)       CLR_GARIS="#ff4081"; CLR_RULES="#00e5ff"; CLR_WARN="#ff1744"; CLR_PROMO="#69ff47"
+                 GR_WELCOME="255 0 128   0 210 255"
+                 GR_SUBTITLE="255 214 0  255 100 200"
+                 GR_GARIS="255 64 129   255 64 129"   ;;
     esac
 }
 
@@ -52,9 +90,9 @@ generate_banner() {
 
     {
         echo "<font color=\"${CLR_GARIS}\">▬▬▬ஜ۩۞۩ஜ▬▬▬</font><br>"
-        echo "<font color=\"${CLR_WELCOME}\"><b>✦ ${BANNER_WELCOME:-Selamat Datang!} ✦</b></font><br>"
+        echo "$(_html_grad "✦ ${BANNER_WELCOME:-Selamat Datang!} ✦" $GR_WELCOME)<br>"
         [[ -n "$BANNER_SUBTITLE" ]] && \
-        echo "<font color=\"${CLR_SUBTITLE}\"><b>! ${BANNER_SUBTITLE} !</b></font><br>"
+        echo "$(_html_grad "! ${BANNER_SUBTITLE} !" $GR_SUBTITLE)<br>"
         for rule in "${rules[@]}"; do
             echo "<font color=\"${CLR_RULES}\"><b>${rule}</b></font><br>"
         done

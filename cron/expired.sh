@@ -37,29 +37,37 @@ _notify_deleted() {
 # ============================================================
 _sweep_local() {
     local count=0
+    local now_ts; now_ts=$(date +%s)
     for conf_file in /etc/zv-manager/accounts/ssh/*.conf; do
         [[ -f "$conf_file" ]] || continue
         USERNAME=$(grep "^USERNAME=" "$conf_file" | cut -d= -f2 | tr -d '"' | tr -d "[:space:]")
+        EXPIRED_TS=$(grep "^EXPIRED_TS=" "$conf_file" | cut -d= -f2 | tr -d '"' | tr -d "[:space:]")
         EXPIRED=$(grep "^EXPIRED=" "$conf_file" | cut -d= -f2 | tr -d '"' | tr -d "[:space:]")
-        [[ -z "$USERNAME" || -z "$EXPIRED" ]] && continue
+        [[ -z "$USERNAME" ]] && continue
 
-        # Skip akun trial — dihandle oleh trial-cleanup.sh via EXPIRED_TS
+        # Skip akun trial — dihandle oleh trial-cleanup.sh
         local is_trial_del; is_trial_del=$(grep "^IS_TRIAL=" "$conf_file" | cut -d= -f2 | tr -d '"' | tr -d "[:space:]")
         [[ "$is_trial_del" == "1" ]] && continue
 
-        if [[ "$EXPIRED" < "$today" || "$EXPIRED" == "$today" ]]; then
+        # Cek expired: prioritaskan EXPIRED_TS (timestamp akurat), fallback ke date string
+        local is_expired=0
+        if [[ -n "$EXPIRED_TS" && "$EXPIRED_TS" =~ ^[0-9]+$ ]]; then
+            [[ "$EXPIRED_TS" -lt "$now_ts" ]] && is_expired=1
+        elif [[ -n "$EXPIRED" ]]; then
+            [[ "$EXPIRED" < "$today" ]] && is_expired=1
+        fi
+
+        if [[ "$is_expired" -eq 1 ]]; then
             local tg_uid_del; tg_uid_del=$(grep "^TG_USER_ID=" "$conf_file" | cut -d= -f2 | tr -d '"' | tr -d "[:space:]")
             local server_del; server_del=$(grep "^SERVER=" "$conf_file" | cut -d= -f2 | tr -d '"')
-            # Hapus file notified agar slot bersih
             rm -f "/etc/zv-manager/accounts/notified/${USERNAME}.notified"
             rm -f "/etc/zv-manager/accounts/notified/${USERNAME}.bw_warn"
-            # Cleanup iptables chain bandwidth
             _bw_cleanup_user "$USERNAME" 2>/dev/null
             pkill -u "$USERNAME" &>/dev/null
             userdel -r "$USERNAME" &>/dev/null 2>&1
             rm -f "$conf_file"
             _notify_deleted "$tg_uid_del" "$USERNAME" "$server_del"
-            _log "LOCAL: Auto-deleted expired user: $USERNAME (expired: $EXPIRED)"
+            _log "LOCAL: Auto-deleted expired user: $USERNAME (expired_ts: $EXPIRED_TS)"
             count=$((count + 1))
         fi
     done
