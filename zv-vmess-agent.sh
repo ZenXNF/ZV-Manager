@@ -250,7 +250,7 @@ cmd_bw() {
     _read "$user"
     # Query xray stats
     local tmpf; tmpf=$(mktemp)
-    "$XRAY_BIN" api statsquery -s "$API_ADDR" -pattern "user>>>${user}@vmess" > "$tmpf" 2>/dev/null
+    "$XRAY_BIN" api statsquery -s "$API_ADDR" -pattern "user>>>${user}@vmess" --reset > "$tmpf" 2>/dev/null
     local used
     used=$(python3 - "$tmpf" << 'PYEOF'
 import sys, json

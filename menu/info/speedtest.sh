@@ -8,21 +8,28 @@ source /etc/zv-manager/utils/colors.sh
 source /etc/zv-manager/utils/helpers.sh
 
 LIBRESPEED_BIN="/usr/local/bin/librespeed-cli"
-LIBRESPEED_URL="https://github.com/librespeed/speedtest-cli/releases/latest/download/librespeed-cli_linux_amd64.tar.gz"
 
 _install_librespeed() {
     echo ""
     echo -e "  $(cyn '>>') librespeed-cli belum terinstall, menginstall..."
     echo ""
     local tmp; tmp=$(mktemp -d)
-    if curl -sL --max-time 30 "$LIBRESPEED_URL" -o "$tmp/librespeed.tar.gz" 2>/dev/null; then
+    # Ambil versi terbaru dari GitHub API
+    local ver
+    ver=$(curl -sf --max-time 10 "https://api.github.com/repos/librespeed/speedtest-cli/releases/latest" \
+        | python3 -c "import sys,json; print(json.load(sys.stdin)['tag_name'].lstrip('v'))" 2>/dev/null)
+    [[ -z "$ver" ]] && ver="1.0.12"  # fallback ke versi stabil terakhir
+
+    local url="https://github.com/librespeed/speedtest-cli/releases/download/v${ver}/librespeed-cli_${ver}_linux_amd64.tar.gz"
+
+    if curl -sL --max-time 30 "$url" -o "$tmp/librespeed.tar.gz" 2>/dev/null; then
         tar -xzf "$tmp/librespeed.tar.gz" -C "$tmp" 2>/dev/null
         local bin; bin=$(find "$tmp" -name "librespeed-cli" -type f 2>/dev/null | head -1)
         if [[ -n "$bin" ]]; then
             cp "$bin" "$LIBRESPEED_BIN"
             chmod +x "$LIBRESPEED_BIN"
             rm -rf "$tmp"
-            echo -e "  ${BGREEN}✔${NC} librespeed-cli berhasil diinstall"
+            echo -e "  ${BGREEN}✔${NC} librespeed-cli v${ver} berhasil diinstall"
             return 0
         fi
     fi
