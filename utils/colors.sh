@@ -56,17 +56,17 @@ _grad() {
     echo -e "$out"
 }
 
-# Garis separator gradient (default: cyan → biru)
+# Garis separator gradient pakai = (konsisten dengan header)
 _sep() {
-    local width=${1:-52}
-    local str; str=$(printf '─%.0s' $(seq 1 $width))
-    _grad " $str" 0 200 255  80 80 255
+    local width=${1:-50}
+    local str; str=$(printf '=%.0s' $(seq 1 $width))
+    _grad "$str" 0 180 255  120 0 255
 }
 
 # Header section dengan gradient
 _section() {
     local title="$1"
     _sep
-    _grad "  $title" 0 210 255  160 80 255
+    _grad " >>> $title <<<" 0 210 255  160 80 255
     _sep
 }

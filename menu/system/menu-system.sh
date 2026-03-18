@@ -14,7 +14,7 @@ menu_system() {
         echo -e "  $(_grad '[7]' 0 210 255 160 80 255) Halaman Web Status   $(_grad '[8]' 0 210 255 160 80 255) Setup Tripay"
         echo -e "  $(_grad '[9]' 0 210 255 160 80 255) Uninstall"
         echo ""
-        echo -e "  \e[38;2;255;80;80m[0/9]\e[0m Kembali"
+        echo -e "  \e[38;2;255;80;80m[0]\e[0m Kembali"
         echo ""
         read -rp "  Pilihan [0-9]: " choice
         case $choice in

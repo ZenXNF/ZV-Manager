@@ -143,9 +143,9 @@ show_header() {
 
     clear
     # ── Banner gradient halus pink → cyan ─────────────────────
-    echo -e "${D}$(printf '=%.0s' {1..52})${NC}"
+    _sep
     _grad " WELCOME TO ZV-MANAGER TUNNELING PANEL PREMIUM" 255 0 127  0 210 255
-    echo -e "${D}$(printf '=%.0s' {1..52})${NC}"
+    _sep
     echo ""
 
     # ── Info Server ───────────────────────────────────────────
@@ -161,17 +161,13 @@ show_header() {
     echo ""
 
     # ── Info Akun ─────────────────────────────────────────────
-    echo -e "${D}$(printf '=%.0s' {1..52})${NC}"
-    echo -e " ${C}>>>  ${W}INFORMATION ACCOUNT ON VPS${NC}  ${C}<<<${NC}"
-    echo -e "${D}$(printf '=%.0s' {1..52})${NC}"
+    _section "INFORMATION ACCOUNT ON VPS"
     printf "  ${G}ACCOUNT SSH/UDP${NC}     = ${W}%s${NC}\n" "$n_ssh"
     printf "  ${C}ACCOUNT VMESS/WS${NC}    = ${W}%s${NC}\n" "$n_vmess"
     echo ""
 
     # ── Status Service ────────────────────────────────────────
-    echo -e "${D}$(printf '=%.0s' {1..52})${NC}"
-    echo -e " ${C}>>>  ${W}ZV-MANAGER TUNNELING${NC}  ${C}<<<${NC}"
-    echo -e "${D}$(printf '=%.0s' {1..52})${NC}"
+    _section "ZV-MANAGER TUNNELING"
     printf " ${W}SSH${NC}     : %-14b ${W}NGINX${NC}   : %-14b ${W}XRAY${NC}  : %b\n" \
         "$(_dot ssh)" "$(_dot nginx)" "$(_dot zv-xray)"
     printf " ${W}WS PROXY${NC}: %-14b ${W}DROPBEAR${NC}: %-14b ${W}UDP${NC}   : %b\n" \
@@ -180,10 +176,10 @@ show_header() {
     echo ""
 
     # ── Versi & Lisensi ───────────────────────────────────────
-    echo -e "${D}$(printf '=%.0s' {1..52})${NC}"
+    _sep
     get_version_line
     get_license_display
-    echo -e "${D}$(printf '=%.0s' {1..52})${NC}"
+    _sep
     echo ""
 }
 
@@ -192,13 +188,15 @@ main_menu() {
 
     while true; do
         show_header
-        _section "MENU UTAMA"
+        _sep
+        _grad " MENU UTAMA" 255 200 0  255 100 200
+        _sep
         echo ""
         echo -e "  $(_grad '[1]' 0 210 255 160 80 255) Akun SSH             $(_grad '[2]' 0 210 255 160 80 255) Akun VMess"
         echo -e "  $(_grad '[3]' 0 210 255 160 80 255) Manajemen Server     $(_grad '[4]' 0 210 255 160 80 255) Sistem"
         echo -e "  $(_grad '[5]' 0 210 255 160 80 255) Info & Statistik     $(_grad '[6]' 0 210 255 160 80 255) Update Script"
         echo ""
-        echo -e "  \e[38;2;255;200;0m[r]\e[0m Restart Semua        \e[38;2;255;80;80m[0/6]\e[0m Keluar"
+        echo -e "  \e[38;2;255;200;0m[r]\e[0m Restart Semua        \e[38;2;255;80;80m[0]\e[0m Keluar"
         echo ""
         read -rp "  Pilihan [0-6/r]: " choice
 

@@ -48,7 +48,7 @@ menu_vmess() {
         echo -e "  $(_grad '[7]' 0 210 255 160 80 255) Lock Akun            $(_grad '[8]' 0 210 255 160 80 255) Unlock Akun"
         echo ""
         echo -e "  \e[38;2;255;200;0m[s]\e[0m Ganti Target         \e[38;2;255;200;0m[d]\e[0m Saldo Telegram"
-        echo -e "  \e[38;2;255;80;80m[0/8]\e[0m Kembali"
+        echo -e "  \e[38;2;255;80;80m[0]\e[0m Kembali"
         echo ""
         read -rp "  Pilihan [0-8/s/d]: " choice
         case $choice in
