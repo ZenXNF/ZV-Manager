@@ -112,6 +112,8 @@ for inbound in cfg.get("inbounds", []):
 with open(config_file, "w") as f:
     json.dump(cfg, f, indent=2)
 PYEOF
+    # Reload Xray agar config baru langsung aktif
+    systemctl restart zv-xray &>/dev/null || true
 }
 
 # ── ping ─────────────────────────────────────────────────────
