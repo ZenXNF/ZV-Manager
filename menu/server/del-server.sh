@@ -300,6 +300,9 @@ del_server() {
     del_ssh=$(echo "$result" | awk '{print $1}')
     del_vmess=$(echo "$result" | awk '{print $2}')
 
+    # Rebuild Xray config agar UUID akun VMess yang dihapus tidak lagi aktif
+    [[ "$del_vmess" -gt 0 ]] && zv-vmess-agent rebuild-config &>/dev/null || true
+
     # Hapus conf server
     rm -f "$conf_file" "$tg_conf_file"
 

@@ -63,6 +63,8 @@ del_vmess() {
     fi
     # Hapus conf lokal di brain
     rm -f "${VMESS_DIR}/${selected}.conf"
+    # Rebuild Xray config dari sisa conf (pastikan UUID terhapus meski agent gagal)
+    zv-vmess-agent rebuild-config &>/dev/null || true
     print_ok "Akun '${selected}' berhasil dihapus!"
     press_any_key
 }
