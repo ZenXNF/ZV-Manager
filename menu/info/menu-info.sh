@@ -1,25 +1,18 @@
 #!/bin/bash
-# ============================================================
-#   ZV-Manager - Menu Info & Statistik
-# ============================================================
-
 source /etc/zv-manager/utils/colors.sh
 source /etc/zv-manager/utils/helpers.sh
 
 menu_info() {
     while true; do
         clear
-        echo -e "${BCYAN}  ┌──────────────────────────────────────────────┐${NC}"
-        echo -e "  │           ${BWHITE}INFO & STATISTIK${NC}                  │"
-        echo -e "${BCYAN}  └──────────────────────────────────────────────┘${NC}"
+        _section "INFO & STATISTIK"
         echo ""
-        echo -e "  ${BGREEN}[1]${NC} Info Server"
-        echo -e "  ${BGREEN}[2]${NC} Statistik Penjualan"
+        echo -e "  $(_grad '[1]' 0 210 255 160 80 255) Info Server"
+        echo -e "  $(_grad '[2]' 0 210 255 160 80 255) Statistik Penjualan"
         echo ""
-        echo -e "  ${BRED}[0]${NC} Kembali"
+        echo -e "  \e[38;2;255;80;80m[0/2]\e[0m Kembali"
         echo ""
-        read -rp "  Pilihan: " choice
-
+        read -rp "  Pilihan [0-2]: " choice
         case $choice in
             1) bash /etc/zv-manager/menu/info/server-info.sh ;;
             2) bash /etc/zv-manager/menu/info/statistik.sh ;;
@@ -28,5 +21,4 @@ menu_info() {
         esac
     done
 }
-
 menu_info

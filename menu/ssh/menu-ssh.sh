@@ -1,8 +1,4 @@
 #!/bin/bash
-# ============================================================
-#   ZV-Manager - Menu SSH
-# ============================================================
-
 source /etc/zv-manager/utils/colors.sh
 source /etc/zv-manager/utils/logger.sh
 source /etc/zv-manager/utils/helpers.sh
@@ -46,22 +42,19 @@ menu_ssh() {
         local target_info; target_info=$(target_display)
         local aktif; aktif=$(_ssh_active_count)
         clear
-        echo -e "${BCYAN}  ┌──────────────────────────────────────────────┐${NC}"
-        echo -e "  │              ${BWHITE}MANAJEMEN SSH${NC}                   │"
-        echo -e "${BCYAN}  └──────────────────────────────────────────────┘${NC}"
+        _section "MANAJEMEN SSH"
         echo ""
-        echo -e "  ${BWHITE}Target :${NC} ${BGREEN}${target_info}${NC}   ${BWHITE}Akun Aktif :${NC} ${BYELLOW}${aktif}${NC}"
+        echo -e "  \e[38;2;0;210;255mTarget\e[0m : \e[1;97m${target_info}\e[0m   \e[38;2;0;210;255mAkun Aktif\e[0m : \e[38;2;255;200;0m${aktif}\e[0m"
         echo ""
-        echo -e "  ${BGREEN}[1]${NC} Tambah Akun          ${BGREEN}[2]${NC} Hapus Akun"
-        echo -e "  ${BGREEN}[3]${NC} List Akun            ${BGREEN}[4]${NC} Perpanjang Akun"
-        echo -e "  ${BGREEN}[5]${NC} Lock Akun            ${BGREEN}[6]${NC} Unlock Akun"
-        echo -e "  ${BGREEN}[7]${NC} Edit Akun"
+        echo -e "  $(_grad '[1]' 0 210 255 160 80 255) Tambah Akun          $(_grad '[2]' 0 210 255 160 80 255) Hapus Akun"
+        echo -e "  $(_grad '[3]' 0 210 255 160 80 255) List Akun            $(_grad '[4]' 0 210 255 160 80 255) Perpanjang Akun"
+        echo -e "  $(_grad '[5]' 0 210 255 160 80 255) Lock Akun            $(_grad '[6]' 0 210 255 160 80 255) Unlock Akun"
+        echo -e "  $(_grad '[7]' 0 210 255 160 80 255) Edit Akun"
         echo ""
-        echo -e "  ${BYELLOW}[s]${NC} Ganti Target         ${BYELLOW}[d]${NC} Saldo Telegram"
-        echo -e "  ${BRED}[0]${NC} Kembali"
+        echo -e "  \e[38;2;255;200;0m[s]\e[0m Ganti Target         \e[38;2;255;200;0m[d]\e[0m Saldo Telegram"
+        echo -e "  \e[38;2;255;80;80m[0/7]\e[0m Kembali"
         echo ""
-        read -rp "  Pilihan: " choice
-
+        read -rp "  Pilihan [0-7/s/d]: " choice
         case $choice in
             1) bash /etc/zv-manager/menu/ssh/add-user.sh ;;
             2) bash /etc/zv-manager/menu/ssh/del-user.sh ;;
@@ -77,5 +70,4 @@ menu_ssh() {
         esac
     done
 }
-
 menu_ssh

@@ -192,17 +192,15 @@ main_menu() {
 
     while true; do
         show_header
-        echo -e "${D}$(printf '=%.0s' {1..52})${NC}"
-        echo -e " $(_grad ">>> MENU UTAMA <<<" 255 200 0  255 100 200)"
-        echo -e "${D}$(printf '=%.0s' {1..52})${NC}"
+        _section "MENU UTAMA"
         echo ""
-        echo -e "  ${G}[1]${NC} Akun SSH             ${G}[2]${NC} Akun VMess"
-        echo -e "  ${G}[3]${NC} Manajemen Server     ${G}[4]${NC} Sistem"
-        echo -e "  ${G}[5]${NC} Info & Statistik     ${G}[6]${NC} Update Script"
+        echo -e "  $(_grad '[1]' 0 210 255 160 80 255) Akun SSH             $(_grad '[2]' 0 210 255 160 80 255) Akun VMess"
+        echo -e "  $(_grad '[3]' 0 210 255 160 80 255) Manajemen Server     $(_grad '[4]' 0 210 255 160 80 255) Sistem"
+        echo -e "  $(_grad '[5]' 0 210 255 160 80 255) Info & Statistik     $(_grad '[6]' 0 210 255 160 80 255) Update Script"
         echo ""
-        echo -e "  ${Y}[r]${NC} Restart Semua        ${R}[0]${NC} Keluar"
+        echo -e "  \e[38;2;255;200;0m[r]\e[0m Restart Semua        \e[38;2;255;80;80m[0/6]\e[0m Keluar"
         echo ""
-        read -rp "  Pilihan: " choice
+        read -rp "  Pilihan [0-6/r]: " choice
 
         case $choice in
             1) bash /etc/zv-manager/menu/ssh/menu-ssh.sh ;;
