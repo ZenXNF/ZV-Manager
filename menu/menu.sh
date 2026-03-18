@@ -92,7 +92,7 @@ show_header() {
     [[ -z "$ip" ]] && ip=$(curl -s --max-time 5 ipv4.icanhazip.com 2>/dev/null | tr -d '[:space:]')
     domain=$(cat /etc/zv-manager/domain 2>/dev/null | tr -d '[:space:]')
     os_name=$(grep "^PRETTY_NAME=" /etc/os-release 2>/dev/null | cut -d= -f2 | tr -d '"' || echo "Linux")
-    isp=$(curl -s --max-time 4 "https://ipinfo.io/${ip}/org" 2>/dev/null || echo "-")
+    isp=$(curl -s --max-time 4 "https://ipinfo.io/${ip}/org" 2>/dev/null | sed 's/^AS[0-9]* //' || echo "-")
     ram=$(free -m 2>/dev/null | awk '/^Mem:/{printf "%d MB", $2}')
     cpu=$(nproc 2>/dev/null || echo "?")
     uptime_str=$(uptime -p 2>/dev/null | sed 's/^up //' || echo "-")
@@ -103,61 +103,54 @@ show_header() {
     for f in /etc/zv-manager/accounts/ssh/*.conf;   do [[ -f "$f" ]] && n_ssh=$((n_ssh+1));     done
     for f in /etc/zv-manager/accounts/vmess/*.conf; do [[ -f "$f" ]] && n_vmess=$((n_vmess+1)); done
 
-    # ── Status service ────────────────────────────────────────
-    local s_ssh s_db s_ng s_wss s_udp s_xray s_bot
-    s_ssh=$(svc_dot ssh); s_db=$(svc_dot dropbear); s_ng=$(svc_dot nginx)
-    s_wss=$(svc_dot zv-wss); s_udp=$(svc_dot zv-udp)
-    s_xray=$(svc_dot zv-xray); s_bot=$(svc_dot zv-telegram)
-    _svc_txt() { systemctl is-active --quiet "$1" 2>/dev/null && echo -e "${BGREEN}ON${NC}" || echo -e "${BRED}OFF${NC}"; }
+    # ── Warna ─────────────────────────────────────────────────
+    local R="\e[1;31m" O="\e[1;33m" G="\e[1;32m" C="\e[1;36m"
+    local B="\e[1;34m" P="\e[1;35m" W="\e[1;97m" D="\e[0;37m"
+    local NC="\e[0m"
+    local LINE="${D}----------------------------------------------------${NC}"
 
-    # ── Warna gradient ────────────────────────────────────────
-    local R="\033[38;5;196m" O="\033[38;5;208m" Y="\033[38;5;226m"
-    local G="\033[38;5;46m"  C="\033[38;5;51m"  B="\033[38;5;21m"
-    local P="\033[38;5;129m" M="\033[38;5;201m"
-    local W="\033[1;97m" DIM="\033[0;37m" NC="\033[0m"
-    local LINE="${DIM}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    _svc_txt() {
+        systemctl is-active --quiet "$1" 2>/dev/null && \
+            echo -e "${G}ON${NC}" || echo -e "${R}OFF${NC}"
+    }
 
     clear
     # ── Banner ────────────────────────────────────────────────
-    echo -e "  ${R}███${O}╗${NC}   ${R}███${O}╗${Y} ██${G}╗   ${Y}██${G}╗${C}     ${B}███${P}╗   ${B}███${P}╗${NC}"
-    echo -e "  ${R}████${O}╗ ${R}████${O}║${Y}██${G}╔╝   ${Y}██${G}╔╝${C}     ${B}████${P}╗ ${B}████${P}║${NC}"
-    echo -e "  ${R}██${O}╔${R}████${O}╔${R}██${O}║${Y}╚██${G}╗ ${Y}██${G}╔╝ ${C}█████${B}╗ ${B}██${P}╔${B}████${P}╔${B}██${P}║${NC}"
-    echo -e "  ${O}██${Y}║╚${O}██${Y}╔╝${O}██${Y}║ ${G}╚████${Y}╔╝  ${C}╚════╝ ${P}██${M}║╚${P}██${M}╔╝${P}██${M}║${NC}"
-    echo -e "  ${O}██${Y}║ ╚═╝ ${O}██${Y}║  ${G}╚██${Y}╔╝         ${P}██${M}║ ╚═╝ ${P}██${M}║${NC}"
-    echo -e "  ${Y}╚═╝     ╚═╝   ╚═╝         ${M}╚═╝     ╚═╝${NC}"
-    echo ""
+    echo -e "${R}  __   ____${O}     __   __${G}  ____${C}   __  __${P}   __  __ ${NC}"
+    echo -e "${R} |   \  / |${O}    \ \ / /${G} |    \${C} |  \/  |${P}  |  \/  |${NC}"
+    echo -e "${R} | |\ \/ /|${O}     \ V / ${G} | || |${C} | |\/| |${P}  | |\/| |${NC}"
+    echo -e "${R} |_| \__/ |${O}      \_/  ${G} |____/${C} |_|  |_|${P}  |_|  |_|${NC}"
+    echo -e "  ${D}ZV-Manager — SSH & VMess Tunneling Panel${NC}"
     echo -e "  $LINE"
 
     # ── Info Server ───────────────────────────────────────────
-    echo -e "  ${C}›› ${W}INFORMASI SERVER${NC}"
+    echo -e "  ${C}>> ${W}INFORMASI SERVER${NC}"
     echo -e "  $LINE"
-    printf "  ${G}%-12s${NC} : ${W}%s${NC}\n" "OS" "$os_name"
-    printf "  ${G}%-12s${NC} : ${W}%s${NC}\n" "IP" "$ip"
-    printf "  ${G}%-12s${NC} : ${W}%s${NC}\n" "Domain" "${domain:--}"
-    printf "  ${G}%-12s${NC} : ${W}%s${NC}\n" "ISP" "$isp"
-    printf "  ${G}%-12s${NC} : ${W}%s${NC}\n" "RAM" "$ram"
-    printf "  ${G}%-12s${NC} : ${W}%s vCore${NC}\n" "CPU" "$cpu"
-    printf "  ${G}%-12s${NC} : ${W}%s${NC}\n" "Uptime" "$uptime_str"
-    printf "  ${G}%-12s${NC} : ${W}%s${NC}\n" "Waktu" "$today"
+    printf "  ${G}%-10s${NC} : ${W}%s${NC}\n"       "OS"     "$os_name"
+    printf "  ${G}%-10s${NC} : ${W}%s${NC}\n"       "IP"     "$ip"
+    printf "  ${G}%-10s${NC} : ${W}%s${NC}\n"       "Domain" "${domain:--}"
+    printf "  ${G}%-10s${NC} : ${W}%s${NC}\n"       "ISP"    "${isp:--}"
+    printf "  ${G}%-10s${NC} : ${W}%s${NC}\n"       "RAM"    "$ram"
+    printf "  ${G}%-10s${NC} : ${W}%s vCore${NC}\n" "CPU"    "$cpu"
+    printf "  ${G}%-10s${NC} : ${W}%s${NC}\n"       "Uptime" "$uptime_str"
+    printf "  ${G}%-10s${NC} : ${W}%s${NC}\n"       "Waktu"  "$today"
     echo -e "  $LINE"
 
     # ── Info Akun ─────────────────────────────────────────────
-    echo -e "  ${Y}›› ${W}INFORMASI AKUN${NC}"
+    echo -e "  ${O}>> ${W}INFORMASI AKUN${NC}"
     echo -e "  $LINE"
-    printf "  ${O}%-12s${NC} : ${W}%s akun${NC}\n" "SSH" "$n_ssh"
-    printf "  ${O}%-12s${NC} : ${W}%s akun${NC}\n" "VMess" "$n_vmess"
+    printf "  ${O}%-10s${NC} : ${W}%s akun${NC}\n" "SSH"   "$n_ssh"
+    printf "  ${O}%-10s${NC} : ${W}%s akun${NC}\n" "VMess" "$n_vmess"
     echo -e "  $LINE"
 
     # ── Status Service ────────────────────────────────────────
-    echo -e "  ${C}›› ${W}STATUS SERVICE${NC}"
+    echo -e "  ${C}>> ${W}STATUS SERVICE${NC}"
     echo -e "  $LINE"
-    printf "  ${DIM}SSH${NC}      : %-20b" "$(_svc_txt ssh)"
-    printf "${DIM}Nginx${NC}    : %-20b" "$(_svc_txt nginx)"
-    printf "${DIM}Xray${NC}     : %b\n" "$(_svc_txt zv-xray)"
-    printf "  ${DIM}Dropbear${NC}: %-20b" "$(_svc_txt dropbear)"
-    printf "${DIM}WS Proxy${NC}: %-20b" "$(_svc_txt zv-wss)"
-    printf "${DIM}UDP${NC}      : %b\n" "$(_svc_txt zv-udp)"
-    printf "  ${DIM}Bot TG${NC}  : %-20b\n" "$(_svc_txt zv-telegram)"
+    printf "  ${D}SSH${NC}     : %-12b  ${D}Nginx${NC}   : %-12b  ${D}Xray${NC} : %b\n" \
+        "$(_svc_txt ssh)" "$(_svc_txt nginx)" "$(_svc_txt zv-xray)"
+    printf "  ${D}Dropbear${NC}: %-12b  ${D}WS Proxy${NC}: %-12b  ${D}UDP${NC}  : %b\n" \
+        "$(_svc_txt dropbear)" "$(_svc_txt zv-wss)" "$(_svc_txt zv-udp)"
+    printf "  ${D}Bot TG${NC}  : %b\n" "$(_svc_txt zv-telegram)"
     echo -e "  $LINE"
 
     # ── Versi & Lisensi ───────────────────────────────────────
