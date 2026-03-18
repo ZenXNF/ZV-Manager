@@ -70,38 +70,16 @@ run_speedtest() {
     fi
 
     # Parse hasil JSON
-    local ping dl ul server
-    ping=$(echo "$result" | python3 -c "
-import sys,json
-d=json.load(sys.stdin)
-if isinstance(d,list): d=d[0]
-print(f\"{d.get('ping',d.get('Ping',0)):.1f}\")
-" 2>/dev/null || echo "?")
-    dl=$(echo "$result" | python3 -c "
-import sys,json
-d=json.load(sys.stdin)
-if isinstance(d,list): d=d[0]
-b=d.get('bytes_received',d.get('Download',0))
-print(f'{b*8/1024/1024:.2f}')
-" 2>/dev/null || echo "?")
-    ul=$(echo "$result" | python3 -c "
-import sys,json
-d=json.load(sys.stdin)
-if isinstance(d,list): d=d[0]
-b=d.get('bytes_sent',d.get('Upload',0))
-print(f'{b*8/1024/1024:.2f}')
-" 2>/dev/null || echo "?")
-    server=$(echo "$result" | python3 -c "
-import sys,json
-d=json.load(sys.stdin)
-if isinstance(d,list): d=d[0]
-s=d.get('server',{})
-print(s.get('name',d.get('Server',{}).get('Name','?')) if isinstance(s,dict) else '?')
-" 2>/dev/null || echo "?")
+    local ping dl ul server jitter
+    ping=$(echo "$result"   | python3 -c "import sys,json; d=json.load(sys.stdin); d=d[0] if isinstance(d,list) else d; print(f\"{d.get('ping',0):.1f}\")" 2>/dev/null || echo "?")
+    jitter=$(echo "$result" | python3 -c "import sys,json; d=json.load(sys.stdin); d=d[0] if isinstance(d,list) else d; print(f\"{d.get('jitter',0):.1f}\")" 2>/dev/null || echo "?")
+    dl=$(echo "$result"     | python3 -c "import sys,json; d=json.load(sys.stdin); d=d[0] if isinstance(d,list) else d; print(f\"{d.get('download',0):.2f}\")" 2>/dev/null || echo "?")
+    ul=$(echo "$result"     | python3 -c "import sys,json; d=json.load(sys.stdin); d=d[0] if isinstance(d,list) else d; print(f\"{d.get('upload',0):.2f}\")" 2>/dev/null || echo "?")
+    server=$(echo "$result" | python3 -c "import sys,json; d=json.load(sys.stdin); d=d[0] if isinstance(d,list) else d; print(d.get('server',{}).get('name','?'))" 2>/dev/null || echo "?")
 
     _sep
     echo -e "  $(dim '≥') $(bold 'Server  :') $(cyn "$server")"
-    echo -e "  $(dim '≥') $(bold 'Ping    :') $(yel "${ping} ms")"
+    echo -e "  $(dim '≥') $(bold 'Ping    :') $(yel "${ping} ms") $(dim "| Jitter: ${jitter} ms")"
     echo -e "  $(dim '≥') $(bold 'Download:') $(grn "${dl} Mbps")"
     echo -e "  $(dim '≥') $(bold 'Upload  :') $(_grad "${ul} Mbps" 0 210 255 160 80 255)"
     _sep
