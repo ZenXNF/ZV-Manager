@@ -59,9 +59,27 @@ run_speedtest() {
     echo -e "  $(yel '>>') Menjalankan speedtest, mohon tunggu..."
     echo ""
 
+    # Spinner di background
+    local spinner_pid
+    (
+        local frames=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
+        local i=0
+        while true; do
+            printf "\r  \e[1;36m%s\e[0m \e[0;37mMengukur bandwidth...\e[0m" "${frames[$((i % 10))]}"
+            sleep 0.1
+            i=$((i+1))
+        done
+    ) &
+    spinner_pid=$!
+
     # Jalankan speedtest
     local result
     result=$("$LIBRESPEED_BIN" --json 2>/dev/null)
+
+    # Stop spinner
+    kill "$spinner_pid" 2>/dev/null
+    wait "$spinner_pid" 2>/dev/null
+    printf "\r\033[K"  # hapus baris spinner
 
     if [[ -z "$result" ]]; then
         echo -e "  ${BRED}✘${NC} Speedtest gagal dijalankan"

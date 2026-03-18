@@ -39,7 +39,7 @@ VMESS_ACTIVE_FILE = '/tmp/zv-vmess-active.json'
 ZV_SERVERS_DIR    = '/etc/zv-manager/servers'
 
 logging.disable(logging.CRITICAL)
-DEBUG = True  # Sementara untuk debug
+DEBUG = False
 
 SSH_PORTS = {22, 109, 143, 500, 40000}
 
