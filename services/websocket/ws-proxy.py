@@ -255,6 +255,8 @@ def handle_connection(client_sock, client_ip='unknown'):
     except Exception as e:
         if DEBUG: print(f"[ZV] ERR client={client_ip}: {e}", flush=True)
         pass
+    finally:
+        if vmess_registered and vmess_real_ip:
             _vmess_unregister(vmess_real_ip)
         for s in (client_sock, target):
             if s:
