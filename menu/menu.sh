@@ -162,8 +162,8 @@ show_header() {
 
     # ── Info Akun ─────────────────────────────────────────────
     _section "INFORMATION ACCOUNT ON VPS"
-    printf "  ${G}ACCOUNT SSH/UDP${NC}     = ${W}%s${NC}\n" "$n_ssh"
-    printf "  ${C}ACCOUNT VMESS/WS${NC}    = ${W}%s${NC}\n" "$n_vmess"
+    local n_total=$(( n_ssh + n_vmess ))
+    printf "  ${G}TOTAL AKUN${NC}          = ${W}%s${NC}\n" "$n_total"
     echo ""
 
     # ── Status Service ────────────────────────────────────────
