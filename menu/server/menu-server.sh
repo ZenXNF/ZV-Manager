@@ -21,7 +21,7 @@ menu_server() {
             3) bash /etc/zv-manager/menu/server/connect-server.sh ;;
             4) bash /etc/zv-manager/menu/server/del-server.sh ;;
             5) bash /etc/zv-manager/menu/server/deploy-agent.sh ;;
-            6) bash /etc/zv-manager/menu/server/setting-tg.sh ;;
+            6) bash /etc/zv-manager/menu/server/tg-server-setting.sh ;;
             7) bash /etc/zv-manager/menu/server/worker-reboot.sh ;;
             0) break ;;
             *) echo -e "  ${BRED}Pilihan tidak valid!${NC}"; sleep 1 ;;

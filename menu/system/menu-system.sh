@@ -1,5 +1,6 @@
 #!/bin/bash
 source /etc/zv-manager/utils/colors.sh
+source /etc/zv-manager/utils/logger.sh
 source /etc/zv-manager/utils/helpers.sh
 
 menu_system() {
@@ -20,12 +21,28 @@ menu_system() {
             1) bash /etc/zv-manager/menu/system/clear-cache.sh ;;
             2) bash /etc/zv-manager/menu/system/auto-reboot.sh ;;
             3) bash /etc/zv-manager/menu/system/edit-banner.sh ;;
-            4) bash /etc/zv-manager/core/ssl.sh ;;
+            4) bash /etc/zv-manager/menu/system/setup-ssl.sh ;;
             5) bash /etc/zv-manager/menu/system/setup-telegram.sh ;;
-            6) bash /etc/zv-manager/menu/system/backup-restore.sh ;;
-            7) bash /etc/zv-manager/menu/system/status-page.sh ;;
+            6) bash /etc/zv-manager/menu/system/backup.sh ;;
+            7) bash /etc/zv-manager/menu/system/setup-web.sh ;;
             8) bash /etc/zv-manager/menu/system/setup-tripay.sh ;;
-            9) bash /etc/zv-manager/menu/system/uninstall.sh ;;
+            9)
+                clear
+                echo -e "${BRED}  ╔══════════════════════════════════════════════════╗${NC}"
+                echo -e "${BRED}  ║   ⚠  PERINGATAN: UNINSTALL ZV-MANAGER           ║${NC}"
+                echo -e "${BRED}  ╚══════════════════════════════════════════════════╝${NC}"
+                echo ""
+                echo -e "  Ini akan ${BRED}MENGHAPUS SEMUA${NC} komponen ZV-Manager!"
+                echo -e "  Semua akun, setting, dan data akan terhapus permanen."
+                echo ""
+                read -rp "  Ketik 'HAPUS' untuk konfirmasi: " _conf1
+                if [[ "$_conf1" != "HAPUS" ]]; then
+                    echo -e "  ${BYELLOW}Dibatalkan.${NC}"; sleep 1
+                else
+                    bash /etc/zv-manager/uninstall.sh
+                    exit 0
+                fi
+                ;;
             0) break ;;
             *) echo -e "  ${BRED}Pilihan tidak valid!${NC}"; sleep 1 ;;
         esac
