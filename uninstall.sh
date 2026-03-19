@@ -113,8 +113,11 @@ _t_del_cron() {
     for f in /etc/cron.d/zv-*; do [[ -f "$f" ]] && rm -f "$f"; done
     service cron restart 2>/dev/null
     sed -i "/bw-session.sh/d" /etc/pam.d/sshd 2>/dev/null
-    echo "Ubuntu 24.04.2 LTS" > /etc/issue.net
+    # Restore issue.net ke default Ubuntu
+    local ver; ver=$(grep -m1 "^PRETTY_NAME=" /etc/os-release 2>/dev/null | cut -d= -f2 | tr -d '"')
+    echo "${ver:-Ubuntu}" > /etc/issue.net
     rm -f /etc/update-motd.d/00-zv-manager
+    for f in /etc/update-motd.d/*; do [[ -f "$f" ]] && chmod +x "$f"; done
     rm -f /etc/stunnel/zv-wss.conf
 }
 
@@ -213,9 +216,31 @@ if [[ "$SILENT" == false ]] && [ -t 1 ]; then
     printf "  \e[1;32m+\e[0m  Semua komponen ZV-Manager telah dihapus.\n"
     printf "  \e[1;32m+\e[0m  VPS sudah kembali bersih.\n"
     echo ""
-    printf "  \e[1;36mPasang lagi:\e[0m\n"
-    echo    "  wget -qO- https://raw.githubusercontent.com/ZenXNF/ZV-Manager/main/zv.sh | bash"
+    _sep
     echo ""
+    echo -e "  \e[1;33m[1]\e[0m  Hapus file installer (zv.sh)"
+    echo -e "  \e[0;37m[0]\e[0m  Keluar"
+    echo ""
+    read -rp "  Pilihan: " _opt < /dev/tty
+    case "$_opt" in
+        1)
+            rm -f /root/zv.sh /usr/local/bin/zv 2>/dev/null
+            # Reset .profile ke default bersih
+            tee /root/.profile > /dev/null << 'DEFPROF'
+if [ "$BASH" ]; then if [ -f ~/.bashrc ]; then . ~/.bashrc; fi; fi
+mesg n 2>/dev/null || true
+DEFPROF
+            echo ""
+            printf "  \e[1;32m+\e[0m  File installer dihapus. VPS kembali ke default.\n"
+            echo ""
+            sleep 1
+            # Tutup sesi ini
+            kill -9 $$ 2>/dev/null
+            ;;
+        *)
+            echo ""
+            ;;
+    esac
 fi
 
 # Tutup semua sesi SSH yang terkait ZV-Manager
