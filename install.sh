@@ -438,12 +438,18 @@ _do_recovery_backup() {
 
     # Kirim ke Telegram jika bisa
     source /etc/zv-manager/core/telegram.sh 2>/dev/null
-    tg_load 2>/dev/null && curl -s -X POST \
-        "https://api.telegram.org/bot${TG_TOKEN}/sendDocument" \
-        -F "chat_id=${TG_ADMIN_ID}" \
-        -F "document=@${outfile}" \
-        -F "caption=⚠️ <b>Backup Recovery: ${sname}</b>%0AStatus: ${label}%0ASSH: ${ssh_c} akun%0AVMess: ${vmess_c} akun" \
-        -F "parse_mode=HTML" --max-time 30 &>/dev/null
+    if tg_load 2>/dev/null; then
+        _caption="⚠️ Backup Recovery: ${sname}
+Status: ${label}
+SSH: ${ssh_c} akun
+VMess: ${vmess_c} akun"
+        curl -s -X POST \
+            "https://api.telegram.org/bot${TG_TOKEN}/sendDocument" \
+            -F "chat_id=${TG_ADMIN_ID}" \
+            -F "document=@${outfile}" \
+            -F "caption=${_caption}" \
+            --max-time 30 &>/dev/null
+    fi
 
     printf "  ${O}–${NC}  ${W}%-35s${NC}  ${D}backup recovery dikirim ke Telegram${NC}\n" "Recovery ${sname}"
     rm -rf "$TMP"
@@ -542,15 +548,24 @@ if [[ "$install_mode" == restore_* ]]; then
         if [[ -z "$_sip" ]]; then
             echo -e "  ${O}IP tidak tersimpan di backup. Masukkan IP server:${NC}"
             echo ""
-            read -rp "  IP Address server (kosong = lewati): " _new_sip < /dev/tty
-            _new_sip=$(echo "$_new_sip" | tr -d '[:space:]')
-            if [[ -z "$_new_sip" ]]; then
-                echo -e "  ${O}–${NC} Server dilewati, buat backup recovery..."
-                _do_recovery_backup "$_sname" "$sc" "skip"
-                continue
-            fi
-            _sip="$_new_sip"
-            echo "IP=\"${_sip}\"" >> "$sc"
+            while true; do
+                read -rp "  IP Address server (kosong = lewati): " _new_sip < /dev/tty
+                _new_sip=$(echo "$_new_sip" | tr -d '[:space:]')
+                # Kosong = lewati
+                if [[ -z "$_new_sip" ]]; then
+                    echo -e "  ${O}–${NC} Server dilewati, buat backup recovery..."
+                    _do_recovery_backup "$_sname" "$sc" "skip"
+                    break 2
+                fi
+                # Validasi format IP
+                if [[ "$_new_sip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                    _sip="$_new_sip"
+                    echo "IP=\"${_sip}\"" >> "$sc"
+                    break
+                else
+                    echo -e "  ${R}[!]${NC} Format IP tidak valid. Contoh: 202.155.14.129"
+                fi
+            done
         fi
 
         echo ""

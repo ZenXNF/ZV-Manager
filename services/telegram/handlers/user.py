@@ -23,7 +23,7 @@ from aiogram.types import (
 )
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from config import ACCOUNT_DIR, ADMIN_ID, NOTIFY_DIR, VMESS_DIR, log
+from config import ACCOUNT_DIR, ADMIN_ID, NOTIFY_DIR, VMESS_DIR, BASE_DIR, log
 from keyboards import (
     kb_after_buy, kb_back, kb_confirm, kb_for_user, kb_home_btn,
     kb_server_list, kb_vmess_server_list
@@ -290,7 +290,34 @@ async def cb_vs_trial(cb: CallbackQuery):
         "SERVER":       sname,
     })
     # Tambah ke Xray via agent (lokal/remote)
-    await _vmess_agent(sname, "add", username, new_uuid, "1", "0", uid)
+    _srv_ip_t = sconf.get("IP", "")
+    if _srv_ip_t and _srv_ip_t != local_ip() and not sconf.get("PASS", "").strip():
+        import glob
+        for _f in glob.glob(f"{VMESS_DIR}/{username}.conf"):
+            try: os.remove(_f)
+            except: pass
+        await cb.message.answer(
+            "⚠️ <b>Server Sedang Gangguan</b>\n"
+            "━━━━━━━━━━━━━━━━━━━\n"
+            "Server VMess sementara tidak dapat dijangkau.\n"
+            "Coba lagi nanti atau hubungi admin.",
+            parse_mode="HTML"
+        )
+        return
+    agent_result_t = await _vmess_agent(sname, "add", username, new_uuid, "1", "0", uid)
+    if "ERR" in agent_result_t or not agent_result_t.startswith(("ADD-OK", "VMESS-OK")):
+        import glob
+        for _f in glob.glob(f"{VMESS_DIR}/{username}.conf"):
+            try: os.remove(_f)
+            except: pass
+        await cb.message.answer(
+            "⚠️ <b>Server Sedang Gangguan</b>\n"
+            "━━━━━━━━━━━━━━━━━━━\n"
+            "Gagal membuat akun trial VMess. Server tidak merespons.\n"
+            "Coba lagi nanti atau hubungi admin.",
+            parse_mode="HTML"
+        )
+        return
 
     invalidate_account_cache(ip or local_ip(), "vmess")
     mark_trial_vmess(uid, sname)
@@ -391,7 +418,45 @@ async def cb_konfirm_vmess(cb: CallbackQuery):
         "BW_LAST_CHECK":"0",
     })
     # Tambah ke Xray via agent (lokal/remote)
-    await _vmess_agent(sname, "add", username, new_uuid, days, bw_limit, uid)
+    # Cek dulu apakah server remote bisa dijangkau
+    _srv_ip = sconf.get("IP", "")
+    if _srv_ip and _srv_ip != local_ip() and not sconf.get("PASS", "").strip():
+        if total > 0:
+            from storage import saldo_add
+            saldo_add(uid, total)
+        # Hapus conf yang sudah dibuat
+        import glob
+        for _f in glob.glob(f"{VMESS_DIR}/{username}.conf"):
+            try: os.remove(_f)
+            except: pass
+        await cb.message.edit_text(
+            "⚠️ <b>Server Sedang Gangguan</b>\n"
+            "━━━━━━━━━━━━━━━━━━━\n"
+            "Server VMess sementara tidak dapat dijangkau.\n"
+            "Saldo kamu sudah dikembalikan.\n"
+            "Coba lagi nanti atau hubungi admin.",
+            parse_mode="HTML"
+        )
+        state_clear(uid); return
+
+    agent_result = await _vmess_agent(sname, "add", username, new_uuid, days, bw_limit, uid)
+    if "ERR" in agent_result or not agent_result.startswith(("ADD-OK", "VMESS-OK")):
+        if total > 0:
+            from storage import saldo_add
+            saldo_add(uid, total)
+        import glob
+        for _f in glob.glob(f"{VMESS_DIR}/{username}.conf"):
+            try: os.remove(_f)
+            except: pass
+        await cb.message.edit_text(
+            "⚠️ <b>Server Sedang Gangguan</b>\n"
+            "━━━━━━━━━━━━━━━━━━━\n"
+            "Gagal membuat akun VMess. Server tidak merespons.\n"
+            "Saldo kamu sudah dikembalikan.\n"
+            "Coba lagi nanti atau hubungi admin.",
+            parse_mode="HTML"
+        )
+        state_clear(uid); return
 
     state_clear(uid)
     zv_log(f"VMESS_BELI: {uid} server={sname} user={username} days={days} total={total}")
@@ -524,6 +589,15 @@ async def cb_s_trial(cb: CallbackQuery):
             "SERVER": sname, "DOMAIN": domain
         })
     else:
+        if not sconf.get("PASS", "").strip():
+            await cb.message.answer(
+                "⚠️ <b>Server Sedang Gangguan</b>\n"
+                "━━━━━━━━━━━━━━━━━━━\n"
+                "Server tunneling sementara tidak dapat dijangkau.\n"
+                "Coba lagi nanti atau hubungi admin.",
+                parse_mode="HTML"
+            )
+            return
         result = subprocess.run(
             ["sshpass", "-p", sconf.get("PASS", ""),
              "ssh", "-o", "StrictHostKeyChecking=no",
@@ -534,7 +608,14 @@ async def cb_s_trial(cb: CallbackQuery):
             capture_output=True, text=True, timeout=15
         )
         if not result.stdout.startswith("ADD-OK"):
-            await cb.message.answer("❌ Gagal membuat akun trial."); return
+            await cb.message.answer(
+                "⚠️ <b>Server Sedang Gangguan</b>\n"
+                "━━━━━━━━━━━━━━━━━━━\n"
+                "Gagal membuat akun trial. Server tidak merespons.\n"
+                "Coba lagi nanti atau hubungi admin.",
+                parse_mode="HTML"
+            )
+            return
 
     invalidate_account_cache(ip, "ssh")
     mark_trial(uid, sname)
@@ -1795,6 +1876,19 @@ async def cb_konfirm(cb: CallbackQuery):
             f"source /etc/zv-manager/core/bandwidth.sh && _bw_init_user {username}"],
             capture_output=True)
     else:
+        if not sconf.get("PASS", "").strip():
+            if total > 0:
+                from storage import saldo_add
+                saldo_add(uid, total)
+            await cb.message.edit_text(
+                "⚠️ <b>Server Sedang Gangguan</b>\n"
+                "━━━━━━━━━━━━━━━━━━━\n"
+                "Server tunneling sementara tidak dapat dijangkau.\n"
+                "Saldo kamu sudah dikembalikan.\n"
+                "Coba lagi nanti atau hubungi admin.",
+                parse_mode="HTML"
+            )
+            state_clear(uid); return
         result = subprocess.run(
             ["sshpass", "-p", sconf.get("PASS", ""),
              "ssh", "-o", "StrictHostKeyChecking=no",
@@ -1808,7 +1902,14 @@ async def cb_konfirm(cb: CallbackQuery):
             if total > 0:
                 from storage import saldo_add
                 saldo_add(uid, total)
-            await cb.message.edit_text("❌ Gagal membuat akun. Saldo dikembalikan.")
+            await cb.message.edit_text(
+                "⚠️ <b>Server Sedang Gangguan</b>\n"
+                "━━━━━━━━━━━━━━━━━━━\n"
+                "Gagal membuat akun SSH. Server tidak merespons.\n"
+                "Saldo kamu sudah dikembalikan.\n"
+                "Coba lagi nanti atau hubungi admin.",
+                parse_mode="HTML"
+            )
             state_clear(uid); return
     state_clear(uid)
     zv_log(f"BELI: {uid} server={sname} user={username} days={days} total={total}")
