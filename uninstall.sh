@@ -180,65 +180,21 @@ _run "Hapus semua file"        "selesai"                  _t_del_files
 
 _log "====== UNINSTALL SELESAI ======"
 
-# Reset .profile segera agar tidak loop ke menu lagi
-if [[ "$SILENT" == false ]]; then
-    tee /root/.profile > /dev/null << 'TMPPROF'
-if [ "$BASH" ]; then if [ -f ~/.bashrc ]; then . ~/.bashrc; fi; fi
-mesg n 2>/dev/null || true
-# ZV-Manager uninstalled — run dialog jika ada
-[ -f /root/.zv_uninstall_pending ] && bash /root/.zv_uninstall_dialog.sh
-TMPPROF
+# Reset .profile ke default bersih
+printf '%s\n' \
+    'if [ "$BASH" ]; then if [ -f ~/.bashrc ]; then . ~/.bashrc; fi; fi' \
+    'mesg n 2>/dev/null || true' > /root/.profile
 
-    # Simpan dialog sebagai file terpisah
-    cat > /root/.zv_uninstall_dialog.sh << 'DIALOGEOF'
-#!/bin/bash
-G="\e[1;32m" O="\e[1;33m" D="\e[0;37m" NC="\e[0m"
+# Hapus file sisa dialog jika ada
+rm -f /root/.zv_uninstall_pending /root/.zv_uninstall_dialog.sh
 
-echo ""
-echo -e "  ${G}ZV-Manager telah dihapus dari VPS ini.${NC}"
-echo ""
-echo -e "  ${O}[1]${NC}  Hapus file installer (zv.sh) & reboot"
-echo -e "  ${D}[0]${NC}  Nanti saja (dialog muncul lagi next login)"
-echo ""
-read -rp "  Pilihan: " _opt
-
-case "$_opt" in
-    1)
-        rm -f /root/.zv_uninstall_pending /root/.zv_uninstall_dialog.sh
-        rm -f /root/zv.sh /usr/local/bin/zv 2>/dev/null
-        printf '%s\n' \
-            'if [ "$BASH" ]; then if [ -f ~/.bashrc ]; then . ~/.bashrc; fi; fi' \
-            'mesg n 2>/dev/null || true' > /root/.profile
-        echo ""
-        echo -e "  ${G}+ Selesai. VPS kembali ke default bersih.${NC}"
-        echo ""
-        read -rp "  Reboot sekarang? [y/n]: " _rb
-        [[ "$_rb" =~ ^[Yy]$ ]] && echo "  Rebooting..." && sleep 1 && reboot
-        ;;
-    *)
-        echo ""
-        ;;
-esac
-DIALOGEOF
-    chmod +x /root/.zv_uninstall_dialog.sh
-    touch /root/.zv_uninstall_pending
-fi
 if [[ "$SILENT" == true ]]; then
-    tee /root/.profile > /dev/null << 'NOTIF'
-if [ "$BASH" ]; then if [ -f ~/.bashrc ]; then . ~/.bashrc; fi; fi
-mesg n 2>/dev/null || true
-case $- in *i*) ;; *) return ;; esac
-[ -t 1 ] || return; [ -z "$SSH_TTY" ] && return
-[ -n "$SSH_ORIGINAL_COMMAND" ] && return
-clear
-echo ""
-echo "  ====================================="
-echo "  |   IZIN VPS TELAH BERAKHIR         |"
-echo "  ====================================="
-echo ""
-echo "  Hubungi: @ZenXNF / t.me/ZenXNF"
-echo ""
-NOTIF
+    printf '%s\n' \
+        'if [ "$BASH" ]; then if [ -f ~/.bashrc ]; then . ~/.bashrc; fi; fi' \
+        'mesg n 2>/dev/null || true' \
+        'case $- in *i*) ;; *) return ;; esac' \
+        '[ -t 1 ] || return; [ -z "$SSH_TTY" ] && return' \
+        'echo "  Izin ZV-Manager telah berakhir. Hubungi: @ZenXNF"' > /root/.profile
 fi
 
 rm -f "$0"
@@ -253,7 +209,12 @@ if [[ "$SILENT" == false ]] && [ -t 1 ]; then
     printf "  \e[1;32m+\e[0m  Semua komponen ZV-Manager telah dihapus.\n"
     printf "  \e[1;32m+\e[0m  VPS sudah kembali bersih.\n"
     echo ""
-    echo -e "  \e[0;37mMasuk lagi ke VPS untuk menyelesaikan pembersihan.\e[0m"
+    read -rp "  Reboot sekarang? [y/n]: " _rb < /dev/tty
+    if [[ "$_rb" =~ ^[Yy]$ ]]; then
+        echo "  Rebooting..."
+        sleep 2
+        reboot
+    fi
     echo ""
 fi
 

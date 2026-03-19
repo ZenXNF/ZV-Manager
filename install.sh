@@ -276,18 +276,8 @@ if [[ "$install_mode" == "restore_skip_domain" ]]; then
     _note "SSL" "dipertahankan dari backup"
 else
     PUBLIC_IP=$(curl -s --max-time 10 ipv4.icanhazip.com 2>/dev/null || hostname -I | awk '{print $1}')
-    echo ""
-    echo -e "  ${D}IP Publik VPS:${NC} ${W}${PUBLIC_IP}${NC}"
-    echo ""
-    read -rp "  Domain untuk VPS ini (kosongkan = pakai IP): " _input_domain < /dev/tty < /dev/tty
-    _input_domain=$(echo "$_input_domain" | tr -d '[:space:]')
-    if [[ -n "$_input_domain" && ! "$_input_domain" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-        echo "$_input_domain" > /etc/zv-manager/domain
-        printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}%s${NC}\n" "Domain" "$_input_domain"
-    else
-        echo "$PUBLIC_IP" > /etc/zv-manager/domain
-        printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}%s${NC}\n" "Domain" "menggunakan IP: $PUBLIC_IP"
-    fi
+    echo "$PUBLIC_IP" > /etc/zv-manager/domain
+    printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}%s${NC}\n" "Domain" "$PUBLIC_IP (IP default, ganti di Setup Web)"
     echo ""
 
     _run "Setup SSL" "sertifikat dipasang" _t_ssl

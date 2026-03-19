@@ -40,7 +40,7 @@ add_server() {
         fi
     done
     read -rp "  IP Address                           : " ip
-    read -rp "  Domain (contoh: server.zenxnf.com)   : " domain
+    read -rp "  Domain (kosongkan = pakai IP)        : " domain
     read -rp "  Port SSH              [default: 22]  : " port
     read -rp "  Username              [default: root]: " user
     read -rsp "  Password                             : " pass
@@ -63,7 +63,7 @@ add_server() {
         return
     fi
 
-    # --- Verifikasi domain → IP ---
+    # --- Verifikasi domain → IP (hanya jika domain bukan IP) ---
     if [[ "$domain" != "$ip" ]]; then
         print_info "Memverifikasi domain ${domain}..."
         local resolved_ip=""
