@@ -106,27 +106,7 @@ _task_bot() {
     pip3 install -q "aiogram==3.*" --break-system-packages 2>/dev/null || \
     pip3 install -q "aiogram==3.*" 2>/dev/null
     python3 - << 'PYEOF'
-svc = """[Unit]
-Description=ZV-Manager Telegram Bot (Python)
-After=network.target
-StartLimitIntervalSec=60
-StartLimitBurst=5
-
-[Service]
-Type=simple
-WorkingDirectory=/opt/zv-telegram
-ExecStart=/usr/bin/python3 -u /opt/zv-telegram/bot.py
-Restart=always
-RestartSec=10s
-MemoryMax=120M
-MemorySwapMax=0
-CPUQuota=60%
-StandardOutput=append:/var/log/zv-manager/telegram-bot.log
-StandardError=append:/var/log/zv-manager/telegram-bot.log
-
-[Install]
-WantedBy=multi-user.target
-"""
+svc = "[Unit]\nDescription=ZV-Manager Telegram Bot (Python)\nAfter=network.target\nStartLimitIntervalSec=60\nStartLimitBurst=5\n\n[Service]\nType=simple\nWorkingDirectory=/opt/zv-telegram\nExecStart=/usr/bin/python3 -u /opt/zv-telegram/bot.py\nRestart=always\nRestartSec=10s\nMemoryMax=120M\nMemorySwapMax=0\nCPUQuota=60%\nStandardOutput=append:/var/log/zv-manager/telegram-bot.log\nStandardError=append:/var/log/zv-manager/telegram-bot.log\n\n[Install]\nWantedBy=multi-user.target\n"
 open("/etc/systemd/system/zv-telegram.service","w").write(svc)
 PYEOF
     systemctl daemon-reload
