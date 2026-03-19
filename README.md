@@ -4,9 +4,8 @@
 
 <br/>
 
-![Version](https://img.shields.io/badge/version-1.1.0-00e5ff?style=for-the-badge&logo=github)
+![Version](https://img.shields.io/badge/version-1.2.0-00e5ff?style=for-the-badge&logo=github)
 ![Platform](https://img.shields.io/badge/Ubuntu-24.04%20LTS-orange?style=for-the-badge&logo=ubuntu)
-![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)
 ![Telegram](https://img.shields.io/badge/Telegram-@ZenXNF-blue?style=for-the-badge&logo=telegram)
 ![RAM](https://img.shields.io/badge/RAM-512MB%20ready-purple?style=for-the-badge)
 
@@ -25,10 +24,10 @@ ZV-Manager adalah panel manajemen **SSH Tunnel + VMess** berbasis console untuk 
 ### SSH Management
 - Tambah, hapus, edit, renew akun SSH
 - Lock / unlock akun
-- Monitor akun online real-time (Direct IP, WebSocket, UDP Custom, Dropbear)
-- Auto delete akun expired (cron harian jam 00:02)
-- Auto kill multi-login (cron per menit)
+- Auto delete akun expired (berdasarkan EXPIRED_TS, tepat waktu)
+- Auto kill multi-login via `pgrep sshd` — real-time tiap 10 detik
 - Trial gratis otomatis (batas 1x per hari per user)
+- Bandwidth tracking via iptables per akun
 
 ### VMess Management (Xray-core)
 - Tambah, hapus, edit, renew akun VMess
@@ -37,8 +36,7 @@ ZV-Manager adalah panel manajemen **SSH Tunnel + VMess** berbasis console untuk 
 - Monitor bandwidth per akun via Xray Stats API
 - Auto disable saat bandwidth habis + notif Telegram
 - Notif 80% bandwidth hampir habis
-- Monitor koneksi online VMess real-time (nginx + xray log correlation)
-- IP limit enforcement per akun VMess
+- **IP limit enforcement** via ws-proxy — koneksi IP ke-2 ditolak langsung real-time
 - URL VMess: WS HTTP (80), WS TLS (443), gRPC TLS (443)
 
 ### Multi Server (Brain Architecture)
@@ -52,25 +50,24 @@ ZV-Manager adalah panel manajemen **SSH Tunnel + VMess** berbasis console untuk 
 ### Telegram Bot (Python / aiogram 3.x)
 - `/start` → menu inline lengkap
 - Buat akun SSH & VMess langsung dari bot — pilih server sesuai protokol
-- Trial gratis SSH (30 menit) & VMess (30 menit) — 1x/hari per user
+- Trial gratis SSH & VMess — 1x/hari per user
 - Sistem saldo — potong otomatis saat beli/renew
 - Perpanjang akun SSH & VMess dari bot
 - Notifikasi otomatis 20 jam sebelum expired
 - Info server: harga SSH & VMess, quota BW, limit IP, total akun
 - Riwayat transaksi & cek saldo
 - Broadcast teks & stiker ke semua user terdaftar
-- **Admin panel**: topup, kurangi saldo, hapus akun SSH/VMess, cek user, history transaksi, online VMess monitor, kelola VMess (renew/enable/disable)
+- **Admin panel**: topup manual, kurangi saldo, hapus akun, cek user, history transaksi
 
 ### Backup & Restore
 - **Backup real-time** — tiap akun dibuat/diubah/dihapus, file `.conf` langsung dikirim ke Telegram admin
 - **Backup harian otomatis** jam 02:00 — full backup dikompres `.zvbak` → kirim ke Telegram
 - Backup mencakup: akun SSH+VMess, saldo, data user bot, server, config, SSL
-- Backup remote VPS: `/etc/passwd` + `/etc/shadow`
 - Restore 1 perintah dari menu install
 - Auto hapus backup > 7 hari
 
 ### Update Otomatis
-- Notifikasi update di menu utama jika ada versi baru
+- Notifikasi update di menu utama dengan progress bar gradient
 - Update via menu **[6] Update** — tidak perlu command manual
 - Cek update background setiap hari jam 06:00
 
@@ -79,7 +76,7 @@ ZV-Manager adalah panel manajemen **SSH Tunnel + VMess** berbasis console untuk 
 - VMess WS + gRPC via nginx SSL unified
 - Catch-all host header — support bug host / SNI
 - Let's Encrypt Wildcard SSL via Cloudflare DNS
-- Auto renew certificate harian jam 03:00
+- Auto renew certificate harian
 
 ### Services
 - OpenSSH multi-port (22, 500, 40000)
@@ -88,7 +85,13 @@ ZV-Manager adalah panel manajemen **SSH Tunnel + VMess** berbasis console untuk 
 - Xray-core (VMess WS + gRPC, Stats API)
 - BadVPN UDPGW (port 7300)
 - UDP Custom (1-65535 via TPROXY)
-- WebSocket Proxy (ThreadPool, optimized)
+- WebSocket Proxy (ThreadPool + IP tracking)
+
+### Tampilan
+- Menu console dengan **gradient RGB true-color** (16M warna)
+- Progress bar **%** saat install/update
+- Spinner animasi untuk speedtest & proses panjang
+- Info server lengkap di header (OS, ISP, City, RAM, CPU, Uptime)
 
 ---
 
@@ -132,17 +135,17 @@ bash /etc/zv-manager/uninstall.sh
 │   ├── ssh/            # Manajemen akun SSH
 │   ├── vmess/          # Manajemen akun VMess
 │   ├── server/         # Manajemen server remote + deploy agent
-│   ├── info/           # Statistik & info server
+│   ├── info/           # Statistik, info server, speedtest
 │   └── system/         # System settings, backup
 ├── services/
 │   ├── nginx/          # Nginx config (SSH WS + VMess WS/gRPC)
 │   ├── xray/           # Xray-core config & install
-│   ├── websocket/      # WS proxy
+│   ├── websocket/      # WS proxy + IP limit tracking
 │   ├── badvpn/         # BadVPN UDPGW
 │   ├── dropbear/       # Dropbear SSH
 │   └── telegram/       # Bot Telegram (Python/aiogram 3.x)
 ├── cron/               # Auto task (expired, trial, notify, backup, bw-vmess, ip-limit)
-├── utils/              # Colors, logger, helpers, remote.sh
+├── utils/              # Colors (gradient), logger, helpers, remote.sh
 ├── accounts/
 │   ├── ssh/            # Data akun SSH (.conf per user)
 │   ├── vmess/          # Data akun VMess (.conf per user)
@@ -171,7 +174,7 @@ bash /etc/zv-manager/uninstall.sh
 1. Arahkan `*.domain.com` ke IP VPS di Cloudflare
 2. Buka menu: **System → Manajemen SSL → Let's Encrypt Wildcard**
 3. Masukkan domain + Cloudflare API Token
-4. Sertifikat otomatis diinstall & auto renew tiap hari jam 03:00
+4. Sertifikat otomatis diinstall & auto renew
 
 ---
 
@@ -194,13 +197,13 @@ bash /etc/zv-manager/uninstall.sh
 
 | Cron | Jadwal | Fungsi |
 |---|---|---|
-| autokill | Tiap 1 menit | Kill multi-login SSH |
+| autokill | Tiap 10 detik | Kill multi-login SSH via pgrep |
 | trial-cleanup | Tiap 1 menit | Hapus akun trial expired |
-| ip-limit | Tiap 1 menit | Cek & kick IP limit VMess |
-| bw-check | Tiap 5 menit | Cek quota bandwidth SSH |
-| bw-vmess | Tiap 5 menit | Cek quota bandwidth VMess via agent |
-| tg-notify | Tiap 1 jam | Notif Telegram expired |
-| expired | 00:02 | Auto hapus akun expired (SSH + VMess) |
+| ip-limit | Tiap 1 menit | Cek & kick IP limit SSH |
+| bw-check | Tiap 10 detik | Cek quota bandwidth SSH |
+| bw-vmess | Tiap 5 menit | Cek quota bandwidth VMess |
+| tg-notify | Tiap 1 jam | Notif Telegram akan expired |
+| expired | Tiap 5 menit | Auto hapus akun expired (SSH + VMess) |
 | license-check | 00:05 | Cek lisensi |
 | backup | 02:00 | Full backup → Telegram |
 | check-update | 06:00 | Cek versi terbaru |
@@ -209,28 +212,35 @@ bash /etc/zv-manager/uninstall.sh
 
 ## Changelog
 
+### v1.2.0
+- **Gradient RGB true-color** di menu console (16M warna, smooth interpolation)
+- **Progress bar %** dengan animasi saat install & update
+- **Spinner animasi** di speedtest & proses panjang
+- **VMess IP limit** via ws-proxy (reject langsung real-time, tidak perlu autokill)
+- **Speedtest menu** via librespeed-cli (ping, download, upload, jitter)
+- **Banner SSH gradient** — warna per karakter via `<font color="#hex">`
+- **Fix expired SSH** — pakai EXPIRED_TS (timestamp) bukan date string, tidak lagi hapus di hari beli
+- **Fix autokill SSH** — pakai `pgrep sshd` bukan session file, akurat per koneksi
+- **Fix bw-vmess double count** — tambah `--reset` di statsquery
+- **Fix zv-vmess-agent** — auto restart Xray setelah rebuild config
+- **Fix del-vmess** — rebuild Xray config setelah hapus, UUID tidak tersisa
+- Hapus Tripay dari semua komponen (topup manual admin only)
+- Header menu: tambah ISP, City, total akun, uptime
+
 ### v1.1.0
 - **VMess multi-server** — `zv-vmess-agent` untuk kelola VMess di remote VPS
 - Server tipe SSH / VMess / Both — filter otomatis di bot dan menu
 - Bot: buat/renew/hapus VMess sesuai server tipe
-- Admin panel bot: ⚡ Kelola VMess (hapus, renew, enable, disable)
-- Akun Saya: tampil label server, UUID penuh, status expired VMess
+- Admin panel bot: ⚡ Kelola VMess
 - Cron expired & bw-vmess via agent (lokal/remote)
-- Menu bash: `add-vmess` dengan server picker, `edit-vmess` baru
 - Auto deploy `zv-agent` + `zv-vmess-agent` saat tambah server
-- Fix `del-server.sh` — hapus `.tg.conf` sekaligus
-- IP limit VMess via nginx+xray log timestamp correlation
-- Monitor online VMess real-time di admin panel bot
 
 ### v1.0.4
 - Rilis perdana
 - SSH Management lengkap (tambah, hapus, edit, renew, lock, unlock)
 - Multi-server via zv-agent
 - Telegram bot (aiogram 3.x) — beli, renew, trial, saldo, broadcast
-- Broadcast teks & stiker
 - Sistem backup real-time + harian otomatis
-- Notifikasi update di menu utama
-- Optimasi performa untuk VPS 512MB RAM
 - WebSocket + SSL + BadVPN + UDP Custom
 - Sistem lisensi dengan grace period
 

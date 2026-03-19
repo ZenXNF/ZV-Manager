@@ -85,7 +85,7 @@ _run "Hapus akun SSH" "selesai" bash -c '
     if [[ -d "/etc/zv-manager/accounts/ssh" ]]; then
         for conf_file in /etc/zv-manager/accounts/ssh/*.conf; do
             [[ -f "$conf_file" ]] || continue
-            username=$(grep "^USERNAME=" "$conf_file" | cut -d= -f2 | tr -d '"')
+            username=$(grep "^USERNAME=" "$conf_file" | cut -d= -f2 | tr -d '\''"'\'')
             [[ -n "$username" ]] && pkill -u "$username" 2>/dev/null; sleep 0.2; userdel -r "$username" 2>/dev/null
         done
     fi
@@ -155,7 +155,7 @@ _log "====== UNINSTALL SELESAI ======"
 
 # ── .profile ─────────────────────────────────────────────────
 if [[ "$SILENT" == true ]]; then
-    cat > /root/.profile <<'NOTIFEOF'
+    tee /root/.profile > /dev/null << 'NOTIF'
 if [ "$BASH" ]; then if [ -f ~/.bashrc ]; then . ~/.bashrc; fi; fi
 mesg n 2>/dev/null || true
 case $- in *i*) ;; *) return ;; esac
@@ -164,18 +164,17 @@ case $- in *i*) ;; *) return ;; esac
 clear
 echo ""
 echo "  ====================================="
-echo "  |    IZIN VPS TELAH BERAKHIR        |"
+echo "  |   IZIN VPS TELAH BERAKHIR         |"
 echo "  ====================================="
 echo ""
-echo "  Izin ZV-Manager telah berakhir."
 echo "  Hubungi: @ZenXNF / t.me/ZenXNF"
 echo ""
-NOTIFEOF
+NOTIF
 else
-    cat > /root/.profile <<'PROFILEOF'
+    tee /root/.profile > /dev/null << 'DEFPROF'
 if [ "$BASH" ]; then if [ -f ~/.bashrc ]; then . ~/.bashrc; fi; fi
 mesg n 2>/dev/null || true
-PROFILEOF
+DEFPROF
 fi
 
 rm -f "$0"
@@ -187,10 +186,11 @@ if [[ "$SILENT" == false ]] && [ -t 1 ]; then
     _grad " UNINSTALL SELESAI" 0 210 255 160 80 255
     _sep
     echo ""
-    echo -e "  ${G}✔${NC}  Semua komponen ZV-Manager telah dihapus."
-    echo -e "  ${G}✔${NC}  VPS sudah kembali bersih."
+    printf "  \e[1;32m+\e[0m  Semua komponen ZV-Manager telah dihapus.\n"
+    printf "  \e[1;32m+\e[0m  VPS sudah kembali bersih.\n"
     echo ""
-    echo -e "  ${C}Pasang lagi: bash <(wget -qO- https://raw.githubusercontent.com/ZenXNF/ZV-Manager/main/zv.sh)${NC}"
+    printf "  \e[1;36mPasang lagi:\e[0m\n"
+    echo    "  wget -qO- https://raw.githubusercontent.com/ZenXNF/ZV-Manager/main/zv.sh | bash"
     echo ""
 fi
 
