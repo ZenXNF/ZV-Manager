@@ -1,22 +1,19 @@
 #!/bin/bash
 # ============================================================
 #   ZV-Manager - Daily Report ke Admin Telegram
-#   Dipanggil via cron setiap hari jam 07:00
-#   Laporan: akun aktif SSH+VMess, expired hari ini,
-#            expiring soon (3 hari), estimasi revenue
+#   Cron: jam 07:00
 # ============================================================
 
 source /etc/zv-manager/core/telegram.sh
 tg_load || exit 0
 
-LOG="/var/log/zv-manager/install.log"
-today=$(date +"%Y-%m-%d")
 now_ts=$(date +%s)
-soon_ts=$(( now_ts + 3 * 86400 ))  # 3 hari ke depan
+soon_ts=$(( now_ts + 3 * 86400 ))
 
 # ── Hitung akun SSH ──────────────────────────────────────────
 ssh_aktif=0; ssh_expired=0; ssh_expiring=0
 ssh_revenue_est=0
+ssh_expiring_min=999; ssh_expiring_max=0
 
 for conf in /etc/zv-manager/accounts/ssh/*.conf; do
     [[ -f "$conf" ]] || continue
@@ -30,23 +27,36 @@ for conf in /etc/zv-manager/accounts/ssh/*.conf; do
     elif [[ "$EXPIRED_TS" -le "$soon_ts" ]]; then
         ssh_expiring=$((ssh_expiring + 1))
         ssh_aktif=$((ssh_aktif + 1))
+        sisa=$(( (EXPIRED_TS - now_ts) / 86400 ))
+        (( sisa < ssh_expiring_min )) && ssh_expiring_min=$sisa
+        (( sisa > ssh_expiring_max )) && ssh_expiring_max=$sisa
     else
         ssh_aktif=$((ssh_aktif + 1))
-        # Hitung estimasi revenue dari sisa hari
-        local_sname="$SERVER"
-        if [[ -n "$local_sname" ]]; then
-            harga=$(grep "^TG_HARGA_HARI=" "/etc/zv-manager/servers/${local_sname}.tg.conf" 2>/dev/null \
-                    | cut -d= -f2 | tr -d '"' | tr -dc '0-9')
-            sisa_hari=$(( (EXPIRED_TS - now_ts) / 86400 ))
+        if [[ -n "$SERVER" ]]; then
+            harga=$(grep "^TG_HARGA_HARI=" "/etc/zv-manager/servers/${SERVER}.tg.conf" 2>/dev/null \
+                | cut -d= -f2 | tr -d '"' | tr -dc '0-9')
+            sisa=$(( (EXPIRED_TS - now_ts) / 86400 ))
             [[ -n "$harga" && "$harga" -gt 0 ]] && \
-                ssh_revenue_est=$((ssh_revenue_est + harga * sisa_hari))
+                ssh_revenue_est=$((ssh_revenue_est + harga * sisa))
         fi
     fi
 done
 
+# Format expiring range SSH
+if [[ $ssh_expiring -gt 0 ]]; then
+    if [[ $ssh_expiring_min -eq $ssh_expiring_max ]]; then
+        ssh_expiring_label="${ssh_expiring} akun (${ssh_expiring_min} hari)"
+    else
+        ssh_expiring_label="${ssh_expiring} akun (${ssh_expiring_min}-${ssh_expiring_max} hari)"
+    fi
+else
+    ssh_expiring_label="0 akun"
+fi
+
 # ── Hitung akun VMess ────────────────────────────────────────
 vmess_aktif=0; vmess_expired=0; vmess_expiring=0
 vmess_revenue_est=0
+vmess_expiring_min=999; vmess_expiring_max=0
 
 if [[ -d /etc/zv-manager/accounts/vmess ]]; then
     for conf in /etc/zv-manager/accounts/vmess/*.conf; do
@@ -61,23 +71,35 @@ if [[ -d /etc/zv-manager/accounts/vmess ]]; then
         elif [[ "$EXPIRED_TS" -le "$soon_ts" ]]; then
             vmess_expiring=$((vmess_expiring + 1))
             vmess_aktif=$((vmess_aktif + 1))
+            sisa=$(( (EXPIRED_TS - now_ts) / 86400 ))
+            (( sisa < vmess_expiring_min )) && vmess_expiring_min=$sisa
+            (( sisa > vmess_expiring_max )) && vmess_expiring_max=$sisa
         else
             vmess_aktif=$((vmess_aktif + 1))
-            local_sname="$SERVER"
-            if [[ -n "$local_sname" ]]; then
+            if [[ -n "$SERVER" ]]; then
                 harga=$(grep "^TG_HARGA_VMESS_HARI=\|^TG_HARGA_HARI=" \
-                        "/etc/zv-manager/servers/${local_sname}.tg.conf" 2>/dev/null \
-                        | head -1 | cut -d= -f2 | tr -d '"' | tr -dc '0-9')
-                sisa_hari=$(( (EXPIRED_TS - now_ts) / 86400 ))
+                    "/etc/zv-manager/servers/${SERVER}.tg.conf" 2>/dev/null \
+                    | head -1 | cut -d= -f2 | tr -d '"' | tr -dc '0-9')
+                sisa=$(( (EXPIRED_TS - now_ts) / 86400 ))
                 [[ -n "$harga" && "$harga" -gt 0 ]] && \
-                    vmess_revenue_est=$((vmess_revenue_est + harga * sisa_hari))
+                    vmess_revenue_est=$((vmess_revenue_est + harga * sisa))
             fi
         fi
     done
 fi
 
-# ── Hitung revenue hari ini dari log ─────────────────────────
-LOG_FILE="/var/log/zv-manager/install.log"
+# Format expiring range VMess
+if [[ $vmess_expiring -gt 0 ]]; then
+    if [[ $vmess_expiring_min -eq $vmess_expiring_max ]]; then
+        vmess_expiring_label="${vmess_expiring} akun (${vmess_expiring_min} hari)"
+    else
+        vmess_expiring_label="${vmess_expiring} akun (${vmess_expiring_min}-${vmess_expiring_max} hari)"
+    fi
+else
+    vmess_expiring_label="0 akun"
+fi
+
+# ── Revenue hari ini dari log ─────────────────────────────────
 revenue_today=0
 while IFS= read -r line; do
     [[ "$line" == *"$(date +"%Y-%m-%d")"* ]] || continue
@@ -85,15 +107,10 @@ while IFS= read -r line; do
         total=$(echo "$line" | grep -oP "total=\K[0-9]+")
         [[ -n "$total" ]] && revenue_today=$((revenue_today + total))
     fi
-done < "$LOG_FILE"
+done < "/var/log/zv-manager/install.log"
 
-# ── Format angka ─────────────────────────────────────────────
-_fmt() {
-    local n="$1"
-    printf "%'d" "$n" 2>/dev/null || echo "$n"
-}
+_fmt() { printf "%'d" "$1" 2>/dev/null || echo "$1"; }
 
-# ── Bangun pesan ─────────────────────────────────────────────
 total_aktif=$((ssh_aktif + vmess_aktif))
 total_expiring=$((ssh_expiring + vmess_expiring))
 total_rev_est=$((ssh_revenue_est + vmess_revenue_est))
@@ -104,12 +121,12 @@ msg="📊 <b>Laporan Harian ZV-Manager</b>
 
 🔑 <b>SSH Tunnel</b>
 ├ Aktif     : ${ssh_aktif} akun
-├ Expiring  : ${ssh_expiring} akun (3 hari)
+├ Expiring  : ${ssh_expiring_label}
 └ Expired   : ${ssh_expired} akun
 
 ⚡ <b>VMess</b>
 ├ Aktif     : ${vmess_aktif} akun
-├ Expiring  : ${vmess_expiring} akun (3 hari)
+├ Expiring  : ${vmess_expiring_label}
 └ Expired   : ${vmess_expired} akun
 
 💰 <b>Revenue</b>
@@ -120,7 +137,6 @@ msg="📊 <b>Laporan Harian ZV-Manager</b>
 ⚠️ Akan Expired : ${total_expiring} akun
 ━━━━━━━━━━━━━━━━━━━"
 
-# ── Kirim ke admin ───────────────────────────────────────────
 [[ -z "$TG_TOKEN" || -z "$TG_ADMIN_ID" ]] && exit 0
 
 python3 - << PYEOF
@@ -128,20 +144,12 @@ import json, urllib.request
 token   = "${TG_TOKEN}"
 chat_id = "${TG_ADMIN_ID}"
 text    = """${msg}"""
-payload = json.dumps({
-    "chat_id":    chat_id,
-    "parse_mode": "HTML",
-    "text":       text
-}).encode()
-req = urllib.request.Request(
+data = json.dumps({"chat_id": chat_id, "text": text, "parse_mode": "HTML"}).encode()
+req  = urllib.request.Request(
     f"https://api.telegram.org/bot{token}/sendMessage",
-    data=payload,
-    headers={"Content-Type": "application/json"}
-)
+    data=data, headers={"Content-Type": "application/json"})
 try:
     urllib.request.urlopen(req, timeout=15)
 except Exception as e:
     print(f"Error: {e}")
 PYEOF
-
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] DAILY_REPORT: sent to admin" >> "$LOG"

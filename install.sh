@@ -139,7 +139,7 @@ case "$install_mode" in
     2)
         echo ""
         echo -e "  ${O}Masukkan path lengkap file backup (.zvbak):${NC}"
-        echo    "  Contoh: /root/zv-backup-otak-2026-03-06.zvbak"
+        echo    "  Contoh: /root/zv-panel-2026-03-19.zvbak"
         echo ""
         read -rp "  Path file backup: " BACKUP_FILE < /dev/tty < /dev/tty
         if [[ ! -f "$BACKUP_FILE" ]]; then
@@ -176,18 +176,22 @@ case "$install_mode" in
             echo ""
 
             echo -e "  ${O}Apakah domain berubah dari sebelumnya?${NC}"
-            read -rp "  Ganti domain? [y/n]: " ganti_domain < /dev/tty < /dev/tty
+            read -rp "  Ganti domain? [y/n]: " ganti_domain < /dev/tty
             [[ "$ganti_domain" =~ ^[Yy]$ ]] && install_mode="restore_with_domain" || install_mode="restore_skip_domain"
 
-            echo ""
-            echo -e "  ${O}Apakah Telegram Bot Token & Admin ID masih sama?${NC}"
-            read -rp "  Token & Admin masih sama? [y/n]: " same_tg < /dev/tty < /dev/tty
-            if [[ "$same_tg" =~ ^[Nn]$ ]]; then
+            # Cek apakah telegram sudah dikonfigurasi di backup
+            _backup_tg_token=$(tar -xOf "$BACKUP_FILE" ./telegram.conf 2>/dev/null | grep "^TG_TOKEN=" | cut -d= -f2 | tr -d '"' | tr -d "[:space:]")
+            if [[ -n "$_backup_tg_token" && "$_backup_tg_token" != "YOUR_BOT_TOKEN" ]]; then
                 echo ""
-                read -rp "  Bot Token baru: " _new_token < /dev/tty < /dev/tty
-                read -rp "  Admin Telegram ID baru: " _new_admin < /dev/tty < /dev/tty
-                RESTORE_NEW_TOKEN="$_new_token"
-                RESTORE_NEW_ADMIN="$_new_admin"
+                echo -e "  ${O}Apakah Telegram Bot Token & Admin ID masih sama?${NC}"
+                read -rp "  Token & Admin masih sama? [y/n]: " same_tg < /dev/tty
+                if [[ "$same_tg" =~ ^[Nn]$ ]]; then
+                    echo ""
+                    read -rp "  Bot Token baru: " _new_token < /dev/tty
+                    read -rp "  Admin Telegram ID baru: " _new_admin < /dev/tty
+                    RESTORE_NEW_TOKEN="$_new_token"
+                    RESTORE_NEW_ADMIN="$_new_admin"
+                fi
             fi
         fi
         ;;
@@ -424,13 +428,16 @@ done
 echo ""
 timer_end
 echo ""
-echo -e "  ${O}Reboot diperlukan agar semua service aktif.${NC}"
 echo ""
-printf "  ${D}VPS akan reboot dalam 5 detik... (Ctrl+C untuk batal)${NC}\n"
+
+
 echo ""
-for i in 5 4 3 2 1; do
-    printf "\r  ${O}Reboot dalam %d detik...${NC}" "$i"
-    sleep 1
+echo -e "  ${O}Ketik 'y' lalu Enter untuk reboot (atau Ctrl+C untuk batal):${NC}"
+while true; do
+    read -rp "  > " _ans < /dev/tty
+    [[ "$_ans" == "y" || "$_ans" == "Y" ]] && break
+    echo -e "  ${D}Ketik 'y' untuk konfirmasi reboot.${NC}"
 done
-echo ""
+echo "  Rebooting..."
+sleep 2
 reboot

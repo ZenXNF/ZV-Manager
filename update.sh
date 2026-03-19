@@ -282,12 +282,15 @@ printf "  ${G}  ✔${NC}  Binary zv-agent, zv-vmess-agent, Telegram bot\n"
 echo ""
 printf "  ${O}  –${NC}  Akun SSH & VMess, daftar server, SSL tidak berubah\n"
 echo ""
-printf "  ${D}Tekan Enter untuk reboot, atau Ctrl+C untuk batal...${NC}\n"
+
+
 echo ""
-read -rs < /dev/tty
-for i in 5 4 3 2 1; do
-    printf "\r  ${O}Reboot dalam %d detik...${NC}" "$i"
-    sleep 1
+echo -e "  ${O}Ketik 'y' lalu Enter untuk reboot (atau Ctrl+C untuk batal):${NC}"
+while true; do
+    read -rs _ans < /dev/tty
+    [[ "$_ans" == "y" || "$_ans" == "Y" ]] && break
+    echo -e "  ${D}Ketik 'y' untuk konfirmasi reboot.${NC}"
 done
-echo ""
+echo "  Rebooting..."
+sleep 2
 reboot

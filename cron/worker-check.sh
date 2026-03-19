@@ -36,6 +36,11 @@ _tg_send() {
 
 # Ambil IP brain VPS (server lokal)
 LOCAL_IP=$(cat "${BASE_DIR}/accounts/ipvps" 2>/dev/null | tr -d '[:space:]')
+# Fallback ke IP publik aktif jika file belum ada
+[[ -z "$LOCAL_IP" ]] && LOCAL_IP=$(curl -s --max-time 5 ipv4.icanhazip.com 2>/dev/null | tr -d '[:space:]')
+
+# Jika TG_TOKEN kosong, tidak ada yang bisa dinotif — keluar
+[[ -z "$TG_TOKEN" ]] && exit 0
 
 # ── Ping worker via SSH ───────────────────────────────────────
 # Return 0 = online, 1 = offline
@@ -113,6 +118,7 @@ for conf in "${SERVER_DIR}"/*.conf; do
 
     # Skip server lokal (brain) — watchdog.sh sudah handle
     ip=$(grep "^IP=" "$conf" | cut -d= -f2 | tr -d '"')
+    [[ -z "$ip" ]] && continue        # tidak ada IP = server otak, skip
     [[ "$ip" == "$LOCAL_IP" ]] && continue
 
     tg_label=$(grep "^TG_SERVER_LABEL=" "${SERVER_DIR}/${name}.tg.conf" 2>/dev/null \

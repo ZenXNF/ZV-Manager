@@ -16,7 +16,7 @@ BASE_DIR="/etc/zv-manager"
 TMP_DIR="/tmp/zv-backup-$$"
 BACKUP_DIR="/var/backups/zv-manager"
 REALTIME_DIR="/var/backups/zv-manager/realtime"
-DATE=$(TZ="Asia/Jakarta" date +"%Y-%m-%d_%H-%M")
+DATE=$(TZ="Asia/Jakarta" date +"%Y-%m-%d")
 mkdir -p "$TMP_DIR" "$BACKUP_DIR"
 
 # ── Kirim file ke Telegram ─────────────────────────────────
@@ -115,17 +115,29 @@ NOTETXT
     [[ -f "${BASE_DIR}/domain"      ]] && cp "${BASE_DIR}/domain"      "$dst/"
     [[ -f "${BASE_DIR}/banner.conf" ]] && cp "${BASE_DIR}/banner.conf" "$dst/"
 
-    # File kredit
+    # Credits
     local _hash; _hash=$(grep "^COMMIT_HASH=" "${BASE_DIR}/config.conf" 2>/dev/null | cut -d= -f2 | tr -d '"')
-    cat > "${dst}/ZV-Manager.txt" << CREDITEOF
-╔══════════════════════════════════════╗
-║         Z V - M A N A G E R         ║
-╚══════════════════════════════════════╝
-
-Repository : https://github.com/ZenXNF/ZV-Manager
-Telegram   : https://t.me/ZenXNF
-Versi      : #${_hash:-unknown}
-Dibuat     : $(TZ="Asia/Jakarta" date +"%Y-%m-%d %H:%M WIB")
+    local _ip; _ip=$(cat "${BASE_DIR}/accounts/ipvps" 2>/dev/null | tr -d '[:space:]')
+    local _n_ssh; _n_ssh=$(ls "${BASE_DIR}/accounts/ssh/"*.conf 2>/dev/null | wc -l)
+    local _n_vmess; _n_vmess=$(ls "${BASE_DIR}/accounts/vmess/"*.conf 2>/dev/null | wc -l)
+    local _n_user; _n_user=$(ls "${BASE_DIR}/accounts/users/"*.user 2>/dev/null | wc -l)
+    cat > "${dst}/credits.txt" << CREDITEOF
+================================================
+  ZV-Manager — SSH & VMess Tunneling Panel
+  Backup Panel Utama (Otak)
+================================================
+  Versi    : #${_hash:-unknown}
+  Tanggal  : $(TZ="Asia/Jakarta" date +"%Y-%m-%d %H:%M WIB")
+  Tipe     : Panel Utama (Otak)
+  IP VPS   : ${_ip:-?}
+  Akun SSH : ${_n_ssh}
+  Akun VMess: ${_n_vmess}
+  User Bot : ${_n_user}
+================================================
+  Dibuat oleh  : ZenXNF
+  Telegram     : @ZenXNF / t.me/ZenXNF
+  GitHub       : github.com/ZenXNF/ZV-Manager
+================================================
 CREDITEOF
 }
 
@@ -196,10 +208,29 @@ SRVTXT
             "cat /usr/local/etc/xray/config.json" > "${dst}/xray-config.json" 2>/dev/null || ok=false
     fi
 
+    # Credits server
+    cat > "${dst}/credits.txt" << CREDITEOF
+================================================
+  ZV-Manager — SSH & VMess Tunneling Panel
+  Backup Server Tunneling
+================================================
+  Versi    : $(grep "^COMMIT_HASH=" "${BASE_DIR}/config.conf" 2>/dev/null | cut -d= -f2 | tr -d '"')
+  Tanggal  : ${backup_date}
+  Tipe     : Server Tunneling
+  Nama     : ${sname}
+  Domain   : ${DOMAIN:-?}
+  ISP      : ${ISP:-?}
+  Akun SSH : ${ssh_count}
+  Akun VMess: ${vmess_count}
+================================================
+  Dibuat oleh  : ZenXNF
+  Telegram     : @ZenXNF / t.me/ZenXNF
+  GitHub       : github.com/ZenXNF/ZV-Manager
+================================================
+CREDITEOF
+
     # Catatan restore
     cat > "${dst}/RESTORE-NOTE.txt" << NOTETXT
-============================
-  PANDUAN RESTORE SERVER
 ============================
 Server  : ${sname}
 Domain  : ${DOMAIN:-?}
@@ -233,7 +264,7 @@ NOTETXT
 
 # ── Bersihkan backup lama (> 7 hari) ───────────────────────
 cleanup_old() {
-    find "$BACKUP_DIR" -name "zv-backup-*.zvbak" -mtime +7 -delete 2>/dev/null
+    find "$BACKUP_DIR" -name "zv-panel-*.zvbak" -mtime +7 -delete 2>/dev/null
     find "$BACKUP_DIR" -name "zv-server-*.zvbak" -mtime +7 -delete 2>/dev/null
 }
 
@@ -284,7 +315,7 @@ _tg_msg "🗄 <b>Backup Harian Dimulai</b>
 
 # ── Backup & kirim otak ─────────────────────────────────────
 backup_otak
-OTAK_FILE="${BACKUP_DIR}/zv-backup-otak-${DATE}.zvbak"
+OTAK_FILE="${BACKUP_DIR}/zv-panel-${DATE}.zvbak"
 tar -czf "$OTAK_FILE" -C "${TMP_DIR}/otak" . 2>/dev/null
 OTAK_SIZE=$(_fmt_size "$OTAK_FILE")
 
