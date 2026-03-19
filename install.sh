@@ -154,7 +154,18 @@ case "$install_mode" in
             _sep
             echo ""
 
-            _run_inline "Salin file ZV-Manager" "berhasil" _t_copy_files
+            _t_copy_restore() {
+                mkdir -p "$INSTALL_DIR"
+                cp -r "$REPO_DIR"/* "$INSTALL_DIR/"
+                find "$INSTALL_DIR" -name "*.sh" -exec chmod +x {} \;
+                find "$INSTALL_DIR" -name "*.py" -exec chmod +x {} \;
+                chmod +x "$INSTALL_DIR/checker/zv-checker" 2>/dev/null
+                cp "$INSTALL_DIR/zv-agent.sh" /usr/local/bin/zv-agent
+                chmod +x /usr/local/bin/zv-agent
+                cp "$INSTALL_DIR/zv-vmess-agent.sh" /usr/local/bin/zv-vmess-agent
+                chmod +x /usr/local/bin/zv-vmess-agent
+            }
+            _run_inline "Salin file ZV-Manager" "berhasil" _t_copy_restore
             _t_restore_backup() { tar -xzf "$BACKUP_FILE" -C "$INSTALL_DIR/" 2>/dev/null; }
             _run_inline "Restore data backup" "berhasil" _t_restore_backup
 
