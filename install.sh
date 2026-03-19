@@ -133,7 +133,7 @@ echo -e "  $(_grad '[1]' 0 210 255 160 80 255) Install Baru"
 echo -e "  $(_grad '[2]' 0 210 255 160 80 255) Restore dari Backup"
 echo -e "  ${R}[0]${NC} Batal"
 echo ""
-read -rp "  Pilihan [0-2]: " install_mode
+read -rp "  Pilihan [0-2]: " install_mode < /dev/tty
 
 case "$install_mode" in
     2)
@@ -141,7 +141,7 @@ case "$install_mode" in
         echo -e "  ${O}Masukkan path lengkap file backup (.zvbak):${NC}"
         echo    "  Contoh: /root/zv-backup-otak-2026-03-06.zvbak"
         echo ""
-        read -rp "  Path file backup: " BACKUP_FILE
+        read -rp "  Path file backup: " BACKUP_FILE < /dev/tty < /dev/tty
         if [[ ! -f "$BACKUP_FILE" ]]; then
             echo ""
             echo -e "  ${R}[!]${NC} File tidak ditemukan: ${BACKUP_FILE}"
@@ -165,16 +165,16 @@ case "$install_mode" in
             echo ""
 
             echo -e "  ${O}Apakah domain berubah dari sebelumnya?${NC}"
-            read -rp "  Ganti domain? [y/n]: " ganti_domain
+            read -rp "  Ganti domain? [y/n]: " ganti_domain < /dev/tty < /dev/tty
             [[ "$ganti_domain" =~ ^[Yy]$ ]] && install_mode="restore_with_domain" || install_mode="restore_skip_domain"
 
             echo ""
             echo -e "  ${O}Apakah Telegram Bot Token & Admin ID masih sama?${NC}"
-            read -rp "  Token & Admin masih sama? [y/n]: " same_tg
+            read -rp "  Token & Admin masih sama? [y/n]: " same_tg < /dev/tty < /dev/tty
             if [[ "$same_tg" =~ ^[Nn]$ ]]; then
                 echo ""
-                read -rp "  Bot Token baru: " _new_token
-                read -rp "  Admin Telegram ID baru: " _new_admin
+                read -rp "  Bot Token baru: " _new_token < /dev/tty < /dev/tty
+                read -rp "  Admin Telegram ID baru: " _new_admin < /dev/tty < /dev/tty
                 RESTORE_NEW_TOKEN="$_new_token"
                 RESTORE_NEW_ADMIN="$_new_admin"
             fi
@@ -279,7 +279,7 @@ else
     echo ""
     echo -e "  ${D}IP Publik VPS:${NC} ${W}${PUBLIC_IP}${NC}"
     echo ""
-    read -rp "  Domain untuk VPS ini (kosongkan = pakai IP): " _input_domain
+    read -rp "  Domain untuk VPS ini (kosongkan = pakai IP): " _input_domain < /dev/tty < /dev/tty
     _input_domain=$(echo "$_input_domain" | tr -d '[:space:]')
     if [[ -n "$_input_domain" && ! "$_input_domain" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
         echo "$_input_domain" > /etc/zv-manager/domain
@@ -425,5 +425,5 @@ timer_end
 echo ""
 echo -e "  ${O}Reboot diperlukan agar semua service aktif.${NC}"
 echo ""
-read -rp "  Reboot sekarang? [y/n]: " reboot_ans
+read -rp "  Reboot sekarang? [y/n]: " reboot_ans < /dev/tty
 [[ "$reboot_ans" =~ ^[Yy]$ ]] && echo "  Rebooting..." && sleep 2 && reboot
