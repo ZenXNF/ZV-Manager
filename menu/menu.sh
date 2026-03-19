@@ -172,7 +172,14 @@ show_header() {
         "$(_dot ssh)" "$(_dot nginx)" "$(_dot zv-xray)"
     printf " ${W}WS PROXY${NC}: %-14b ${W}DROPBEAR${NC}: %-14b ${W}UDP${NC}   : %b\n" \
         "$(_dot zv-wss)" "$(_dot dropbear)" "$(_dot zv-udp)"
-    printf " ${W}BOT TG${NC}  : %b\n" "$(_dot zv-telegram)"
+    # Bot Telegram
+    printf " ${W}BOT TG${NC}  : %-14b" "$(_dot zv-telegram)"
+    # Web Status - cek marker file
+    if [[ -f "/etc/zv-manager/.web-installed" ]]; then
+        printf " ${W}WEB${NC}     : ${G}ON●${NC}\n"
+    else
+        printf " ${W}WEB${NC}     : ${R}OFF●${NC}\n"
+    fi
     echo ""
 
     # ── Versi & Lisensi ───────────────────────────────────────

@@ -224,7 +224,7 @@ else
     if [[ -n "$latest_xray" && -n "$current_xray" && "$current_xray" != "$latest_xray" ]]; then
         _run "Xray-core $current_xray -> $latest_xray" "v${latest_xray}" _task_xray_update
     else
-        _skip "Xray-core" "sudah terbaru (v${current_xray})"
+        _skip "Xray-core" "sudah terbaru v${current_xray}"
     fi
 fi
 
@@ -256,7 +256,7 @@ if [[ -z "$current_aiogram" ]]; then
     _run "aiogram (Python)" "berhasil diinstall" bash -c \
         'pip3 install -q "aiogram==3.*" --break-system-packages 2>/dev/null'
 else
-    _skip "aiogram (Python)" "sudah ada (v${current_aiogram})"
+    _skip "aiogram" "sudah ada v${current_aiogram}"
 fi
 
 # ── 13. Cron jobs ─────────────────────────────────────────────
