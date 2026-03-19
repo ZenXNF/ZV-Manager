@@ -59,34 +59,35 @@ _fail() {
     printf "  $(_bar 100)  ${R}✘${NC}  ${W}%-28s${NC}  ${R}gagal${NC}\n" "$1"
 }
 
-# _run: jalankan command dengan progress bar animasi 0→100%
+# _run: jalankan command dengan progress bar animasi 0→100% per step
 _run() {
     local label="$1" ok="$2"; shift 2
-    local tmpout; tmpout=$(mktemp)
 
     # Jalankan command di background
     "$@" >> "$_LOG" 2>&1 &
     local pid=$!
 
     # Animasi progress bar 0→95% selama command jalan
-    local pct=0
+    local pct=0 step=1
     while kill -0 "$pid" 2>/dev/null; do
-        printf "\r  $(_bar $pct)  ${W}%3d%%${NC}  ${D}%s${NC}..." "$pct" "$label"
-        pct=$(( pct < 92 ? pct + $(( RANDOM % 4 + 1 )) : 92 ))
-        sleep 0.08
+        printf "\r  $(_bar $pct) ${W}%3d%%${NC} ${D}%s...${NC}" "$pct" "$label"
+        if (( pct < 30 )); then step=$(( RANDOM % 5 + 3 ))
+        elif (( pct < 60 )); then step=$(( RANDOM % 4 + 2 ))
+        elif (( pct < 85 )); then step=$(( RANDOM % 3 + 1 ))
+        else step=1; fi
+        pct=$(( pct + step > 95 ? 95 : pct + step ))
+        sleep 0.07
     done
 
     wait "$pid"
     local exit_code=$?
 
+    printf "\r  $(_bar 100) ${W}100%%${NC}  "
     if [[ $exit_code -eq 0 ]]; then
-        printf "\r\033[K"
-        printf "  $(_bar 100)  ${W}100%%${NC}  ${G}✔${NC}  ${W}%-28s${NC}  ${D}%s${NC}\n" "$label" "$ok"
+        printf "${G}✔${NC}  ${W}%-30s${NC} ${D}%s${NC}\n" "$label" "$ok"
     else
-        printf "\r\033[K"
-        printf "  $(_bar 100)  ${W}100%%${NC}  ${R}✘${NC}  ${W}%-28s${NC}  ${R}gagal (lihat $_LOG)${NC}\n" "$label"
+        printf "${R}✘${NC}  ${W}%-30s${NC} ${R}gagal — cek $_LOG${NC}\n" "$label"
     fi
-    rm -f "$tmpout"
 }
 
 _pkg_installed() { dpkg -l "$1" 2>/dev/null | grep -q "^ii"; }
@@ -125,7 +126,7 @@ check_license
 
 # ── Salin script ─────────────────────────────────────────────
 _run "Menyalin script" "selesai" bash -c '
-    cd /root/ZV-Manager
+    cd /root/ZV-Manager || exit 1
     cp -r core services menu utils cron checker /etc/zv-manager/
     chmod +x /etc/zv-manager/checker/zv-checker
     chmod +x /etc/zv-manager/services/telegram/bot.py 2>/dev/null || true
@@ -133,7 +134,6 @@ _run "Menyalin script" "selesai" bash -c '
 '
 NEW_HASH=$(git -C /root/ZV-Manager rev-parse --short HEAD 2>/dev/null || echo "unknown")
 sed -i "s/^COMMIT_HASH=.*/COMMIT_HASH=\"${NEW_HASH}\"/" /etc/zv-manager/config.conf
-printf "  $(_bar 100)  ${W}100%%${NC}  ${G}✔${NC}  ${W}%-28s${NC}  ${D}%s${NC}\n" "Script" "#${NEW_HASH}"
 
 # ── zv-agent ─────────────────────────────────────────────────
 _run "zv-agent" "diperbarui" bash -c "
@@ -150,26 +150,11 @@ _run "Telegram bot" "diperbarui & dijalankan" bash -c '
     cp -r /etc/zv-manager/services/telegram/. "$BOT_DIR/"
     find "$BOT_DIR" -name "*.py" -exec chmod +x {} \;
     pip3 install -q "aiogram==3.*" --break-system-packages 2>/dev/null || pip3 install -q "aiogram==3.*" 2>/dev/null
-    cat > /etc/systemd/system/zv-telegram.service <<'"'"'SVCEOF'"'"'
-[Unit]
-Description=ZV-Manager Telegram Bot (Python)
-After=network.target
-StartLimitIntervalSec=60
-StartLimitBurst=5
-[Service]
-Type=simple
-WorkingDirectory=/opt/zv-telegram
-ExecStart=/usr/bin/python3 -u /opt/zv-telegram/bot.py
-Restart=always
-RestartSec=10s
-MemoryMax=120M
-MemorySwapMax=0
-CPUQuota=60%
-StandardOutput=append:/var/log/zv-manager/telegram-bot.log
-StandardError=append:/var/log/zv-manager/telegram-bot.log
-[Install]
-WantedBy=multi-user.target
-SVCEOF
+    python3 -c "
+svc = open(\"/etc/systemd/system/zv-telegram.service\",\"w\")
+svc.write(\"[Unit]\nDescription=ZV-Manager Telegram Bot (Python)\nAfter=network.target\nStartLimitIntervalSec=60\nStartLimitBurst=5\n\n[Service]\nType=simple\nWorkingDirectory=/opt/zv-telegram\nExecStart=/usr/bin/python3 -u /opt/zv-telegram/bot.py\nRestart=always\nRestartSec=10s\nMemoryMax=120M\nMemorySwapMax=0\nCPUQuota=60%\nStandardOutput=append:/var/log/zv-manager/telegram-bot.log\nStandardError=append:/var/log/zv-manager/telegram-bot.log\n\n[Install]\nWantedBy=multi-user.target\n\")
+svc.close()
+"
     systemctl daemon-reload
     systemctl is-active --quiet zv-telegram 2>/dev/null && systemctl restart zv-telegram &>/dev/null || { systemctl enable zv-telegram &>/dev/null; systemctl start zv-telegram &>/dev/null; }
 '
