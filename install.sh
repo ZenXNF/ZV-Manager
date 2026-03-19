@@ -141,18 +141,25 @@ case "$install_mode" in
         echo -e "  ${O}Masukkan path lengkap file backup (.zvbak):${NC}"
         echo    "  Contoh: /root/zv-panel-2026-03-19.zvbak"
         echo ""
-        read -rp "  Path file backup: " BACKUP_FILE < /dev/tty < /dev/tty
-        if [[ ! -f "$BACKUP_FILE" ]]; then
-            echo ""
-            echo -e "  ${R}[!]${NC} File tidak ditemukan: ${BACKUP_FILE}"
-            echo -e "  ${O}    Lanjut dengan install baru...${NC}"
-            install_mode="1"
-        else
-            echo ""
-            _sep
-            _grad " RESTORE BACKUP" 0 210 255 160 80 255
-            _sep
-            echo ""
+        while true; do
+            read -rp "  Path file backup: " BACKUP_FILE < /dev/tty
+            BACKUP_FILE=$(echo "$BACKUP_FILE" | tr -d '[:space:]')
+            if [[ -z "$BACKUP_FILE" ]]; then
+                echo -e "  ${R}[!]${NC} Path tidak boleh kosong."
+                continue
+            fi
+            if [[ ! -f "$BACKUP_FILE" ]]; then
+                echo -e "  ${R}[!]${NC} File tidak ditemukan: ${BACKUP_FILE}"
+                echo -e "  ${D}    Coba lagi atau tekan Ctrl+C untuk batal.${NC}"
+                continue
+            fi
+            break
+        done
+        echo ""
+        _sep
+        _grad " RESTORE BACKUP" 0 210 255 160 80 255
+        _sep
+        echo ""
 
             _t_copy_restore() {
                 mkdir -p "$INSTALL_DIR"
@@ -200,7 +207,6 @@ case "$install_mode" in
                     RESTORE_SKIP_TG=true
                 fi
             fi
-        fi
         ;;
     0) echo ""; echo "  Instalasi dibatalkan."; exit 0 ;;
     *) install_mode="1" ;;
