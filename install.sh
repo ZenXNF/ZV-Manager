@@ -13,85 +13,115 @@ mkdir -p /var/log/zv-manager
 touch /var/log/zv-manager/install.log
 > "$_INSTALL_LOG"
 
-if [[ "$EUID" -ne 0 ]]; then
-    echo "  [!] Jalankan script ini sebagai root!"
-    exit 1
-fi
-if [[ "$(uname -m)" != "x86_64" ]]; then
-    echo "  [!] Arsitektur tidak didukung: $(uname -m)"
-    exit 1
-fi
+[[ "$EUID" -ne 0 ]] && { echo "  [!] Jalankan sebagai root!"; exit 1; }
+[[ "$(uname -m)" != "x86_64" ]] && { echo "  [!] Arsitektur tidak didukung: $(uname -m)"; exit 1; }
 
-# ── Helpers output ────────────────────────────────────────────
-_step() {
-    # $1=label, $2=ok_msg, $3+=command
-    local name="$1" ok_msg="$2"; shift 2
-    echo -e "\033[33m  ──────────────────────────────────────\033[0m"
-    printf  "  \033[1m%s\033[0m\n" "$name"
-    echo -e "\033[33m  ──────────────────────────────────────\033[0m"
-    printf  "  \033[33m>\033[0m  Memproses...\r"
+# ── Warna & gradient ─────────────────────────────────────────
+R="\e[1;31m" O="\e[1;33m" G="\e[1;32m" C="\e[1;36m"
+B="\e[1;34m" P="\e[1;35m" W="\e[1;97m" D="\e[0;37m" NC="\e[0m"
+
+_grad() {
+    local text="$1" r1=$2 g1=$3 b1=$4 r2=$5 g2=$6 b2=$7 nc="\e[0m"
+    local len=0
+    for (( c=0; c<${#text}; c++ )); do [[ "${text:$c:1}" != " " ]] && len=$((len+1)); done
+    [[ $len -le 1 ]] && len=2
+    local i=0 out=""
+    for (( c=0; c<${#text}; c++ )); do
+        local ch="${text:$c:1}"
+        if [[ "$ch" == " " ]]; then out+=" "
+        else
+            local r=$(( r1+(r2-r1)*i/(len-1) )) g=$(( g1+(g2-g1)*i/(len-1) )) b=$(( b1+(b2-b1)*i/(len-1) ))
+            out+="\e[1;38;2;${r};${g};${b}m${ch}${nc}"; i=$((i+1))
+        fi
+    done
+    echo -e "$out"
+}
+
+_sep() { _grad "$(printf '=%.0s' {1..50})" 0 180 255 120 0 255; }
+
+# ── Progress bar ──────────────────────────────────────────────
+_TOTAL_STEPS=15
+_CURRENT_STEP=0
+
+_progress() {
+    local label="$1"
+    _CURRENT_STEP=$(( _CURRENT_STEP + 1 ))
+    local pct=$(( _CURRENT_STEP * 100 / _TOTAL_STEPS ))
+    local filled=$(( pct / 5 ))
+    local empty=$(( 20 - filled ))
+    local bar=""
+    for (( i=0; i<filled; i++ )); do bar+="█"; done
+    for (( i=0; i<empty; i++ )); do bar+="░"; done
+    printf "\r  ${C}[${bar}]${NC} ${W}%3d%%${NC} ${D}%s${NC}..." "$pct" "$label"
+}
+
+_done_step() {
+    local label="$1" ok="$2"
+    local pct=$(( _CURRENT_STEP * 100 / _TOTAL_STEPS ))
+    local filled=$(( pct / 5 ))
+    local empty=$(( 20 - filled ))
+    local bar=""
+    for (( i=0; i<filled; i++ )); do bar+="█"; done
+    for (( i=0; i<empty; i++ )); do bar+="░"; done
+    printf "\r\033[K"
+    printf "  ${C}[${bar}]${NC} ${W}%3d%%${NC}  ${G}✔${NC}  ${W}%-28s${NC}  ${D}%s${NC}\n" "$pct" "$label" "$ok"
+}
+
+_fail_step() {
+    printf "\r\033[K"
+    printf "  ${R}✘${NC}  ${W}%-28s${NC}  ${R}gagal${NC}\n" "$1"
+}
+
+_run() {
+    local label="$1" ok="$2"; shift 2
+    _progress "$label"
     if "$@" >> "$_INSTALL_LOG" 2>&1; then
-        printf "\033[2K"
-        printf "  \033[32m+\033[0m  \033[1m%-35s\033[0m  %s\n\n" "$name" "$ok_msg"
+        _done_step "$label" "$ok"
     else
-        printf "\033[2K"
-        printf "  \033[31m!\033[0m  \033[1m%-35s\033[0m  \033[31mgagal (lihat $_INSTALL_LOG)\033[0m\n\n" "$name"
+        _fail_step "$label"
     fi
 }
 
-_step_inline() {
-    # Tanpa header section — langsung 1 baris dengan spinner
-    local name="$1" ok_msg="$2"; shift 2
-    printf "  \033[33m>\033[0m  %-38s\r" "$name"
+_run_inline() {
+    local label="$1" ok="$2"; shift 2
+    printf "  ${D}»${NC}  %-38s\r" "$label"
     if "$@" >> "$_INSTALL_LOG" 2>&1; then
         printf "\033[2K"
-        printf "  \033[32m+\033[0m  \033[1m%-35s\033[0m  %s\n" "$name" "$ok_msg"
+        printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}%s${NC}\n" "$label" "$ok"
     else
         printf "\033[2K"
-        printf "  \033[31m!\033[0m  \033[1m%-35s\033[0m  \033[31mgagal (lihat $_INSTALL_LOG)\033[0m\n" "$name"
+        printf "  ${R}✘${NC}  ${W}%-35s${NC}  ${R}gagal${NC}\n" "$label"
     fi
 }
 
-_note() {
-    printf "  \033[33m-\033[0m  \033[1m%-35s\033[0m  \033[33m%s\033[0m\n" "$1" "$2"
-}
-
-_ok() {
-    printf "  \033[32m+\033[0m  \033[1m%-35s\033[0m  %s\n" "$1" "$2"
-}
+_note() { printf "  ${O}–${NC}  ${W}%-35s${NC}  ${D}%s${NC}\n" "$1" "$2"; }
 
 # ── Banner ────────────────────────────────────────────────────
 clear
-printf "\033[1;36m"
-echo "  ╔══════════════════════════════════════╗"
-echo "  ║       Z V - M A N A G E R           ║"
-echo "  ║  SSH Tunneling Manager               ║"
-echo "  ║  Ubuntu 24.04 LTS                   ║"
-echo "  ╚══════════════════════════════════════╝"
-printf "\033[0m\n"
+_sep
+_grad " ZV-MANAGER INSTALLER" 255 0 127 0 210 255
+_grad " SSH & VMess Tunneling Panel — Ubuntu 24.04 LTS" 0 210 255 160 80 255
+_sep
+echo ""
 
 # ── Clone / Update repo ───────────────────────────────────────
-echo -e "\033[33m  ──────────────────────────────────────\033[0m"
-echo -e "  \033[1mPersiapan\033[0m"
-echo -e "\033[33m  ──────────────────────────────────────\033[0m"
+echo -e "  ${C}»${NC} ${W}Persiapan...${NC}"
+echo ""
 
 if ! command -v git &>/dev/null; then
-    _step_inline "Instalasi git" "berhasil" apt-get install -y git
+    _run_inline "Instalasi git" "berhasil" apt-get install -y git
 fi
 
 if [[ ! -d "$REPO_DIR/.git" ]]; then
-    _step_inline "Download ZV-Manager" "berhasil" \
+    _run_inline "Download ZV-Manager" "berhasil" \
         bash -c "rm -rf '$REPO_DIR' && git clone -q '$GITHUB_URL' '$REPO_DIR'"
 else
-    _step_inline "Update repo" "berhasil" \
+    _run_inline "Update repo" "berhasil" \
         bash -c "git -C '$REPO_DIR' fetch -q origin && git -C '$REPO_DIR' reset -q --hard origin/main"
 fi
 echo ""
 
-if [[ ! -d "$REPO_DIR" ]]; then
-    echo "  [!] Gagal download repo dari GitHub!"
-    exit 1
-fi
+[[ ! -d "$REPO_DIR" ]] && { echo "  ${R}[!]${NC} Gagal download repo!"; exit 1; }
 
 SCRIPT_DIR="$REPO_DIR"
 find "$REPO_DIR" -name "*.sh" -exec chmod +x {} \;
@@ -104,36 +134,36 @@ check_license
 
 # ── Pilihan mode instalasi ────────────────────────────────────
 echo ""
-echo -e "\033[1;36m  ┌──────────────────────────────────────┐"
-echo    "  │        Pilih Mode Instalasi          │"
-echo -e "  └──────────────────────────────────────┘\033[0m"
+_sep
+_grad " PILIH MODE INSTALASI" 255 200 0 255 100 200
+_sep
 echo ""
-echo -e "  \033[1;32m[1]\033[0m  Install Baru"
-echo -e "  \033[1;32m[2]\033[0m  Restore dari Backup"
-echo -e "  \033[1;31m[0]\033[0m  Batal"
+echo -e "  $(_grad '[1]' 0 210 255 160 80 255) Install Baru"
+echo -e "  $(_grad '[2]' 0 210 255 160 80 255) Restore dari Backup"
+echo -e "  ${R}[0]${NC} Batal"
 echo ""
-read -rp "  Pilihan: " install_mode
+read -rp "  Pilihan [0-2]: " install_mode
 
 case "$install_mode" in
     2)
         echo ""
-        echo -e "  \033[1;33mMasukkan path lengkap file backup (.zvbak):\033[0m"
+        echo -e "  ${O}Masukkan path lengkap file backup (.zvbak):${NC}"
         echo    "  Contoh: /root/zv-backup-otak-2026-03-06.zvbak"
         echo ""
         read -rp "  Path file backup: " BACKUP_FILE
         if [[ ! -f "$BACKUP_FILE" ]]; then
             echo ""
-            echo -e "  \033[1;31m[!] File tidak ditemukan: ${BACKUP_FILE}\033[0m"
-            echo -e "  \033[1;33m    Lanjut dengan install baru...\033[0m"
-            echo ""
+            echo -e "  ${R}[!]${NC} File tidak ditemukan: ${BACKUP_FILE}"
+            echo -e "  ${O}    Lanjut dengan install baru...${NC}"
             install_mode="1"
         else
             echo ""
-            echo -e "\033[33m  ──────────────────────────────────────\033[0m"
-            echo -e "  \033[1mRestore Backup\033[0m"
-            echo -e "\033[33m  ──────────────────────────────────────\033[0m"
+            _sep
+            _grad " RESTORE BACKUP" 0 210 255 160 80 255
+            _sep
+            echo ""
 
-            _step_inline "Salin file ZV-Manager" "berhasil" bash -c "
+            _run_inline "Salin file ZV-Manager" "berhasil" bash -c "
                 mkdir -p '$INSTALL_DIR'
                 cp -r '$SCRIPT_DIR'/* '$INSTALL_DIR/'
                 find '$INSTALL_DIR' -name '*.sh' -exec chmod +x {} \;
@@ -144,56 +174,65 @@ case "$install_mode" in
                 cp '$INSTALL_DIR/zv-vmess-agent.sh' /usr/local/bin/zv-vmess-agent
                 chmod +x /usr/local/bin/zv-vmess-agent
             "
-
-            _step_inline "Restore data backup" "berhasil" \
+            _run_inline "Restore data backup" "berhasil" \
                 tar -xzf "$BACKUP_FILE" -C "$INSTALL_DIR/" 2>/dev/null
-            # Patch telegram.conf jika token/admin diganti
+
             if [[ -n "$RESTORE_NEW_TOKEN" && -n "$RESTORE_NEW_ADMIN" ]]; then
-                sed -i "s|^TG_TOKEN=.*|TG_TOKEN=\"${RESTORE_NEW_TOKEN}\"|" \
-                    "$INSTALL_DIR/telegram.conf" 2>/dev/null
-                sed -i "s|^TG_ADMIN=.*|TG_ADMIN=\"${RESTORE_NEW_ADMIN}\"|" \
-                    "$INSTALL_DIR/telegram.conf" 2>/dev/null
+                sed -i "s|^TG_TOKEN=.*|TG_TOKEN=\"${RESTORE_NEW_TOKEN}\"|" "$INSTALL_DIR/telegram.conf" 2>/dev/null
+                sed -i "s|^TG_ADMIN=.*|TG_ADMIN=\"${RESTORE_NEW_ADMIN}\"|" "$INSTALL_DIR/telegram.conf" 2>/dev/null
             fi
             echo ""
 
-            echo -e "  \033[1;33mApakah domain berubah dari sebelumnya?\033[0m"
+            echo -e "  ${O}Apakah domain berubah dari sebelumnya?${NC}"
             read -rp "  Ganti domain? [y/n]: " ganti_domain
-            if [[ "$ganti_domain" =~ ^[Yy]$ ]]; then
-                install_mode="restore_with_domain"
-            else
-                install_mode="restore_skip_domain"
-            fi
+            [[ "$ganti_domain" =~ ^[Yy]$ ]] && install_mode="restore_with_domain" || install_mode="restore_skip_domain"
 
-            # Tanya ganti token/admin bot
-            _cur_token=$(grep "^TG_TOKEN=" "$BACKUP_FILE" 2>/dev/null ||                 tar -xOf "$BACKUP_FILE" ./telegram.conf 2>/dev/null |                 grep "^TG_TOKEN=" | cut -d= -f2 | tr -d '"')
             echo ""
-            echo -e "  \033[1;33mApakah Telegram Bot Token & Admin ID masih sama?\033[0m"
+            echo -e "  ${O}Apakah Telegram Bot Token & Admin ID masih sama?${NC}"
             read -rp "  Token & Admin masih sama? [y/n]: " same_tg
             if [[ "$same_tg" =~ ^[Nn]$ ]]; then
                 echo ""
                 read -rp "  Bot Token baru: " _new_token
                 read -rp "  Admin Telegram ID baru: " _new_admin
-                # Patch telegram.conf setelah extract
                 RESTORE_NEW_TOKEN="$_new_token"
                 RESTORE_NEW_ADMIN="$_new_admin"
             fi
         fi
         ;;
-    0)
-        echo ""
-        echo "  Instalasi dibatalkan."
-        exit 0
-        ;;
-    *)
-        install_mode="1"
-        ;;
+    0) echo ""; echo "  Instalasi dibatalkan."; exit 0 ;;
+    *) install_mode="1" ;;
 esac
 
 echo ""
 
+# ── Load utils ────────────────────────────────────────────────
+source "$SCRIPT_DIR/utils/colors.sh"
+source "$SCRIPT_DIR/utils/logger.sh"
+source "$SCRIPT_DIR/utils/checker.sh"
+source "$SCRIPT_DIR/utils/helpers.sh"
+source "$SCRIPT_DIR/config.conf"
+
+# ── System check ─────────────────────────────────────────────
+echo ""
+_sep
+_grad " MEMERIKSA SISTEM" 0 210 255 160 80 255
+_sep
+echo ""
+run_all_checks
+echo ""
+
+timer_start
+
 # ── Salin file ────────────────────────────────────────────────
 if [[ "$install_mode" == "1" ]]; then
-    _step_inline "Salin file ZV-Manager" "berhasil" bash -c "
+    _CURRENT_STEP=0
+    echo ""
+    _sep
+    _grad " INSTALASI KOMPONEN" 0 210 255 160 80 255
+    _sep
+    echo ""
+
+    _run "Salin file ZV-Manager" "berhasil" bash -c "
         mkdir -p '$INSTALL_DIR'
         cp -r '$SCRIPT_DIR'/* '$INSTALL_DIR/'
         find '$INSTALL_DIR' -name '*.sh' -exec chmod +x {} \;
@@ -204,156 +243,89 @@ if [[ "$install_mode" == "1" ]]; then
         cp '$INSTALL_DIR/zv-vmess-agent.sh' /usr/local/bin/zv-vmess-agent
         chmod +x /usr/local/bin/zv-vmess-agent
     "
-    echo ""
 fi
 
-# ── Load utils ────────────────────────────────────────────────
-source "$SCRIPT_DIR/utils/colors.sh"
-source "$SCRIPT_DIR/utils/logger.sh"
-source "$SCRIPT_DIR/utils/checker.sh"
-source "$SCRIPT_DIR/utils/helpers.sh"
-source "$SCRIPT_DIR/config.conf"
-
-# ── System check ─────────────────────────────────────────────
-echo -e "\033[33m  ──────────────────────────────────────\033[0m"
-echo -e "  \033[1mMemeriksa Sistem\033[0m"
-echo -e "\033[33m  ──────────────────────────────────────\033[0m"
-run_all_checks
-echo ""
-
-timer_start
-
-# ── Install services ──────────────────────────────────────────
-echo -e "\033[33m  ──────────────────────────────────────\033[0m"
-echo -e "  \033[1mInstalasi Komponen\033[0m"
-echo -e "\033[33m  ──────────────────────────────────────\033[0m"
-echo ""
-
-_step "System Setup" "selesai" \
-    bash -c "source '$INSTALL_DIR/core/system.sh' && run_system_setup"
-
+# ── Setup Domain ──────────────────────────────────────────────
 if [[ "$install_mode" == "restore_skip_domain" ]]; then
     _note "Domain" "dipertahankan dari backup"
-    _note "SSL / Stunnel" "dipertahankan dari backup"
+    _note "SSL" "dipertahankan dari backup"
 else
-    # Tanya domain SEBELUM _step (agar prompt terlihat, tidak tertelan redirect)
-    echo -e "\033[33m  ──────────────────────────────────────\033[0m"
-    echo -e "  \033[1mSetup Domain\033[0m"
-    echo -e "\033[33m  ──────────────────────────────────────\033[0m"
     PUBLIC_IP=$(curl -s --max-time 10 ipv4.icanhazip.com 2>/dev/null || hostname -I | awk '{print $1}')
     echo ""
-    echo -e "  IP Publik VPS: \033[1;37m${PUBLIC_IP}\033[0m"
+    echo -e "  ${D}IP Publik VPS:${NC} ${W}${PUBLIC_IP}${NC}"
     echo ""
     read -rp "  Domain untuk VPS ini (kosongkan = pakai IP): " _input_domain
     _input_domain=$(echo "$_input_domain" | tr -d '[:space:]')
     if [[ -n "$_input_domain" && ! "$_input_domain" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
         echo "$_input_domain" > /etc/zv-manager/domain
-        _ok "Domain" "$_input_domain"
+        printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}%s${NC}\n" "Domain" "$_input_domain"
     else
         echo "$PUBLIC_IP" > /etc/zv-manager/domain
-        _ok "Domain" "menggunakan IP: $PUBLIC_IP"
+        printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}%s${NC}\n" "Domain" "menggunakan IP: $PUBLIC_IP"
     fi
     echo ""
 
-    _step "Setup SSL" "sertifikat dipasang" \
+    _run "Setup SSL" "sertifikat dipasang" \
         bash -c "source '$INSTALL_DIR/core/ssl.sh' && setup_ssl"
 fi
 
-_step "OpenSSH" "berhasil dipasang" \
-    bash -c "source '$INSTALL_DIR/services/ssh/install.sh' && install_ssh"
-
-_step "Dropbear" "berhasil dipasang" \
-    bash -c "source '$INSTALL_DIR/services/dropbear/install.sh' && install_dropbear"
-
-_step "Nginx" "berhasil dipasang" \
-    bash -c "source '$INSTALL_DIR/services/nginx/install.sh' && install_nginx"
-
-_step "WebSocket Proxy" "berhasil dipasang" \
-    bash -c "source '$INSTALL_DIR/services/websocket/install.sh' && install_websocket"
-
-_step "UDP Custom" "berhasil dipasang" \
-    bash -c "source '$INSTALL_DIR/services/udp/install.sh' && install_udp_custom"
-
-_step "BadVPN UDPGW" "berhasil dipasang" \
-    bash -c "source '$INSTALL_DIR/services/badvpn/install.sh' && install_badvpn"
-
-_step "Xray VMess" "berhasil dipasang" \
-    bash -c "source '$INSTALL_DIR/services/xray/install.sh' && install_xray"
+_run "System Setup"    "selesai" bash -c "source '$INSTALL_DIR/core/system.sh' && run_system_setup"
+_run "OpenSSH"         "berhasil dipasang" bash -c "source '$INSTALL_DIR/services/ssh/install.sh' && install_ssh"
+_run "Dropbear"        "berhasil dipasang" bash -c "source '$INSTALL_DIR/services/dropbear/install.sh' && install_dropbear"
+_run "Nginx"           "berhasil dipasang" bash -c "source '$INSTALL_DIR/services/nginx/install.sh' && install_nginx"
+_run "WebSocket Proxy" "berhasil dipasang" bash -c "source '$INSTALL_DIR/services/websocket/install.sh' && install_websocket"
+_run "UDP Custom"      "berhasil dipasang" bash -c "source '$INSTALL_DIR/services/udp/install.sh' && install_udp_custom"
+_run "BadVPN UDPGW"    "berhasil dipasang" bash -c "source '$INSTALL_DIR/services/badvpn/install.sh' && install_badvpn"
+_run "Xray VMess"      "berhasil dipasang" bash -c "source '$INSTALL_DIR/services/xray/install.sh' && install_xray"
 
 # ── Cron jobs ─────────────────────────────────────────────────
-echo -e "\033[33m  ──────────────────────────────────────\033[0m"
-echo -e "  \033[1mSetup Cron Jobs\033[0m"
-echo -e "\033[33m  ──────────────────────────────────────\033[0m"
-echo ""
+_progress "Cron jobs"
 {
 cat > /etc/cron.d/zv-autokill <<'CRONEOF'
-# ZV-Manager - Auto Kill Multi-Login (tiap 10 detik)
 * * * * * root for i in 1 2 3 4 5 6; do /bin/bash /etc/zv-manager/cron/autokill.sh; sleep 10; done
 CRONEOF
-
 cat > /etc/cron.d/zv-trial <<'CRONEOF'
-# ZV-Manager - Trial Account Cleanup
 */1 * * * * root /bin/bash /etc/zv-manager/cron/trial-cleanup.sh
 CRONEOF
-
 cat > /etc/cron.d/zv-tg-notify <<'CRONEOF'
-# ZV-Manager - Notifikasi Telegram (tiap jam)
 0 * * * * root /bin/bash /etc/zv-manager/cron/tg-notify.sh
 CRONEOF
-
 cat > /etc/cron.d/zv-expired <<'CRONEOF'
-# ZV-Manager - Auto Delete Expired Users (tiap 5 menit)
 * * * * * root for i in 1 2 3 4 5; do /bin/bash /etc/zv-manager/cron/expired.sh; sleep 12; done
 CRONEOF
-
 cat > /etc/cron.d/zv-license <<'CRONEOF'
-# ZV-Manager - Cek Izin Harian + Laporan Harian
 5 0 * * * root /bin/bash /etc/zv-manager/cron/license-check.sh
 0 7 * * * root /bin/bash /etc/zv-manager/cron/daily-report.sh
 CRONEOF
-
 cat > /etc/cron.d/zv-bw-check <<'CRONEOF'
-# ZV-Manager - Bandwidth SSH + VMess + IP Limit
-# SSH IP check tiap 10 detik (loop 6x per menit)
 * * * * * root for i in 1 2 3 4 5 6; do /bin/bash /etc/zv-manager/cron/bw-check.sh; sleep 10; done
 */5 * * * * root /bin/bash /etc/zv-manager/cron/bw-vmess.sh
 * * * * * root /bin/bash /etc/zv-manager/cron/ip-limit.sh
 CRONEOF
-
 cat > /etc/cron.d/zv-watchdog <<'CRONEOF'
-# ZV-Manager - Watchdog: auto-restart service
 */5 * * * * root /bin/bash /etc/zv-manager/cron/watchdog.sh
 CRONEOF
-
 cat > /etc/cron.d/zv-worker-check <<'CRONEOF'
-# ZV-Manager - Worker Health Check: notif user kalau server tunneling down
 */5 * * * * root /bin/bash /etc/zv-manager/cron/worker-check.sh
 CRONEOF
-
 cat > /etc/cron.d/zv-status-page <<'CRONEOF'
-# ZV-Manager - Generate Status Page
 */5 * * * * root /bin/bash /etc/zv-manager/cron/status-page.sh
 CRONEOF
-
 cat > /etc/cron.d/zv-backup <<'CRONEOF'
-# ZV-Manager - Daily Backup jam 02:00
 0 2 * * * root /bin/bash /etc/zv-manager/cron/backup.sh
 CRONEOF
-
 cat > /etc/cron.d/zv-check-update <<'CRONEOF'
-# ZV-Manager - Cek update GitHub jam 06:00
 0 6 * * * root /bin/bash /etc/zv-manager/cron/check-update.sh
 CRONEOF
-
 mkdir -p /var/lib/zv-manager/status
 service cron restart &>/dev/null
 /bin/bash /etc/zv-manager/cron/check-update.sh &>/dev/null &
 /bin/bash /etc/zv-manager/cron/status-page.sh &>/dev/null &
 } >> "$_INSTALL_LOG" 2>&1
-_ok "Cron jobs" "semua terjadwal"
-echo ""
+_done_step "Cron jobs" "semua terjadwal"
 
 # ── Bandwidth tracking ────────────────────────────────────────
+_progress "Bandwidth tracking"
 {
 mkdir -p /tmp/zv-bw
 chmod +x /etc/zv-manager/core/bw-session.sh
@@ -367,55 +339,46 @@ for cf in /etc/zv-manager/accounts/ssh/*.conf; do
     [[ -n "$uname" ]] && _bw_init_user "$uname"
 done
 } >> "$_INSTALL_LOG" 2>&1
-_ok "Bandwidth tracking" "aktif"
+_done_step "Bandwidth tracking" "aktif"
 
 # ── Global command ────────────────────────────────────────────
+_progress "Command menu"
 {
 mkdir -p /etc/zv-manager/servers
 ln -sf /etc/zv-manager/menu/menu.sh /usr/local/bin/menu
 chmod +x /usr/local/bin/menu
 } >> "$_INSTALL_LOG" 2>&1
-_ok "Command 'menu'" "siap digunakan"
+_done_step "Command 'menu'" "siap digunakan"
 
 # ── Restore: recreate SSH users + inject Xray + install bot ──
 if [[ "$install_mode" == restore_* ]]; then
     echo ""
-    echo -e "\033[33m  ──────────────────────────────────────\033[0m"
-    echo -e "  \033[1mRestore Akun & Services\033[0m"
-    echo -e "\033[33m  ──────────────────────────────────────\033[0m"
+    _sep
+    _grad " RESTORE AKUN & SERVICES" 0 210 255 160 80 255
+    _sep
     echo ""
 
-    # Recreate user Linux dari conf SSH
     local_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null | tr -d '[:space:]')
-    ssh_ok=0; ssh_skip=0
+    ssh_ok=0
     for cf in /etc/zv-manager/accounts/ssh/*.conf; do
         [[ -f "$cf" ]] || continue
         _u=$(grep "^USERNAME=" "$cf" | cut -d= -f2 | tr -d '"[:space:]')
         _p=$(grep "^PASSWORD=" "$cf" | cut -d= -f2 | tr -d '"[:space:]')
         _srv=$(grep "^SERVER=" "$cf" | cut -d= -f2 | tr -d '"')
-        # Cari IP server dari conf server
         _sip=""
         for sc in /etc/zv-manager/servers/*.conf; do
             _sname=$(grep "^NAME=" "$sc" 2>/dev/null | cut -d= -f2 | tr -d '"')
-            if [[ "$_sname" == "$_srv" ]]; then
-                _sip=$(grep "^IP=" "$sc" 2>/dev/null | cut -d= -f2 | tr -d '"')
-                break
-            fi
+            [[ "$_sname" == "$_srv" ]] && _sip=$(grep "^IP=" "$sc" 2>/dev/null | cut -d= -f2 | tr -d '"') && break
         done
-        # Buat user hanya jika server ini lokal
         if [[ -z "$_sip" || "$_sip" == "$local_ip" ]]; then
             if [[ -n "$_u" && -n "$_p" ]]; then
-                if ! id "$_u" &>/dev/null; then
-                    useradd -M -s /bin/false "$_u" 2>/dev/null
-                    echo "$_u:$_p" | chpasswd 2>/dev/null
-                fi
+                ! id "$_u" &>/dev/null && useradd -M -s /bin/false "$_u" 2>/dev/null && echo "$_u:$_p" | chpasswd 2>/dev/null
                 ssh_ok=$((ssh_ok+1))
             fi
         fi
     done >> "$_INSTALL_LOG" 2>&1
-    _ok "Recreate SSH users" "${ssh_ok} akun"
+    printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}%s${NC}\n" "Recreate SSH users" "${ssh_ok} akun"
 
-    # Inject VMess UUID ke Xray + rebuild config
     vmess_ok=0
     for cf in /etc/zv-manager/accounts/vmess/*.conf; do
         [[ -f "$cf" ]] || continue
@@ -425,15 +388,10 @@ if [[ "$install_mode" == restore_* ]]; then
         _sip=""
         for sc in /etc/zv-manager/servers/*.conf; do
             _sname=$(grep "^NAME=" "$sc" 2>/dev/null | cut -d= -f2 | tr -d '"')
-            if [[ "$_sname" == "$_srv" ]]; then
-                _sip=$(grep "^IP=" "$sc" 2>/dev/null | cut -d= -f2 | tr -d '"')
-                break
-            fi
+            [[ "$_sname" == "$_srv" ]] && _sip=$(grep "^IP=" "$sc" 2>/dev/null | cut -d= -f2 | tr -d '"') && break
         done
         if [[ -z "$_sip" || "$_sip" == "$local_ip" ]]; then
             if [[ -n "$_u" && -n "$_uuid" ]]; then
-                /usr/local/bin/xray api rmu -s "127.0.0.1:10085" -inbound "vmess-ws"   -email "placeholder@vmess" &>/dev/null || true
-                /usr/local/bin/xray api rmu -s "127.0.0.1:10085" -inbound "vmess-grpc" -email "placeholder@vmess" &>/dev/null || true
                 /usr/local/bin/xray api adu -s "127.0.0.1:10085" -inbound "vmess-ws" \
                     -user "{\"vmess\":{\"id\":\"${_uuid}\",\"email\":\"${_u}@vmess\",\"alterId\":0}}" &>/dev/null || true
                 /usr/local/bin/xray api adu -s "127.0.0.1:10085" -inbound "vmess-grpc" \
@@ -442,44 +400,33 @@ if [[ "$install_mode" == restore_* ]]; then
             fi
         fi
     done >> "$_INSTALL_LOG" 2>&1
-    # Rebuild config.json + restart Xray
     bash /usr/local/bin/zv-vmess-agent rebuild-config >> "$_INSTALL_LOG" 2>&1 || true
     systemctl restart zv-xray >> "$_INSTALL_LOG" 2>&1
+    printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}%s${NC}\n" "Recreate VMess clients" "${vmess_ok} akun"
 
-        _ok "Recreate VMess clients" "${vmess_ok} akun"
+    { source /opt/zv-telegram/install.sh && install_telegram_bot; } >> "$_INSTALL_LOG" 2>&1
+    printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}aktif${NC}\n" "Telegram Bot"
 
-    # Install bot dependencies + start bot
-    {
-        source /opt/zv-telegram/install.sh && install_telegram_bot
-    } >> "$_INSTALL_LOG" 2>&1
-    _ok "Telegram Bot" "aktif"
-
-    # Buat flag file restore — bot akan kirim notif ke admin saat startup
-    {
-        _restore_date=$(TZ="Asia/Jakarta" date +"%Y-%m-%d %H:%M WIB")
-        _new_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null | tr -d '[:space:]')
-        cat > /etc/zv-manager/.restore_pending << FLAGEOF
+    _restore_date=$(TZ="Asia/Jakarta" date +"%Y-%m-%d %H:%M WIB")
+    _new_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null | tr -d '[:space:]')
+    cat > /etc/zv-manager/.restore_pending << FLAGEOF
 SSH_OK=${ssh_ok}
 VMESS_OK=${vmess_ok}
 IP=${_new_ip}
 DATE=${_restore_date}
 FLAGEOF
-    } >> "$_INSTALL_LOG" 2>&1
-    _ok "Flag restore" "bot akan notif admin saat startup"
+    printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}bot akan notif admin saat startup${NC}\n" "Flag restore"
 fi
 
-
+# ── Versi & IP ────────────────────────────────────────────────
 INSTALL_HASH=$(git -C /root/ZV-Manager rev-parse --short HEAD 2>/dev/null || echo "unknown")
 sed -i "s/^COMMIT_HASH=.*/COMMIT_HASH=\"${INSTALL_HASH}\"/" /etc/zv-manager/config.conf
 mkdir -p /etc/zv-manager/accounts
 echo "$PUBLIC_IP" > /etc/zv-manager/accounts/ipvps
-_ok "Versi" "#${INSTALL_HASH}"
 
 # ── Auto-launch menu saat login ───────────────────────────────
 cat > /root/.profile <<'PROFILEEOF'
-if [ "$BASH" ]; then
-    if [ -f ~/.bashrc ]; then . ~/.bashrc; fi
-fi
+if [ "$BASH" ]; then if [ -f ~/.bashrc ]; then . ~/.bashrc; fi; fi
 mesg n 2>/dev/null || true
 case $- in *i*) ;; *) return ;; esac
 [ -t 1 ] || return
@@ -489,40 +436,33 @@ menu
 PROFILEEOF
 
 # ── Selesai ───────────────────────────────────────────────────
-ZV_IP="$PUBLIC_IP"
 echo ""
-printf "\033[1;32m"
-echo "  ╔══════════════════════════════════════╗"
-echo "  ║      INSTALASI SELESAI!              ║"
-echo "  ╚══════════════════════════════════════╝"
-printf "\033[0m\n"
-
-echo -e "  \033[1mIP VPS    :\033[0m  \033[1;32m${ZV_IP}\033[0m"
+_sep
+_grad " INSTALASI SELESAI!" 0 210 255 160 80 255
+_sep
 echo ""
-echo -e "  \033[1mPort yang aktif:\033[0m"
-printf  "  \033[33m-\033[0m  %-14s  %s\n" "OpenSSH"  "22, 500, 40000"
-printf  "  \033[33m-\033[0m  %-14s  %s\n" "Dropbear" "109, 143"
-printf  "  \033[33m-\033[0m  %-14s  %s\n" "WS HTTP"  "80"
-printf  "  \033[33m-\033[0m  %-14s  %s\n" "WS HTTPS" "443"
-printf  "  \033[33m-\033[0m  %-14s  %s\n" "UDP"      "1-65535"
+printf "  ${D}≥${NC}  ${W}%-14s${NC}  ${G}%s${NC}\n" "IP VPS"  "${PUBLIC_IP}"
+printf "  ${D}≥${NC}  ${W}%-14s${NC}  ${G}#%s${NC}\n" "Versi"   "${INSTALL_HASH}"
 echo ""
-echo -e "  \033[1mStatus Service:\033[0m"
-for svc in ssh dropbear nginx zv-wss zv-udp; do
+printf "  ${D}≥${NC}  ${W}Port aktif:${NC}\n"
+printf "  ${D}  –${NC}  %-14s  %s\n" "OpenSSH"  "22, 500, 40000"
+printf "  ${D}  –${NC}  %-14s  %s\n" "Dropbear" "109, 143"
+printf "  ${D}  –${NC}  %-14s  %s\n" "WS HTTP"  "80"
+printf "  ${D}  –${NC}  %-14s  %s\n" "WS HTTPS" "443"
+printf "  ${D}  –${NC}  %-14s  %s\n" "UDP"      "1-65535"
+echo ""
+printf "  ${D}≥${NC}  ${W}Status service:${NC}\n"
+for svc in ssh dropbear nginx zv-wss zv-udp zv-xray; do
     if systemctl is-active --quiet "$svc" 2>/dev/null; then
-        printf "  \033[32m+\033[0m  %s\n" "$svc"
+        printf "  ${G}  ✔${NC}  %s\n" "$svc"
     else
-        printf "  \033[31m!\033[0m  %-20s  \033[31mtidak aktif\033[0m\n" "$svc"
+        printf "  ${R}  ✘${NC}  %-20s  ${R}tidak aktif${NC}\n" "$svc"
     fi
 done
 echo ""
-
 timer_end
 echo ""
-echo -e "  \033[33mReboot diperlukan agar semua service aktif.\033[0m"
+echo -e "  ${O}Reboot diperlukan agar semua service aktif.${NC}"
 echo ""
 read -rp "  Reboot sekarang? [y/n]: " reboot_ans
-if [[ "$reboot_ans" =~ ^[Yy]$ ]]; then
-    echo "  Rebooting..."
-    sleep 2
-    reboot
-fi
+[[ "$reboot_ans" =~ ^[Yy]$ ]] && echo "  Rebooting..." && sleep 2 && reboot

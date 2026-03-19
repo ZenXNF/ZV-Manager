@@ -1638,13 +1638,8 @@ async def cb_saldo_history(cb: CallbackQuery):
         if not ts_m or not am_m: continue
         ts     = ts_m.group(1)
         amount = int(am_m.group(1))
-        # Format admin manual: TOPUP: admin=xxx target=uid ...
         if f"target={uid_str} " in line or f"target={uid_str}\n" in line:
-            entries.append((ts, amount, "admin"))
-            if ts[:7] == bulan_ini: total_bln += amount
-        # Format Tripay otomatis: TOPUP: uid=uid amount=xxx ref=ZV-...
-        elif f"uid={uid_str} " in line and "ref=ZV-" in line:
-            entries.append((ts, amount, "tripay"))
+            entries.append((ts, amount))
             if ts[:7] == bulan_ini: total_bln += amount
 
     bulan_label = datetime.now().strftime("%B %Y")
@@ -1658,10 +1653,8 @@ async def cb_saldo_history(cb: CallbackQuery):
     if not entries:
         msg += "Belum ada riwayat top up."
     else:
-        for ts, amount, source in entries[-10:]:
-            icon = "🤖" if source == "tripay" else "👤"
-            src_label = "Tripay (otomatis)" if source == "tripay" else "Admin"
-            msg += f"💰 +Rp{fmt(amount)}  {icon} {src_label}\n   <i>{ts}</i>\n─────────────────\n"
+        for ts, amount in entries[-10:]:
+            msg += f"💰 +Rp{fmt(amount)}  👤 Admin\n   <i>{ts}</i>\n─────────────────\n"
     msg += "━━━━━━━━━━━━━━━━━━━"
     b = InlineKeyboardBuilder()
     b.row(
@@ -1728,12 +1721,6 @@ async def cb_history(cb: CallbackQuery):
             ):
                 amount = re.search(r"amount=(\d+)", line).group(1)
                 entries.append((ts, f"💰 <b>Top Up Saldo</b> (admin)\n   <b>+Rp{fmt(amount)}</b>\n   <i>{ts}</i>"))
-
-            elif "] TOPUP:" in line and f"uid={uid_str} " in line and "ref=ZV-" in line:
-                amount = re.search(r"amount=(\d+)", line).group(1)
-                ref_m  = re.search(r"ref=(\S+)", line)
-                ref    = ref_m.group(1) if ref_m else "-"
-                entries.append((ts, f"🤖 <b>Top Up Saldo</b> (Tripay)\n   <b>+Rp{fmt(amount)}</b> · <code>{ref}</code>\n   <i>{ts}</i>"))
 
         except Exception:
             pass

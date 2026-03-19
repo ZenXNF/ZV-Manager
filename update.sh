@@ -1,56 +1,114 @@
 #!/bin/bash
 # ============================================================
 #   ZV-Manager - Updater
-#   wget -q https://raw.githubusercontent.com/ZenXNF/ZV-Manager/main/update.sh && bash update.sh
 # ============================================================
 
-if [[ "$EUID" -ne 0 ]]; then
-    echo "[ERROR] Jalankan sebagai root!"
-    exit 1
-fi
+[[ "$EUID" -ne 0 ]] && { echo "[ERROR] Jalankan sebagai root!"; exit 1; }
 
+_TOTAL=14
+_CUR=0
+_LOG="/tmp/zv-update-detail.log"
+> "$_LOG"
+
+# ── Warna & gradient ─────────────────────────────────────────
+G="\e[1;32m" R="\e[1;31m" O="\e[1;33m" C="\e[1;36m"
+W="\e[1;97m" D="\e[0;37m" NC="\e[0m"
+
+_grad() {
+    local text="$1" r1=$2 g1=$3 b1=$4 r2=$5 g2=$6 b2=$7 nc="\e[0m"
+    local len=0
+    for (( c=0; c<${#text}; c++ )); do [[ "${text:$c:1}" != " " ]] && len=$((len+1)); done
+    [[ $len -le 1 ]] && len=2
+    local i=0 out=""
+    for (( c=0; c<${#text}; c++ )); do
+        local ch="${text:$c:1}"
+        if [[ "$ch" == " " ]]; then out+=" "
+        else
+            local r=$(( r1+(r2-r1)*i/(len-1) )) g=$(( g1+(g2-g1)*i/(len-1) )) b=$(( b1+(b2-b1)*i/(len-1) ))
+            out+="\e[1;38;2;${r};${g};${b}m${ch}${nc}"; i=$((i+1))
+        fi
+    done
+    echo -e "$out"
+}
+
+_sep() { _grad "$(printf '=%.0s' {1..50})" 0 180 255 120 0 255; }
+
+_progress() {
+    _CUR=$(( _CUR + 1 ))
+    local pct=$(( _CUR * 100 / _TOTAL ))
+    local filled=$(( pct / 5 )) empty=$(( 20 - pct/5 ))
+    local bar=""
+    for (( i=0; i<filled; i++ )); do bar+="█"; done
+    for (( i=0; i<empty; i++ )); do bar+="░"; done
+    printf "\r  ${C}[${bar}]${NC} ${W}%3d%%${NC} ${D}%s${NC}..." "$pct" "$1"
+}
+
+_done() {
+    local pct=$(( _CUR * 100 / _TOTAL ))
+    local filled=$(( pct / 5 )) empty=$(( 20 - pct/5 ))
+    local bar=""
+    for (( i=0; i<filled; i++ )); do bar+="█"; done
+    for (( i=0; i<empty; i++ )); do bar+="░"; done
+    printf "\r\033[K"
+    printf "  ${C}[${bar}]${NC} ${W}%3d%%${NC}  ${G}✔${NC}  ${W}%-28s${NC}  ${D}%s${NC}\n" "$pct" "$1" "$2"
+}
+
+_skip() {
+    _CUR=$(( _CUR + 1 ))
+    local pct=$(( _CUR * 100 / _TOTAL ))
+    printf "  ${D}–${NC}  ${W}%-35s${NC}  ${D}%s${NC}\n" "$1" "$2"
+}
+
+_fail() {
+    printf "\r\033[K"
+    printf "  ${R}✘${NC}  ${W}%-35s${NC}  ${R}gagal (lihat $_LOG)${NC}\n" "$1"
+}
+
+_run() {
+    local label="$1" ok="$2"; shift 2
+    _progress "$label"
+    if "$@" >> "$_LOG" 2>&1; then _done "$label" "$ok"
+    else _fail "$label"; fi
+}
+
+_pkg_installed() { dpkg -l "$1" 2>/dev/null | grep -q "^ii"; }
+_xray_latest()   { curl -s --max-time 10 "https://api.github.com/repos/XTLS/Xray-core/releases/latest" 2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tag_name','').lstrip('v'))" 2>/dev/null; }
+_xray_current()  { /usr/local/bin/xray version 2>/dev/null | grep -m1 "^Xray" | grep -oP '\d+\.\d+\.\d+' | head -1 || echo ""; }
+
+# ── Banner ────────────────────────────────────────────────────
+clear
+_sep
+_grad " ZV-MANAGER UPDATER" 255 0 127 0 210 255
+_sep
 echo ""
-echo "  ╔══════════════════════════════════════╗"
-echo "  ║       Z V - M A N A G E R           ║"
-echo "  ║  Updater                             ║"
-echo "  ╚══════════════════════════════════════╝"
-echo ""
 
-# Cek git tersedia
-if ! command -v git &>/dev/null; then
-    echo "[ INFO ] Menginstall git..."
-    apt-get install -y git &>/dev/null
-fi
+# ── Git fetch ─────────────────────────────────────────────────
+_progress "Mengambil update dari GitHub"
+if ! command -v git &>/dev/null; then apt-get install -y git >> "$_LOG" 2>&1; fi
 
-# Ambil update dari GitHub
 if [[ ! -d /root/ZV-Manager/.git ]]; then
-    echo "[ INFO ] Repo belum ada, clone fresh..."
     rm -rf /root/ZV-Manager
-    git clone -q https://github.com/ZenXNF/ZV-Manager.git /root/ZV-Manager
+    git clone -q https://github.com/ZenXNF/ZV-Manager.git /root/ZV-Manager >> "$_LOG" 2>&1
 else
-    echo "[ INFO ] Mengambil update terbaru dari GitHub..."
     cd /root/ZV-Manager
-    git fetch -q origin
-    git reset -q --hard origin/main
+    git fetch -q origin >> "$_LOG" 2>&1
+    git reset -q --hard origin/main >> "$_LOG" 2>&1
 fi
-
-if [[ ! -d /root/ZV-Manager ]]; then
-    echo "[ERROR] Gagal mengunduh update!"
-    exit 1
-fi
+[[ ! -d /root/ZV-Manager ]] && { _fail "Git fetch"; exit 1; }
+_done "Git fetch" "berhasil"
 
 cd /root/ZV-Manager
-
-# Chmod semua script dan binary
 find . -name "*.sh" -exec chmod +x {} \;
 find . -name "*.py" -exec chmod +x {} \;
 chmod +x checker/zv-checker 2>/dev/null
 
-# --- Cek izin sebelum apply update ---
+# ── Cek izin ─────────────────────────────────────────────────
 source /etc/zv-manager/core/license.sh
 check_license
 
-echo "[ INFO ] Menyalin script ke /etc/zv-manager..."
+# ── Salin script ─────────────────────────────────────────────
+_progress "Menyalin script"
+{
 cp -r core /etc/zv-manager/
 cp -r services /etc/zv-manager/
 cp -r menu /etc/zv-manager/
@@ -60,48 +118,36 @@ cp -r checker /etc/zv-manager/
 chmod +x /etc/zv-manager/checker/zv-checker
 chmod +x /etc/zv-manager/services/telegram/bot.py 2>/dev/null || true
 cp config.conf /etc/zv-manager/
-cp install.sh /etc/zv-manager/
-cp update.sh /etc/zv-manager/
-cp uninstall.sh /etc/zv-manager/
-cp zv-agent.sh /etc/zv-manager/
-cp zv-vmess-agent.sh /etc/zv-manager/
+cp install.sh update.sh uninstall.sh /etc/zv-manager/
+cp zv-agent.sh zv-vmess-agent.sh /etc/zv-manager/
+} >> "$_LOG" 2>&1
 NEW_HASH=$(git -C /root/ZV-Manager rev-parse --short HEAD 2>/dev/null || echo "unknown")
 sed -i "s/^COMMIT_HASH=.*/COMMIT_HASH=\"${NEW_HASH}\"/" /etc/zv-manager/config.conf
-echo " ✔  Script diperbarui (#${NEW_HASH})"
+_done "Script" "#${NEW_HASH}"
 
-# --- Update zv-agent binary ---
-cp /etc/zv-manager/zv-agent.sh /usr/local/bin/zv-agent
-chmod +x /usr/local/bin/zv-agent
-echo " ✔  zv-agent diperbarui"
-# --- Update zv-vmess-agent binary ---
-cp /etc/zv-manager/zv-vmess-agent.sh /usr/local/bin/zv-vmess-agent
-chmod +x /usr/local/bin/zv-vmess-agent
-echo " ✔  zv-vmess-agent diperbarui"
+# ── zv-agent ─────────────────────────────────────────────────
+_run "zv-agent" "diperbarui" bash -c "
+    cp /etc/zv-manager/zv-agent.sh /usr/local/bin/zv-agent
+    chmod +x /usr/local/bin/zv-agent
+    cp /etc/zv-manager/zv-vmess-agent.sh /usr/local/bin/zv-vmess-agent
+    chmod +x /usr/local/bin/zv-vmess-agent
+"
 
-# --- Update Telegram bot (Python) ---
-if [[ -d /etc/zv-manager/services/telegram ]]; then
-    BOT_DIR="/opt/zv-telegram"
-    mkdir -p "$BOT_DIR"
-
-    # Hapus file lama
-    rm -f /usr/local/bin/zv-telegram-bot /usr/local/bin/zv-telegram-bot.py
-
-    # Deploy semua modul ke /opt/zv-telegram/
-    cp -r /etc/zv-manager/services/telegram/. "$BOT_DIR/"
-    find "$BOT_DIR" -name "*.py" -exec chmod +x {} \;
-
-    # Update aiogram kalau perlu
-    pip3 install -q "aiogram==3.*" --break-system-packages 2>/dev/null || \
-    pip3 install -q "aiogram==3.*" 2>/dev/null
-
-    # Update systemd service — selalu pakai WorkingDirectory + path baru
-    cat > /etc/systemd/system/zv-telegram.service <<'SVCEOF'
+# ── Telegram bot ─────────────────────────────────────────────
+_progress "Telegram bot"
+{
+BOT_DIR="/opt/zv-telegram"
+mkdir -p "$BOT_DIR"
+rm -f /usr/local/bin/zv-telegram-bot /usr/local/bin/zv-telegram-bot.py
+cp -r /etc/zv-manager/services/telegram/. "$BOT_DIR/"
+find "$BOT_DIR" -name "*.py" -exec chmod +x {} \;
+pip3 install -q "aiogram==3.*" --break-system-packages 2>/dev/null || pip3 install -q "aiogram==3.*" 2>/dev/null
+cat > /etc/systemd/system/zv-telegram.service <<'SVCEOF'
 [Unit]
 Description=ZV-Manager Telegram Bot (Python)
 After=network.target
 StartLimitIntervalSec=60
 StartLimitBurst=5
-
 [Service]
 Type=simple
 WorkingDirectory=/opt/zv-telegram
@@ -113,233 +159,135 @@ MemorySwapMax=0
 CPUQuota=60%
 StandardOutput=append:/var/log/zv-manager/telegram-bot.log
 StandardError=append:/var/log/zv-manager/telegram-bot.log
-
 [Install]
 WantedBy=multi-user.target
 SVCEOF
-    systemctl daemon-reload
-    if systemctl is-active --quiet zv-telegram 2>/dev/null; then
-        systemctl restart zv-telegram &>/dev/null
-        echo " ✔  Telegram bot diperbarui & di-restart"
-    else
-        systemctl enable zv-telegram &>/dev/null
-        systemctl start zv-telegram &>/dev/null
-        echo " ✔  Telegram bot diperbarui & dijalankan"
-    fi
-fi
-
-# Load utils
-source /etc/zv-manager/utils/colors.sh
-source /etc/zv-manager/utils/logger.sh
-source /etc/zv-manager/config.conf
-
-echo ""
-echo -e "${BYELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${BWHITE}  🔧 Cek & Update Komponen${NC}"
-echo -e "${BYELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo ""
-
-_UPDATE_LOG="/tmp/zv-update-detail.log"
-> "$_UPDATE_LOG"
-
-_pkg_installed() { dpkg -l "$1" 2>/dev/null | grep -q "^ii"; }
-
-_xray_latest_version() {
-    local raw
-    raw=$(curl -s --max-time 10 "https://api.github.com/repos/XTLS/Xray-core/releases/latest" 2>/dev/null)
-    echo "$raw" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tag_name','').lstrip('v'))" 2>/dev/null || \
-    echo "$raw" | grep -m1 '"tag_name"' | grep -oP '(?<="v)[^"]+' | head -1
-}
-
-_xray_current_version() {
-    /usr/local/bin/xray version 2>/dev/null | grep -m1 "^Xray" | grep -oP '\d+\.\d+\.\d+' | head -1 || echo ""
-}
-
-# Tampilkan spinner di baris saat ini (tanpa newline), setelah selesai overwrite jadi 1 baris hasil
-_run_task() {
-    local name="$1" ok_msg="$2"; shift 2
-    printf "  \033[33m>\033[0m  %-38s\r" "$name"
-    if "$@" >> "$_UPDATE_LOG" 2>&1; then
-        printf "\033[2K"
-        printf "  \033[32m+\033[0m  \033[1m%-35s\033[0m  %s\n" "$name" "$ok_msg"
-    else
-        printf "\033[2K"
-        printf "  \033[31m!\033[0m  \033[1m%-35s\033[0m  \033[31mgagal (lihat /tmp/zv-update-detail.log)\033[0m\n" "$name"
-    fi
-}
-
-_skip_task() {
-    local name="$1" msg="$2"
-    printf "  \033[33m-\033[0m  \033[1m%-35s\033[0m  \033[33m%s\033[0m\n" "$name" "$msg"
-}
-
-# ── 1. Xray-core ─────────────────────────────────────────────
-if [[ ! -f "/usr/local/bin/xray" ]]; then
-    _run_task "Xray-core" "berhasil diinstall" \
-        bash -c "source /etc/zv-manager/services/xray/install.sh && install_xray"
+systemctl daemon-reload
+if systemctl is-active --quiet zv-telegram 2>/dev/null; then
+    systemctl restart zv-telegram &>/dev/null
 else
-    current_xray=$(_xray_current_version)
-    latest_xray=$(_xray_latest_version)
-    latest_xray_clean="${latest_xray#v}"
-    if [[ -n "$latest_xray_clean" && -n "$current_xray" && "$current_xray" != "$latest_xray_clean" ]]; then
-        ARCH=$(uname -m)
-        case "$ARCH" in
-            x86_64)  ARCH_TAG="64" ;;
-            aarch64) ARCH_TAG="arm64-v8a" ;;
-            *)       ARCH_TAG="64" ;;
-        esac
+    systemctl enable zv-telegram &>/dev/null
+    systemctl start zv-telegram &>/dev/null
+fi
+} >> "$_LOG" 2>&1
+_done "Telegram bot" "diperbarui & dijalankan"
+
+# ── Xray-core ────────────────────────────────────────────────
+if [[ ! -f "/usr/local/bin/xray" ]]; then
+    _run "Xray-core" "berhasil diinstall" bash -c "source /etc/zv-manager/services/xray/install.sh && install_xray"
+else
+    current_xray=$(_xray_current)
+    latest_xray=$(_xray_latest)
+    if [[ -n "$latest_xray" && -n "$current_xray" && "$current_xray" != "$latest_xray" ]]; then
+        _progress "Xray-core $current_xray → $latest_xray"
         tmpdir=$(mktemp -d)
-        dl_url="https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-${ARCH_TAG}.zip"
-        _run_task "Xray-core  v${current_xray} -> v${latest_xray}" "diupdate ke v${latest_xray}" \
-            bash -c "wget -q -O '${tmpdir}/xray.zip' '$dl_url' 2>/dev/null \
-                && apt-get install -y unzip > /dev/null 2>&1 \
-                && unzip -q '${tmpdir}/xray.zip' -d '${tmpdir}/xray' \
-                && systemctl stop zv-xray 2>/dev/null \
-                ; install -m 755 '${tmpdir}/xray/xray' /usr/local/bin/xray \
-                && systemctl start zv-xray 2>/dev/null"
+        dl_url="https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip"
+        if wget -q -O "${tmpdir}/xray.zip" "$dl_url" >> "$_LOG" 2>&1 && \
+           unzip -q "${tmpdir}/xray.zip" -d "${tmpdir}/xray" >> "$_LOG" 2>&1; then
+            systemctl stop zv-xray 2>/dev/null
+            install -m 755 "${tmpdir}/xray/xray" /usr/local/bin/xray
+            systemctl start zv-xray 2>/dev/null
+            _done "Xray-core" "diupdate ke v${latest_xray}"
+        else
+            _fail "Xray-core update"
+        fi
         rm -rf "$tmpdir"
     else
-        _skip_task "Xray-core" "sudah terbaru (v${current_xray})"
-    fi
-    if ! grep -q "HandlerService" /usr/local/etc/xray/config.json 2>/dev/null; then
-        _run_task "Xray config" "HandlerService ditambahkan" \
-            bash -c "source /etc/zv-manager/services/xray/install.sh && _write_xray_config"
+        _skip "Xray-core" "sudah terbaru (v${current_xray})"
     fi
 fi
 
-# ── 2. BadVPN UDPGW ──────────────────────────────────────────
+# ── BadVPN ───────────────────────────────────────────────────
 if [[ ! -f "/usr/local/bin/badvpn-udpgw" ]]; then
-    _run_task "BadVPN UDPGW" "berhasil diinstall" \
-        bash -c "source /etc/zv-manager/services/badvpn/install.sh && install_badvpn"
+    _run "BadVPN UDPGW" "berhasil diinstall" bash -c "source /etc/zv-manager/services/badvpn/install.sh && install_badvpn"
 else
-    _skip_task "BadVPN UDPGW" "sudah ada"
+    _skip "BadVPN UDPGW" "sudah ada"
 fi
 
-# ── 3. Nginx ─────────────────────────────────────────────────
-if ! _pkg_installed nginx; then
-    _run_task "Nginx" "berhasil diinstall" \
-        bash -c "source /etc/zv-manager/services/nginx/install.sh && install_nginx"
-else
-    _run_task "Nginx" "config diperbarui" \
-        bash -c "source /etc/zv-manager/services/nginx/install.sh && install_nginx"
-fi
+# ── Nginx ────────────────────────────────────────────────────
+_run "Nginx" "config diperbarui" bash -c "source /etc/zv-manager/services/nginx/install.sh && install_nginx"
 
-# ── 4. Dropbear ──────────────────────────────────────────────
-if ! _pkg_installed dropbear; then
-    _run_task "Dropbear" "berhasil diinstall" \
-        bash -c "source /etc/zv-manager/services/dropbear/install.sh && install_dropbear"
-else
-    _run_task "Dropbear" "config diperbarui" \
-        bash -c "source /etc/zv-manager/services/dropbear/install.sh && install_dropbear"
-fi
+# ── Dropbear ─────────────────────────────────────────────────
+_run "Dropbear" "config diperbarui" bash -c "source /etc/zv-manager/services/dropbear/install.sh && install_dropbear"
 
-# ── 5. WebSocket ─────────────────────────────────────────────
-_run_task "WebSocket Proxy" "config diperbarui" \
-    bash -c "source /etc/zv-manager/services/websocket/install.sh && install_websocket"
+# ── WebSocket ────────────────────────────────────────────────
+_run "WebSocket Proxy" "config diperbarui" bash -c "source /etc/zv-manager/services/websocket/install.sh && install_websocket"
 
-# ── 6. SSH ───────────────────────────────────────────────────
-_run_task "OpenSSH" "config diperbarui" \
-    bash -c "source /etc/zv-manager/services/ssh/install.sh && install_ssh"
+# ── SSH ──────────────────────────────────────────────────────
+_run "OpenSSH" "config diperbarui" bash -c "source /etc/zv-manager/services/ssh/install.sh && install_ssh"
 
-# ── 7. UDP Custom ────────────────────────────────────────────
-_run_task "UDP Custom" "config diperbarui" \
-    bash -c "source /etc/zv-manager/services/udp/install.sh && install_udp_custom"
+# ── UDP Custom ───────────────────────────────────────────────
+_run "UDP Custom" "config diperbarui" bash -c "source /etc/zv-manager/services/udp/install.sh && install_udp_custom"
 
-# ── 8. aiogram ───────────────────────────────────────────────
+# ── aiogram ──────────────────────────────────────────────────
 current_aiogram=$(pip3 show aiogram 2>/dev/null | grep "^Version:" | awk '{print $2}')
 if [[ -z "$current_aiogram" ]]; then
-    _run_task "aiogram (Python)" "berhasil diinstall" \
-        pip3 install -q "aiogram==3.*" --break-system-packages
+    _run "aiogram (Python)" "berhasil diinstall" pip3 install -q "aiogram==3.*" --break-system-packages
 else
-    _skip_task "aiogram (Python)" "sudah ada (v${current_aiogram})"
+    _skip "aiogram (Python)" "sudah ada (v${current_aiogram})"
 fi
 
-# ── 9. Cron jobs ─────────────────────────────────────────────
+# ── Cron jobs ────────────────────────────────────────────────
+_progress "Cron jobs"
 {
 cat > /etc/cron.d/zv-autokill <<'CRONEOF'
-# ZV-Manager - Auto Kill Multi-Login
 */1 * * * * root /bin/bash /etc/zv-manager/cron/autokill.sh
 CRONEOF
-
 cat > /etc/cron.d/zv-trial <<'CRONEOF'
-# ZV-Manager - Trial Account Cleanup
 */1 * * * * root /bin/bash /etc/zv-manager/cron/trial-cleanup.sh
 CRONEOF
-
 cat > /etc/cron.d/zv-tg-notify <<'CRONEOF'
-# ZV-Manager - Notifikasi Telegram (tiap jam)
 0 * * * * root /bin/bash /etc/zv-manager/cron/tg-notify.sh
 CRONEOF
-
 cat > /etc/cron.d/zv-expired <<'CRONEOF'
-# ZV-Manager - Auto Delete Expired Users
 2 0 * * * root /bin/bash /etc/zv-manager/cron/expired.sh
 CRONEOF
-
 cat > /etc/cron.d/zv-license <<'CRONEOF'
-# ZV-Manager - Cek Izin Harian + Laporan Harian
 5 0 * * * root /bin/bash /etc/zv-manager/cron/license-check.sh
 0 7 * * * root /bin/bash /etc/zv-manager/cron/daily-report.sh
 CRONEOF
-
 cat > /etc/cron.d/zv-bw-check <<'CRONEOF'
-# ZV-Manager - Bandwidth SSH + VMess + IP Limit
 */5 * * * * root /bin/bash /etc/zv-manager/cron/bw-check.sh
 */5 * * * * root /bin/bash /etc/zv-manager/cron/bw-vmess.sh
 * * * * * root /bin/bash /etc/zv-manager/cron/ip-limit.sh
 CRONEOF
-
 cat > /etc/cron.d/zv-watchdog <<'CRONEOF'
-# ZV-Manager - Watchdog: auto-restart service
 */5 * * * * root /bin/bash /etc/zv-manager/cron/watchdog.sh
 CRONEOF
-
 cat > /etc/cron.d/zv-status-page <<'CRONEOF'
-# ZV-Manager - Generate Status Page
 */5 * * * * root /bin/bash /etc/zv-manager/cron/status-page.sh
 CRONEOF
-
 cat > /etc/cron.d/zv-backup <<'CRONEOF'
-# ZV-Manager - Daily Backup jam 02:00
 0 2 * * * root /bin/bash /etc/zv-manager/cron/backup.sh
 CRONEOF
-
 cat > /etc/cron.d/zv-check-update <<'CRONEOF'
-# ZV-Manager - Cek update GitHub jam 06:00
 0 6 * * * root /bin/bash /etc/zv-manager/cron/check-update.sh
 CRONEOF
-
 mkdir -p /var/lib/zv-manager/status
 service cron restart &>/dev/null
-} >> "$_UPDATE_LOG" 2>&1
-printf "  \033[32m+\033[0m  \033[1m%-35s\033[0m  %s\n" "Cron jobs" "semua cron diperbarui"
+} >> "$_LOG" 2>&1
+_done "Cron jobs" "semua diperbarui"
 
-echo ""
-/bin/bash /etc/zv-manager/cron/check-update.sh &>/dev/null &
-
-# Pastikan menu command masih ada
 ln -sf /etc/zv-manager/menu/menu.sh /usr/local/bin/menu
 chmod +x /usr/local/bin/menu
 
+# ── Selesai ───────────────────────────────────────────────────
 echo ""
-echo -e "${BCYAN}  ╔══════════════════════════════════════╗${NC}"
-echo -e "${BCYAN}  ║      UPDATE SELESAI!                 ║${NC}"
-echo -e "${BCYAN}  ╚══════════════════════════════════════╝${NC}"
+_sep
+_grad " UPDATE SELESAI!" 0 210 255 160 80 255
+_sep
 echo ""
-echo -e "  ${BWHITE}Yang dicek & diperbarui:${NC}"
-echo -e "  ${BGREEN}✔${NC} Script (menu, services, utils, core)"
-echo -e "  ${BGREEN}✔${NC} Xray-core (cek versi, auto update jika ada)"
-echo -e "  ${BGREEN}✔${NC} BadVPN UDPGW (install jika belum ada)"
-echo -e "  ${BGREEN}✔${NC} Nginx, Stunnel SSL, WebSocket"
-echo -e "  ${BGREEN}✔${NC} SSH, Dropbear, UDP Custom"
-echo -e "  ${BGREEN}✔${NC} aiogram Python (install jika belum ada)"
-echo -e "  ${BGREEN}✔${NC} Binary zv-agent, zv-vmess-agent, zv-checker"
+printf "  ${D}≥${NC}  ${W}Versi  :${NC}  ${G}#%s${NC}\n" "$NEW_HASH"
 echo ""
-echo -e "  ${BWHITE}Yang tidak tersentuh:${NC}"
-echo -e "  ${BYELLOW}–${NC} Akun SSH & VMess yang sudah dibuat"
-echo -e "  ${BYELLOW}–${NC} Daftar server"
-echo -e "  ${BYELLOW}–${NC} Sertifikat SSL"
-echo -e "  ${BYELLOW}–${NC} Domain & konfigurasi Telegram"
+printf "  ${D}≥${NC}  ${W}Yang diperbarui:${NC}\n"
+printf "  ${G}  ✔${NC}  Script (menu, services, utils, core)\n"
+printf "  ${G}  ✔${NC}  Xray-core, BadVPN, Nginx, SSH, Dropbear\n"
+printf "  ${G}  ✔${NC}  WebSocket, UDP Custom, aiogram, Cron\n"
+printf "  ${G}  ✔${NC}  Binary zv-agent, zv-vmess-agent\n"
 echo ""
-echo -e "  ${BYELLOW}Ketik 'menu' untuk membuka ZV-Manager${NC}"
+printf "  ${D}≥${NC}  ${W}Tidak berubah:${NC}\n"
+printf "  ${O}  –${NC}  Akun SSH & VMess, daftar server, SSL\n"
+printf "  ${O}  –${NC}  Domain & konfigurasi Telegram\n"
+echo ""
+echo -e "  ${O}Ketik 'menu' untuk membuka ZV-Manager${NC}"
 echo ""
