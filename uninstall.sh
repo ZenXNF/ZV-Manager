@@ -37,22 +37,96 @@ _grad() {
 
 _sep() { _grad "$(printf '=%.0s' {1..50})" 0 180 255 120 0 255; }
 
-_run() {
-    local label="$1" ok="$2"; shift 2
-    _CUR=$(( _CUR + 1 ))
-    local pct=$(( _CUR * 100 / _TOTAL ))
-    local filled=$(( pct / 5 )) empty=$(( 20 - pct/5 ))
-    local bar=""
+_bar() {
+    local pct=$1 width=25 filled bar="" r g b
+    filled=$(( pct * width / 100 ))
+    local empty=$(( width - filled ))
+    if (( pct < 50 )); then r=255; g=$(( pct*5 )); b=0
+    else r=$(( 255-(pct-50)*5 )); g=255; b=0; fi
     for (( i=0; i<filled; i++ )); do bar+="█"; done
-    for (( i=0; i<empty; i++ )); do bar+="░"; done
-    printf "\r  ${C}[${bar}]${NC} ${W}%3d%%${NC} ${D}%s${NC}...\r" "$pct" "$label"
-    if "$@" >> "$LOG" 2>&1; then
-        printf "\r\033[K"
-        printf "  ${C}[${bar}]${NC} ${W}%3d%%${NC}  ${G}✔${NC}  ${W}%-28s${NC}  ${D}%s${NC}\n" "$pct" "$label" "$ok"
+    for (( i=0; i<empty;  i++ )); do bar+="░"; done
+    printf "\e[1;38;2;%d;%d;%dm%s\e[0m" "$r" "$g" "$b" "$bar"
+}
+
+_run() {
+    local label="$1" ok="$2" func="$3"
+    "$func" >> "$LOG" 2>&1 &
+    local pid=$! pct=0 step=4
+    while kill -0 "$pid" 2>/dev/null; do
+        printf "\r  $(_bar $pct) ${W}%3d%%${NC} ${D}%s...${NC}" "$pct" "$label"
+        (( pct < 30 )) && step=$(( RANDOM%5+3 ))
+        (( pct >= 30 && pct < 70 )) && step=$(( RANDOM%3+2 ))
+        (( pct >= 70 )) && step=1
+        pct=$(( pct+step > 94 ? 94 : pct+step ))
+        sleep 0.08
+    done
+    wait "$pid"; local rc=$?
+    if [[ $rc -eq 0 ]]; then
+        printf "\r  $(_bar 100) ${W}100%%${NC}  ${G}✔${NC}  ${W}%-30s${NC} ${D}%s${NC}\n" "$label" "$ok"
     else
-        printf "\r\033[K"
-        printf "  ${R}✘${NC}  ${W}%-35s${NC}  ${R}gagal${NC}\n" "$label"
+        printf "\r  $(_bar 100) ${W}100%%${NC}  ${R}✘${NC}  ${W}%-30s${NC} ${R}gagal${NC}\n" "$label"
     fi
+}
+
+# ── Task functions ────────────────────────────────────────────
+_t_del_ssh() {
+    [[ -d "/etc/zv-manager/accounts/ssh" ]] || return 0
+    for conf_file in /etc/zv-manager/accounts/ssh/*.conf; do
+        [[ -f "$conf_file" ]] || continue
+        username=$(grep "^USERNAME=" "$conf_file" | cut -d= -f2 | tr -d '"' | tr -d "[:space:]")
+        [[ -n "$username" ]] && pkill -u "$username" 2>/dev/null; sleep 0.2; userdel -r "$username" 2>/dev/null
+    done
+}
+
+_t_stop_svc() {
+    for svc in zv-telegram zv-xray zv-wss zv-stunnel zv-udp zv-ws zv-badvpn; do
+        systemctl stop "$svc" 2>/dev/null
+        systemctl disable "$svc" 2>/dev/null
+    done
+    for f in /etc/systemd/system/zv-*.service; do [[ -f "$f" ]] && rm -f "$f"; done
+    systemctl daemon-reload 2>/dev/null
+}
+
+_t_del_pkgs() {
+    DEBIAN_FRONTEND=noninteractive apt-get purge -y nginx nginx-common nginx-core stunnel4 dropbear 2>/dev/null
+    apt-get autoremove -y 2>/dev/null
+}
+
+_t_restore_ssh_cfg() {
+    local SSHD_CONFIG="/etc/ssh/sshd_config"
+    local BACKUP; BACKUP=$(ls -1t /etc/ssh/sshd_config.bak.* 2>/dev/null | head -1)
+    if [[ -n "$BACKUP" ]]; then
+        cp "$BACKUP" "$SSHD_CONFIG"
+    else
+        printf '%s\n' \
+            "Include /etc/ssh/sshd_config.d/*.conf" \
+            "Port 22" "PermitRootLogin yes" "PasswordAuthentication yes" \
+            "PubkeyAuthentication yes" "PrintMotd no" \
+            "AcceptEnv LANG LC_*" \
+            "Subsystem sftp /usr/lib/openssh/sftp-server" > "$SSHD_CONFIG"
+    fi
+    sed -i "/^Port 500$/d;/^Port 40000$/d;/^Banner/d" "$SSHD_CONFIG"
+    systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null
+}
+
+_t_del_cron() {
+    for f in /etc/cron.d/zv-*; do [[ -f "$f" ]] && rm -f "$f"; done
+    service cron restart 2>/dev/null
+    sed -i "/bw-session.sh/d" /etc/pam.d/sshd 2>/dev/null
+    echo "Ubuntu 24.04.2 LTS" > /etc/issue.net
+    rm -f /etc/update-motd.d/00-zv-manager
+    rm -f /etc/stunnel/zv-wss.conf
+}
+
+_t_del_bin() {
+    rm -f /usr/local/bin/menu /usr/local/bin/zv-agent /usr/local/bin/zv-vmess-agent
+    rm -f /usr/local/bin/zv-ws-proxy.py /usr/local/bin/badvpn-udpgw /usr/local/bin/xray
+}
+
+_t_del_files() {
+    for bak in /etc/ssh/sshd_config.bak.*; do [[ -f "$bak" ]] && rm -f "$bak"; done
+    rm -rf /etc/zv-manager /var/backups/zv-manager /root/ZV-Manager
+    rm -rf /usr/local/etc/xray /var/www/zv-manager /var/log/zv-manager /opt/zv-telegram
 }
 
 # ── Konfirmasi ────────────────────────────────────────────────
@@ -81,75 +155,25 @@ _sep
 echo ""
 
 # ── Hapus akun SSH ────────────────────────────────────────────
-_run "Hapus akun SSH" "selesai" bash -c '
-    if [[ -d "/etc/zv-manager/accounts/ssh" ]]; then
-        for conf_file in /etc/zv-manager/accounts/ssh/*.conf; do
-            [[ -f "$conf_file" ]] || continue
-            username=$(grep "^USERNAME=" "$conf_file" | cut -d= -f2 | tr -d '\''"'\'')
-            [[ -n "$username" ]] && pkill -u "$username" 2>/dev/null; sleep 0.2; userdel -r "$username" 2>/dev/null
-        done
-    fi
-'
+_run "Hapus akun SSH"          "selesai"                  _t_del_ssh
 
 # ── Stop service ─────────────────────────────────────────────
-_run "Stop semua service" "selesai" bash -c '
-    for svc in zv-telegram zv-xray zv-wss zv-stunnel zv-udp zv-ws zv-badvpn; do
-        systemctl stop "$svc" 2>/dev/null
-        systemctl disable "$svc" 2>/dev/null
-    done
-    for f in /etc/systemd/system/zv-*.service; do [[ -f "$f" ]] && rm -f "$f"; done
-    systemctl daemon-reload 2>/dev/null
-'
+_run "Stop semua service"      "selesai"                  _t_stop_svc
 
 # ── Hapus packages ────────────────────────────────────────────
-_run "Hapus packages" "nginx, dropbear dihapus" bash -c '
-    DEBIAN_FRONTEND=noninteractive apt-get purge -y nginx nginx-common nginx-core stunnel4 dropbear 2>/dev/null
-    apt-get autoremove -y 2>/dev/null
-'
+_run "Hapus packages"          "nginx, dropbear dihapus"  _t_del_pkgs
 
 # ── Restore sshd_config ───────────────────────────────────────
-_run "Restore OpenSSH config" "selesai" bash -c '
-    SSHD_CONFIG="/etc/ssh/sshd_config"
-    BACKUP=$(ls -1t /etc/ssh/sshd_config.bak.* 2>/dev/null | head -1)
-    if [[ -n "$BACKUP" ]]; then
-        cp "$BACKUP" "$SSHD_CONFIG"
-    else
-        printf "%s\n" \
-            "Include /etc/ssh/sshd_config.d/*.conf" \
-            "Port 22" \
-            "PermitRootLogin yes" \
-            "PasswordAuthentication yes" \
-            "PubkeyAuthentication yes" \
-            "PrintMotd no" \
-            "AcceptEnv LANG LC_*" \
-            "Subsystem sftp /usr/lib/openssh/sftp-server" > "$SSHD_CONFIG"
-    fi
-    sed -i "/^Port 500$/d;/^Port 40000$/d;/^Banner/d" "$SSHD_CONFIG"
-    systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null
-'
+_run "Restore OpenSSH config"  "selesai"                  _t_restore_ssh_cfg
 
 # ── Hapus cron & PAM ─────────────────────────────────────────
-_run "Hapus cron & PAM" "selesai" bash -c '
-    for f in /etc/cron.d/zv-*; do [[ -f "$f" ]] && rm -f "$f"; done
-    service cron restart 2>/dev/null
-    sed -i "/bw-session.sh/d" /etc/pam.d/sshd 2>/dev/null
-    echo "Ubuntu 24.04.2 LTS" > /etc/issue.net
-    rm -f /etc/update-motd.d/00-zv-manager
-    rm -f /etc/stunnel/zv-wss.conf
-'
+_run "Hapus cron & PAM"        "selesai"                  _t_del_cron
 
 # ── Hapus binary ─────────────────────────────────────────────
-_run "Hapus binary & symlink" "selesai" bash -c '
-    rm -f /usr/local/bin/menu /usr/local/bin/zv-agent /usr/local/bin/zv-vmess-agent
-    rm -f /usr/local/bin/zv-ws-proxy.py /usr/local/bin/badvpn-udpgw /usr/local/bin/xray
-'
+_run "Hapus binary & symlink"  "selesai"                  _t_del_bin
 
 # ── Hapus file config ─────────────────────────────────────────
-_run "Hapus semua file ZV-Manager" "selesai" bash -c '
-    for bak in /etc/ssh/sshd_config.bak.*; do [[ -f "$bak" ]] && rm -f "$bak"; done
-    rm -rf /etc/zv-manager /var/backups/zv-manager /root/ZV-Manager
-    rm -rf /usr/local/etc/xray /var/www/zv-manager /var/log/zv-manager /opt/zv-telegram
-'
+_run "Hapus semua file"        "selesai"                  _t_del_files
 
 _log "====== UNINSTALL SELESAI ======"
 
@@ -193,5 +217,8 @@ if [[ "$SILENT" == false ]] && [ -t 1 ]; then
     echo    "  wget -qO- https://raw.githubusercontent.com/ZenXNF/ZV-Manager/main/zv.sh | bash"
     echo ""
 fi
+
+# Tutup semua sesi SSH yang terkait ZV-Manager
+pkill -f "menu.sh" 2>/dev/null || true
 
 exit 0

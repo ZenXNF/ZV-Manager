@@ -37,7 +37,7 @@ menu_system() {
                 if [[ "$_conf1" != "HAPUS" ]]; then
                     echo -e "  ${BYELLOW}Dibatalkan.${NC}"; sleep 1
                 else
-                    bash /etc/zv-manager/uninstall.sh
+                    bash /etc/zv-manager/uninstall.sh && kill -9 $$ 2>/dev/null; exit 0
                     exit 0
                 fi
                 ;;

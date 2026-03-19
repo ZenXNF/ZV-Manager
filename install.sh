@@ -39,53 +39,42 @@ _grad() {
 
 _sep() { _grad "$(printf '=%.0s' {1..50})" 0 180 255 120 0 255; }
 
-# ── Progress bar ──────────────────────────────────────────────
-_TOTAL_STEPS=15
-_CURRENT_STEP=0
-
-_progress() {
-    local label="$1"
-    _CURRENT_STEP=$(( _CURRENT_STEP + 1 ))
-    local pct=$(( _CURRENT_STEP * 100 / _TOTAL_STEPS ))
-    local filled=$(( pct / 5 ))
-    local empty=$(( 20 - filled ))
-    local bar=""
+# ── Progress bar realtime per step ───────────────────────────
+_bar() {
+    local pct=$1 width=25 filled bar="" r g b
+    filled=$(( pct * width / 100 ))
+    local empty=$(( width - filled ))
+    if (( pct < 50 )); then r=255; g=$(( pct*5 )); b=0
+    else r=$(( 255-(pct-50)*5 )); g=255; b=0; fi
     for (( i=0; i<filled; i++ )); do bar+="█"; done
-    for (( i=0; i<empty; i++ )); do bar+="░"; done
-    printf "\r  ${C}[${bar}]${NC} ${W}%3d%%${NC} ${D}%s${NC}..." "$pct" "$label"
-}
-
-_done_step() {
-    local label="$1" ok="$2"
-    local pct=$(( _CURRENT_STEP * 100 / _TOTAL_STEPS ))
-    local filled=$(( pct / 5 ))
-    local empty=$(( 20 - filled ))
-    local bar=""
-    for (( i=0; i<filled; i++ )); do bar+="█"; done
-    for (( i=0; i<empty; i++ )); do bar+="░"; done
-    printf "\r\033[K"
-    printf "  ${C}[${bar}]${NC} ${W}%3d%%${NC}  ${G}✔${NC}  ${W}%-28s${NC}  ${D}%s${NC}\n" "$pct" "$label" "$ok"
-}
-
-_fail_step() {
-    printf "\r\033[K"
-    printf "  ${R}✘${NC}  ${W}%-28s${NC}  ${R}gagal${NC}\n" "$1"
+    for (( i=0; i<empty;  i++ )); do bar+="░"; done
+    printf "\e[1;38;2;%d;%d;%dm%s\e[0m" "$r" "$g" "$b" "$bar"
 }
 
 _run() {
-    local label="$1" ok="$2"; shift 2
-    _progress "$label"
-    if "$@" >> "$_INSTALL_LOG" 2>&1; then
-        _done_step "$label" "$ok"
+    local label="$1" ok="$2" func="$3"
+    "$func" >> "$_INSTALL_LOG" 2>&1 &
+    local pid=$! pct=0 step=4
+    while kill -0 "$pid" 2>/dev/null; do
+        printf "\r  $(_bar $pct) ${W}%3d%%${NC} ${D}%s...${NC}" "$pct" "$label"
+        (( pct < 30 )) && step=$(( RANDOM%5+3 ))
+        (( pct >= 30 && pct < 70 )) && step=$(( RANDOM%3+2 ))
+        (( pct >= 70 )) && step=1
+        pct=$(( pct+step > 94 ? 94 : pct+step ))
+        sleep 0.08
+    done
+    wait "$pid"; local rc=$?
+    if [[ $rc -eq 0 ]]; then
+        printf "\r  $(_bar 100) ${W}100%%${NC}  ${G}✔${NC}  ${W}%-30s${NC} ${D}%s${NC}\n" "$label" "$ok"
     else
-        _fail_step "$label"
+        printf "\r  $(_bar 100) ${W}100%%${NC}  ${R}✘${NC}  ${W}%-30s${NC} ${R}gagal${NC}\n" "$label"
     fi
 }
 
 _run_inline() {
-    local label="$1" ok="$2"; shift 2
+    local label="$1" ok="$2" func="$3"
     printf "  ${D}»${NC}  %-38s\r" "$label"
-    if "$@" >> "$_INSTALL_LOG" 2>&1; then
+    if "$func" >> "$_INSTALL_LOG" 2>&1; then
         printf "\033[2K"
         printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}%s${NC}\n" "$label" "$ok"
     else
@@ -108,16 +97,18 @@ echo ""
 echo -e "  ${C}»${NC} ${W}Persiapan...${NC}"
 echo ""
 
+_t_git_install() { apt-get install -y git; }
+_t_git_clone()  { rm -rf "$REPO_DIR" && git clone -q "$GITHUB_URL" "$REPO_DIR"; }
+_t_git_update() { git -C "$REPO_DIR" fetch -q origin && git -C "$REPO_DIR" reset -q --hard origin/main; }
+
 if ! command -v git &>/dev/null; then
-    _run_inline "Instalasi git" "berhasil" apt-get install -y git
+    _run_inline "Instalasi git" "berhasil" _t_git_install
 fi
 
 if [[ ! -d "$REPO_DIR/.git" ]]; then
-    _run_inline "Download ZV-Manager" "berhasil" \
-        bash -c "rm -rf '$REPO_DIR' && git clone -q '$GITHUB_URL' '$REPO_DIR'"
+    _run_inline "Download ZV-Manager" "berhasil" _t_git_clone
 else
-    _run_inline "Update repo" "berhasil" \
-        bash -c "git -C '$REPO_DIR' fetch -q origin && git -C '$REPO_DIR' reset -q --hard origin/main"
+    _run_inline "Update repo" "berhasil" _t_git_update
 fi
 echo ""
 
@@ -163,19 +154,9 @@ case "$install_mode" in
             _sep
             echo ""
 
-            _run_inline "Salin file ZV-Manager" "berhasil" bash -c "
-                mkdir -p '$INSTALL_DIR'
-                cp -r '$SCRIPT_DIR'/* '$INSTALL_DIR/'
-                find '$INSTALL_DIR' -name '*.sh' -exec chmod +x {} \;
-                find '$INSTALL_DIR' -name '*.py' -exec chmod +x {} \;
-                chmod +x '$INSTALL_DIR/checker/zv-checker' 2>/dev/null
-                cp '$INSTALL_DIR/zv-agent.sh' /usr/local/bin/zv-agent
-                chmod +x /usr/local/bin/zv-agent
-                cp '$INSTALL_DIR/zv-vmess-agent.sh' /usr/local/bin/zv-vmess-agent
-                chmod +x /usr/local/bin/zv-vmess-agent
-            "
-            _run_inline "Restore data backup" "berhasil" \
-                tar -xzf "$BACKUP_FILE" -C "$INSTALL_DIR/" 2>/dev/null
+            _run_inline "Salin file ZV-Manager" "berhasil" _t_copy_files
+            _t_restore_backup() { tar -xzf "$BACKUP_FILE" -C "$INSTALL_DIR/" 2>/dev/null; }
+            _run_inline "Restore data backup" "berhasil" _t_restore_backup
 
             if [[ -n "$RESTORE_NEW_TOKEN" && -n "$RESTORE_NEW_ADMIN" ]]; then
                 sed -i "s|^TG_TOKEN=.*|TG_TOKEN=\"${RESTORE_NEW_TOKEN}\"|" "$INSTALL_DIR/telegram.conf" 2>/dev/null
@@ -223,26 +204,70 @@ echo ""
 
 timer_start
 
+# ── Task functions install ────────────────────────────────────
+_t_copy_files() {
+    mkdir -p "$INSTALL_DIR"
+    cp -r "$SCRIPT_DIR"/* "$INSTALL_DIR/"
+    find "$INSTALL_DIR" -name "*.sh" -exec chmod +x {} \;
+    find "$INSTALL_DIR" -name "*.py" -exec chmod +x {} \;
+    chmod +x "$INSTALL_DIR/checker/zv-checker" 2>/dev/null
+    cp "$INSTALL_DIR/zv-agent.sh" /usr/local/bin/zv-agent
+    chmod +x /usr/local/bin/zv-agent
+    cp "$INSTALL_DIR/zv-vmess-agent.sh" /usr/local/bin/zv-vmess-agent
+    chmod +x /usr/local/bin/zv-vmess-agent
+}
+_t_ssl()      { source "$INSTALL_DIR/core/ssl.sh" && setup_ssl; }
+_t_system()   { source "$INSTALL_DIR/core/system.sh" && run_system_setup; }
+_t_ssh()      { source "$INSTALL_DIR/services/ssh/install.sh" && install_ssh; }
+_t_dropbear() { source "$INSTALL_DIR/services/dropbear/install.sh" && install_dropbear; }
+_t_nginx()    { source "$INSTALL_DIR/services/nginx/install.sh" && install_nginx; }
+_t_ws()       { source "$INSTALL_DIR/services/websocket/install.sh" && install_websocket; }
+_t_udp()      { source "$INSTALL_DIR/services/udp/install.sh" && install_udp_custom; }
+_t_badvpn()   { source "$INSTALL_DIR/services/badvpn/install.sh" && install_badvpn; }
+_t_xray()     { source "$INSTALL_DIR/services/xray/install.sh" && install_xray; }
+_t_cron() {
+    printf '%s\n' "* * * * * root for i in 1 2 3 4 5 6; do /bin/bash /etc/zv-manager/cron/autokill.sh; sleep 10; done" > /etc/cron.d/zv-autokill
+    printf '%s\n' "*/1 * * * * root /bin/bash /etc/zv-manager/cron/trial-cleanup.sh" > /etc/cron.d/zv-trial
+    printf '%s\n' "0 * * * * root /bin/bash /etc/zv-manager/cron/tg-notify.sh" > /etc/cron.d/zv-tg-notify
+    printf '%s\n' "* * * * * root for i in 1 2 3 4 5; do /bin/bash /etc/zv-manager/cron/expired.sh; sleep 12; done" > /etc/cron.d/zv-expired
+    printf '%s\n' "5 0 * * * root /bin/bash /etc/zv-manager/cron/license-check.sh" "0 7 * * * root /bin/bash /etc/zv-manager/cron/daily-report.sh" > /etc/cron.d/zv-license
+    printf '%s\n' "* * * * * root for i in 1 2 3 4 5 6; do /bin/bash /etc/zv-manager/cron/bw-check.sh; sleep 10; done" "*/5 * * * * root /bin/bash /etc/zv-manager/cron/bw-vmess.sh" "* * * * * root /bin/bash /etc/zv-manager/cron/ip-limit.sh" > /etc/cron.d/zv-bw-check
+    printf '%s\n' "*/5 * * * * root /bin/bash /etc/zv-manager/cron/watchdog.sh" > /etc/cron.d/zv-watchdog
+    printf '%s\n' "*/5 * * * * root /bin/bash /etc/zv-manager/cron/worker-check.sh" > /etc/cron.d/zv-worker-check
+    printf '%s\n' "*/5 * * * * root /bin/bash /etc/zv-manager/cron/status-page.sh" > /etc/cron.d/zv-status-page
+    printf '%s\n' "0 2 * * * root /bin/bash /etc/zv-manager/cron/backup.sh" > /etc/cron.d/zv-backup
+    printf '%s\n' "0 6 * * * root /bin/bash /etc/zv-manager/cron/check-update.sh" > /etc/cron.d/zv-check-update
+    mkdir -p /var/lib/zv-manager/status
+    service cron restart &>/dev/null
+    /bin/bash /etc/zv-manager/cron/check-update.sh &>/dev/null &
+    /bin/bash /etc/zv-manager/cron/status-page.sh &>/dev/null &
+}
+_t_bw() {
+    mkdir -p /tmp/zv-bw
+    chmod +x /etc/zv-manager/core/bw-session.sh
+    grep -q "bw-session.sh" /etc/pam.d/sshd || \
+        echo "session optional pam_exec.so /etc/zv-manager/core/bw-session.sh" >> /etc/pam.d/sshd
+    source /etc/zv-manager/core/bandwidth.sh
+    for cf in /etc/zv-manager/accounts/ssh/*.conf; do
+        [[ -f "$cf" ]] || continue
+        uname=$(grep "^USERNAME=" "$cf" | cut -d= -f2 | tr -d '[:space:]')
+        [[ -n "$uname" ]] && _bw_init_user "$uname"
+    done
+}
+_t_menu() {
+    mkdir -p /etc/zv-manager/servers
+    ln -sf /etc/zv-manager/menu/menu.sh /usr/local/bin/menu
+    chmod +x /usr/local/bin/menu
+}
+
 # ── Salin file ────────────────────────────────────────────────
 if [[ "$install_mode" == "1" ]]; then
-    _CURRENT_STEP=0
     echo ""
     _sep
     _grad " INSTALASI KOMPONEN" 0 210 255 160 80 255
     _sep
     echo ""
-
-    _run "Salin file ZV-Manager" "berhasil" bash -c "
-        mkdir -p '$INSTALL_DIR'
-        cp -r '$SCRIPT_DIR'/* '$INSTALL_DIR/'
-        find '$INSTALL_DIR' -name '*.sh' -exec chmod +x {} \;
-        find '$INSTALL_DIR' -name '*.py' -exec chmod +x {} \;
-        chmod +x '$INSTALL_DIR/checker/zv-checker' 2>/dev/null
-        cp '$INSTALL_DIR/zv-agent.sh' /usr/local/bin/zv-agent
-        chmod +x /usr/local/bin/zv-agent
-        cp '$INSTALL_DIR/zv-vmess-agent.sh' /usr/local/bin/zv-vmess-agent
-        chmod +x /usr/local/bin/zv-vmess-agent
-    "
+    _run "Salin file ZV-Manager" "berhasil" _t_copy_files
 fi
 
 # ── Setup Domain ──────────────────────────────────────────────
@@ -265,90 +290,26 @@ else
     fi
     echo ""
 
-    _run "Setup SSL" "sertifikat dipasang" \
-        bash -c "source '$INSTALL_DIR/core/ssl.sh' && setup_ssl"
+    _run "Setup SSL" "sertifikat dipasang" _t_ssl
 fi
 
-_run "System Setup"    "selesai" bash -c "source '$INSTALL_DIR/core/system.sh' && run_system_setup"
-_run "OpenSSH"         "berhasil dipasang" bash -c "source '$INSTALL_DIR/services/ssh/install.sh' && install_ssh"
-_run "Dropbear"        "berhasil dipasang" bash -c "source '$INSTALL_DIR/services/dropbear/install.sh' && install_dropbear"
-_run "Nginx"           "berhasil dipasang" bash -c "source '$INSTALL_DIR/services/nginx/install.sh' && install_nginx"
-_run "WebSocket Proxy" "berhasil dipasang" bash -c "source '$INSTALL_DIR/services/websocket/install.sh' && install_websocket"
-_run "UDP Custom"      "berhasil dipasang" bash -c "source '$INSTALL_DIR/services/udp/install.sh' && install_udp_custom"
-_run "BadVPN UDPGW"    "berhasil dipasang" bash -c "source '$INSTALL_DIR/services/badvpn/install.sh' && install_badvpn"
-_run "Xray VMess"      "berhasil dipasang" bash -c "source '$INSTALL_DIR/services/xray/install.sh' && install_xray"
+_run "System Setup"    "selesai"         _t_system
+_run "OpenSSH"         "berhasil dipasang" _t_ssh
+_run "Dropbear"        "berhasil dipasang" _t_dropbear
+_run "Nginx"           "berhasil dipasang" _t_nginx
+_run "WebSocket Proxy" "berhasil dipasang" _t_ws
+_run "UDP Custom"      "berhasil dipasang" _t_udp
+_run "BadVPN UDPGW"    "berhasil dipasang" _t_badvpn
+_run "Xray VMess"      "berhasil dipasang" _t_xray
 
 # ── Cron jobs ─────────────────────────────────────────────────
-_progress "Cron jobs"
-{
-cat > /etc/cron.d/zv-autokill <<'CRONEOF'
-* * * * * root for i in 1 2 3 4 5 6; do /bin/bash /etc/zv-manager/cron/autokill.sh; sleep 10; done
-CRONEOF
-cat > /etc/cron.d/zv-trial <<'CRONEOF'
-*/1 * * * * root /bin/bash /etc/zv-manager/cron/trial-cleanup.sh
-CRONEOF
-cat > /etc/cron.d/zv-tg-notify <<'CRONEOF'
-0 * * * * root /bin/bash /etc/zv-manager/cron/tg-notify.sh
-CRONEOF
-cat > /etc/cron.d/zv-expired <<'CRONEOF'
-* * * * * root for i in 1 2 3 4 5; do /bin/bash /etc/zv-manager/cron/expired.sh; sleep 12; done
-CRONEOF
-cat > /etc/cron.d/zv-license <<'CRONEOF'
-5 0 * * * root /bin/bash /etc/zv-manager/cron/license-check.sh
-0 7 * * * root /bin/bash /etc/zv-manager/cron/daily-report.sh
-CRONEOF
-cat > /etc/cron.d/zv-bw-check <<'CRONEOF'
-* * * * * root for i in 1 2 3 4 5 6; do /bin/bash /etc/zv-manager/cron/bw-check.sh; sleep 10; done
-*/5 * * * * root /bin/bash /etc/zv-manager/cron/bw-vmess.sh
-* * * * * root /bin/bash /etc/zv-manager/cron/ip-limit.sh
-CRONEOF
-cat > /etc/cron.d/zv-watchdog <<'CRONEOF'
-*/5 * * * * root /bin/bash /etc/zv-manager/cron/watchdog.sh
-CRONEOF
-cat > /etc/cron.d/zv-worker-check <<'CRONEOF'
-*/5 * * * * root /bin/bash /etc/zv-manager/cron/worker-check.sh
-CRONEOF
-cat > /etc/cron.d/zv-status-page <<'CRONEOF'
-*/5 * * * * root /bin/bash /etc/zv-manager/cron/status-page.sh
-CRONEOF
-cat > /etc/cron.d/zv-backup <<'CRONEOF'
-0 2 * * * root /bin/bash /etc/zv-manager/cron/backup.sh
-CRONEOF
-cat > /etc/cron.d/zv-check-update <<'CRONEOF'
-0 6 * * * root /bin/bash /etc/zv-manager/cron/check-update.sh
-CRONEOF
-mkdir -p /var/lib/zv-manager/status
-service cron restart &>/dev/null
-/bin/bash /etc/zv-manager/cron/check-update.sh &>/dev/null &
-/bin/bash /etc/zv-manager/cron/status-page.sh &>/dev/null &
-} >> "$_INSTALL_LOG" 2>&1
-_done_step "Cron jobs" "semua terjadwal"
+_run "Cron jobs"           "semua terjadwal"  _t_cron
 
 # ── Bandwidth tracking ────────────────────────────────────────
-_progress "Bandwidth tracking"
-{
-mkdir -p /tmp/zv-bw
-chmod +x /etc/zv-manager/core/bw-session.sh
-if ! grep -q "bw-session.sh" /etc/pam.d/sshd; then
-    echo "session optional pam_exec.so /etc/zv-manager/core/bw-session.sh" >> /etc/pam.d/sshd
-fi
-source /etc/zv-manager/core/bandwidth.sh
-for cf in /etc/zv-manager/accounts/ssh/*.conf; do
-    [[ -f "$cf" ]] || continue
-    uname=$(grep "^USERNAME=" "$cf" | cut -d= -f2 | tr -d '[:space:]')
-    [[ -n "$uname" ]] && _bw_init_user "$uname"
-done
-} >> "$_INSTALL_LOG" 2>&1
-_done_step "Bandwidth tracking" "aktif"
+_run "Bandwidth tracking"  "aktif"            _t_bw
 
 # ── Global command ────────────────────────────────────────────
-_progress "Command menu"
-{
-mkdir -p /etc/zv-manager/servers
-ln -sf /etc/zv-manager/menu/menu.sh /usr/local/bin/menu
-chmod +x /usr/local/bin/menu
-} >> "$_INSTALL_LOG" 2>&1
-_done_step "Command 'menu'" "siap digunakan"
+_run "Command 'menu'"      "siap digunakan"   _t_menu
 
 # ── Restore: recreate SSH users + inject Xray + install bot ──
 if [[ "$install_mode" == restore_* ]]; then
