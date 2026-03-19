@@ -415,5 +415,11 @@ timer_end
 echo ""
 echo -e "  ${O}Reboot diperlukan agar semua service aktif.${NC}"
 echo ""
-read -rp "  Reboot sekarang? [y/n]: " reboot_ans < /dev/tty
-[[ "$reboot_ans" =~ ^[Yy]$ ]] && echo "  Rebooting..." && sleep 2 && reboot
+printf "  ${D}VPS akan reboot dalam 5 detik... (Ctrl+C untuk batal)${NC}\n"
+echo ""
+for i in 5 4 3 2 1; do
+    printf "\r  ${O}Reboot dalam %d detik...${NC}" "$i"
+    sleep 1
+done
+echo ""
+reboot

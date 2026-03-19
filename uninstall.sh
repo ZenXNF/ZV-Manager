@@ -209,13 +209,14 @@ if [[ "$SILENT" == false ]] && [ -t 1 ]; then
     printf "  \e[1;32m+\e[0m  Semua komponen ZV-Manager telah dihapus.\n"
     printf "  \e[1;32m+\e[0m  VPS sudah kembali bersih.\n"
     echo ""
-    read -rp "  Reboot sekarang? [y/n]: " _rb < /dev/tty
-    if [[ "$_rb" =~ ^[Yy]$ ]]; then
-        echo "  Rebooting..."
-        sleep 2
-        reboot
-    fi
+    printf "  \e[0;37mVPS akan reboot dalam 5 detik... (Ctrl+C untuk batal)\e[0m\n"
     echo ""
+    for i in 5 4 3 2 1; do
+        printf "\r  \e[1;33mReboot dalam %d detik...\e[0m" "$i"
+        sleep 1
+    done
+    echo ""
+    reboot
 fi
 
 # Kill menu parent process
