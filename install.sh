@@ -505,7 +505,13 @@ if [[ "$install_mode" == restore_* ]]; then
     if [[ "$RESTORE_SKIP_TG" == true ]]; then
         printf "  ${O}–${NC}  ${W}%-35s${NC}  ${D}dilewati — setup via menu nanti${NC}\n" "Telegram Bot"
     else
-        { source /opt/zv-telegram/install.sh && install_telegram_bot; } >> "$_INSTALL_LOG" 2>&1
+        {
+            BOT_DIR="/opt/zv-telegram"
+            mkdir -p "$BOT_DIR"
+            cp -r /etc/zv-manager/services/telegram/. "$BOT_DIR/"
+            find "$BOT_DIR" -name "*.py" -exec chmod +x {} \;
+            source /etc/zv-manager/services/telegram/install.sh && install_telegram_bot
+        } >> "$_INSTALL_LOG" 2>&1
         printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}aktif${NC}\n" "Telegram Bot"
     fi
 
@@ -640,14 +646,13 @@ if [[ "$install_mode" == restore_* ]]; then
 
     # Recreate web status jika sebelumnya aktif
     if [[ -f "/etc/zv-manager/.web-installed" ]]; then
-        local WEB_DIR="/var/www/zv-manager"
-        mkdir -p "$WEB_DIR"
-        chown -R www-data:www-data "$WEB_DIR" 2>/dev/null || true
-        # Recreate nginx config
+        _WEB_DIR="/var/www/zv-manager"
+        mkdir -p "$_WEB_DIR"
+        chown -R www-data:www-data "$_WEB_DIR" 2>/dev/null || true
         cat > /etc/nginx/sites-available/zv-status << NGINXEOF
 server {
     server_name _;
-    root ${WEB_DIR};
+    root ${_WEB_DIR};
     index index.html;
     location / {
         try_files \$uri \$uri/ /index.html;
