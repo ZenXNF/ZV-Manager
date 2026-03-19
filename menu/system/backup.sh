@@ -32,11 +32,11 @@ backup_menu() {
 
         # Tampilkan backup otak terakhir
         local last_otak
-        last_otak=$(ls -t "$BACKUP_DIR"/zv-backup-otak-*.zvbak 2>/dev/null | head -1)
+        last_otak=$(ls -t "$BACKUP_DIR"/zv-panel-*.zvbak 2>/dev/null | head -1)
         if [[ -n "$last_otak" ]]; then
             local last_size last_date
             last_size=$(_fmt_size "$last_otak")
-            last_date=$(basename "$last_otak" | sed 's/zv-backup-otak-//;s/.zvbak//' | tr '_' ' ')
+            last_date=$(basename "$last_otak" | sed 's/zv-panel-//;s/.zvbak//' | tr '_' ' ')
             echo -e "  ${BWHITE}Backup otak terakhir :${NC} ${BGREEN}${last_date}${NC} (${last_size})"
         else
             echo -e "  ${BWHITE}Backup otak terakhir :${NC} ${BYELLOW}Belum ada${NC}"
@@ -79,7 +79,7 @@ backup_menu() {
                 local TMP_DIR DATE FILE
                 TMP_DIR="/tmp/zv-backup-manual-$$"
                 DATE=$(TZ="Asia/Jakarta" date +"%Y-%m-%d_%H-%M")
-                FILE="${BACKUP_DIR}/zv-backup-otak-${DATE}.zvbak"
+                FILE="${BACKUP_DIR}/zv-panel-${DATE}.zvbak"
                 mkdir -p "$TMP_DIR"
                 [[ -d "${BASE_DIR}/accounts" ]] && cp -r "${BASE_DIR}/accounts" "$TMP_DIR/"
                 [[ -d "${BASE_DIR}/servers"  ]] && cp -r "${BASE_DIR}/servers"  "$TMP_DIR/"
@@ -103,10 +103,10 @@ backup_menu() {
                 echo ""
                 echo -e "  ${BWHITE}── Backup Otak ──${NC}"
                 local found=0
-                for f in $(ls -t "$BACKUP_DIR"/zv-backup-otak-*.zvbak 2>/dev/null); do
+                for f in $(ls -t "$BACKUP_DIR"/zv-panel-*.zvbak 2>/dev/null); do
                     local sz nm
                     sz=$(_fmt_size "$f")
-                    nm=$(basename "$f" | sed 's/zv-backup-otak-//;s/.zvbak//' | tr '_' ' ')
+                    nm=$(basename "$f" | sed 's/zv-panel-//;s/.zvbak//' | tr '_' ' ')
                     echo -e "  ${BGREEN}${nm}${NC} — ${sz}"
                     found=$((found+1))
                 done
@@ -136,7 +136,7 @@ backup_menu() {
                 echo ""
 
                 local files=()
-                while IFS= read -r f; do files+=("$f"); done < <(ls -t "$BACKUP_DIR"/zv-backup-otak-*.zvbak 2>/dev/null)
+                while IFS= read -r f; do files+=("$f"); done < <(ls -t "$BACKUP_DIR"/zv-panel-*.zvbak 2>/dev/null)
 
                 if [[ ${#files[@]} -eq 0 ]]; then
                     echo -e "  ${BRED}Tidak ada file backup otak.${NC}"
@@ -148,7 +148,7 @@ backup_menu() {
                 local i=1
                 for f in "${files[@]}"; do
                     local nm sz
-                    nm=$(basename "$f" | sed 's/zv-backup-otak-//;s/.zvbak//' | tr '_' ' ')
+                    nm=$(basename "$f" | sed 's/zv-panel-//;s/.zvbak//' | tr '_' ' ')
                     sz=$(_fmt_size "$f")
                     echo -e "  ${BGREEN}[${i}]${NC} otak-${nm} (${sz})"
                     i=$((i+1))
@@ -392,7 +392,7 @@ backup_menu() {
                 while IFS= read -r f; do
                     rm -f "$f"
                     deleted=$((deleted+1))
-                done < <(find "$BACKUP_DIR" \( -name "zv-backup-*.zvbak" -o -name "zv-server-*.zvbak" \) -mtime +7)
+                done < <(find "$BACKUP_DIR" \( -name "zv-panel-*.zvbak" -o -name "zv-server-*.zvbak" \) -mtime +7)
                 echo -e "  ${BGREEN}✓ ${deleted} file backup lama dihapus.${NC}"
                 echo ""
                 press_any_key

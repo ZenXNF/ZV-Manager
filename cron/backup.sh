@@ -62,7 +62,7 @@ _fmt_size() {
 # - license.info          → lisensi
 # - ssl/cert.pem + key    → berguna jika domain sama setelah suspend
 # - domain, web-host      → info domain otak VPS
-# - servers/*.conf        → HANYA NAME+DOMAIN+ISP (strip IP/PORT/USER/PASS yang tidak valid)
+# - servers/*.conf        → NAME+IP+DOMAIN+ISP (PASS tidak disimpan)
 # TIDAK di-backup: log (tidak berguna untuk restore)
 backup_otak() {
     local dst="${TMP_DIR}/otak"
@@ -91,7 +91,7 @@ backup_otak() {
         cat > "${dst}/servers/RESTORE-NOTE.txt" << 'NOTETXT'
 CATATAN RESTORE SERVER:
 - File .conf di sini hanya menyimpan NAME, DOMAIN, ISP sebagai referensi.
-- IP, PORT, USER, PASS tidak disimpan karena tidak valid setelah VPS suspend/ganti.
+- PASS tidak disimpan demi keamanan. IP+PORT+USER tersimpan untuk memudahkan restore.
 - Saat restore ke VPS baru:
   1. Tambah server baru via Menu Server → Tambah Server (IP/PASS baru)
   2. Gunakan DOMAIN lama atau ganti domain di sini
@@ -329,7 +329,7 @@ _tg_file "$OTAK_FILE" "🧠 <b>Backup Otak VPS</b>
 👥 User Bot   : ${TOTAL_USER}
 ━━━━━━━━━━━━━━━━━━━
 <i>Berisi: akun SSH+VMess, saldo, config, SSL</i>
-<i>Server conf: hanya NAME+DOMAIN+ISP (IP/PASS tidak disimpan)</i>"
+<i>Server conf: NAME+IP+DOMAIN+ISP (PASS tidak disimpan)</i>"
 
 # ── Backup & kirim per-server tunneling ─────────────────────
 for conf in "${BASE_DIR}/servers"/*.conf; do
