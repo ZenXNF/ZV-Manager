@@ -51,21 +51,48 @@ _install_web() {
     chown -R www-data:www-data "$WEB_DIR" 2>/dev/null || true
 
     # Nginx config
-    if ! nginx -T 2>/dev/null | grep -q "location /status"; then
-        cat > /etc/nginx/sites-available/zv-status << NGINXEOF
+    _write_web_nginx() {
+        local host; host=$(cat /etc/zv-manager/web-host 2>/dev/null)
+        local cert="/etc/letsencrypt/live/${host}/fullchain.pem"
+        local key="/etc/letsencrypt/live/${host}/privkey.pem"
+        if [[ -n "$host" && ! "$host" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ && -f "$cert" ]]; then
+            # Domain + cert tersedia → pakai HTTPS
+            cat > /etc/nginx/sites-available/zv-status << NGINXEOF
+server {
+    listen 80;
+    server_name ${host};
+    return 301 https://\$host\$request_uri;
+}
+server {
+    listen 443 ssl;
+    server_name ${host};
+    ssl_certificate ${cert};
+    ssl_certificate_key ${key};
+    root ${WEB_DIR};
+    index index.html;
+    location / { try_files \$uri \$uri/ /index.html; }
+    access_log off;
+}
+NGINXEOF
+        else
+            # IP atau belum ada cert → HTTP biasa
+            cat > /etc/nginx/sites-available/zv-status << NGINXEOF
 server {
     server_name _;
     root ${WEB_DIR};
     index index.html;
-    location / {
-        try_files \$uri \$uri/ /index.html;
-    }
+    location / { try_files \$uri \$uri/ /index.html; }
     access_log off;
 }
 NGINXEOF
+        fi
         ln -sf /etc/nginx/sites-available/zv-status \
                 /etc/nginx/sites-enabled/zv-status 2>/dev/null || true
         nginx -t &>/dev/null && systemctl reload nginx &>/dev/null || true
+    }
+
+    if ! nginx -T 2>/dev/null | grep -q "zv-status\|var/www/zv-manager"; then
+        _write_web_nginx
     fi
 
     # Set default host
@@ -204,7 +231,30 @@ _web_info() {
             [[ "$yn" != "y" && "$yn" != "Y" ]] && continue
             source /etc/zv-manager/core/ssl.sh
             setup_ssl_letsencrypt "$cur_host"
-            systemctl reload nginx &>/dev/null || true
+            # Update nginx config pakai cert baru
+            local cert="/etc/letsencrypt/live/${cur_host}/fullchain.pem"
+            local key="/etc/letsencrypt/live/${cur_host}/privkey.pem"
+            if [[ -f "$cert" ]]; then
+                cat > /etc/nginx/sites-available/zv-status << NGINXEOF
+server {
+    listen 80;
+    server_name ${cur_host};
+    return 301 https://\$host\$request_uri;
+}
+server {
+    listen 443 ssl;
+    server_name ${cur_host};
+    ssl_certificate ${cert};
+    ssl_certificate_key ${key};
+    root /var/www/zv-manager;
+    index index.html;
+    location / { try_files \$uri \$uri/ /index.html; }
+    access_log off;
+}
+NGINXEOF
+                nginx -t &>/dev/null && systemctl reload nginx &>/dev/null
+                echo "ssl-type=letsencrypt" > /etc/zv-manager/ssl/ssl-type 2>/dev/null || true
+            fi
             press_any_key
             ;;
         4) _uninstall_web; break ;;
