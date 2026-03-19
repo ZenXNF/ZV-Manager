@@ -184,13 +184,20 @@ case "$install_mode" in
             if [[ -n "$_backup_tg_token" && "$_backup_tg_token" != "YOUR_BOT_TOKEN" ]]; then
                 echo ""
                 echo -e "  ${O}Apakah Telegram Bot Token & Admin ID masih sama?${NC}"
-                read -rp "  Token & Admin masih sama? [y/n]: " same_tg < /dev/tty
+                echo -e "  ${D}[y]${NC} Ya, sama — langsung aktif"
+                echo -e "  ${D}[n]${NC} Tidak — masukkan token baru"
+                echo -e "  ${D}[s]${NC} Lewati — setup nanti via menu"
+                echo ""
+                read -rp "  Pilihan [y/n/s]: " same_tg < /dev/tty
                 if [[ "$same_tg" =~ ^[Nn]$ ]]; then
                     echo ""
                     read -rp "  Bot Token baru: " _new_token < /dev/tty
                     read -rp "  Admin Telegram ID baru: " _new_admin < /dev/tty
                     RESTORE_NEW_TOKEN="$_new_token"
                     RESTORE_NEW_ADMIN="$_new_admin"
+                elif [[ "$same_tg" =~ ^[Ss]$ ]]; then
+                    # Kosongkan token agar bot tidak jalan dulu
+                    RESTORE_SKIP_TG=true
                 fi
             fi
         fi
@@ -291,10 +298,24 @@ if [[ "$install_mode" == "restore_skip_domain" ]]; then
     _note "SSL" "dipertahankan dari backup"
 else
     PUBLIC_IP=$(curl -s --max-time 10 ipv4.icanhazip.com 2>/dev/null || hostname -I | awk '{print $1}')
-    echo "$PUBLIC_IP" > /etc/zv-manager/domain
-    printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}%s${NC}\n" "Domain" "$PUBLIC_IP (IP default, ganti di Setup Web)"
+    if [[ "$install_mode" == "restore_with_domain" ]]; then
+        echo ""
+        echo -e "  ${D}IP Publik VPS:${NC} ${W}${PUBLIC_IP}${NC}"
+        echo ""
+        read -rp "  Domain baru (kosongkan = pakai IP): " _input_domain < /dev/tty
+        _input_domain=$(echo "$_input_domain" | tr -d '[:space:]')
+        if [[ -n "$_input_domain" && ! "$_input_domain" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "$_input_domain" > /etc/zv-manager/domain
+            printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}%s${NC}\n" "Domain" "$_input_domain"
+        else
+            echo "$PUBLIC_IP" > /etc/zv-manager/domain
+            printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}%s${NC}\n" "Domain" "$PUBLIC_IP"
+        fi
+    else
+        echo "$PUBLIC_IP" > /etc/zv-manager/domain
+        printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}%s${NC}\n" "Domain" "$PUBLIC_IP (IP default, ganti di Setup Web)"
+    fi
     echo ""
-
     _run "Setup SSL" "sertifikat dipasang" _t_ssl
 fi
 
@@ -370,8 +391,12 @@ if [[ "$install_mode" == restore_* ]]; then
     systemctl restart zv-xray >> "$_INSTALL_LOG" 2>&1
     printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}%s${NC}\n" "Recreate VMess clients" "${vmess_ok} akun"
 
-    { source /opt/zv-telegram/install.sh && install_telegram_bot; } >> "$_INSTALL_LOG" 2>&1
-    printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}aktif${NC}\n" "Telegram Bot"
+    if [[ "$RESTORE_SKIP_TG" == true ]]; then
+        printf "  ${O}–${NC}  ${W}%-35s${NC}  ${D}dilewati — setup via menu nanti${NC}\n" "Telegram Bot"
+    else
+        { source /opt/zv-telegram/install.sh && install_telegram_bot; } >> "$_INSTALL_LOG" 2>&1
+        printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}aktif${NC}\n" "Telegram Bot"
+    fi
 
     _restore_date=$(TZ="Asia/Jakarta" date +"%Y-%m-%d %H:%M WIB")
     _new_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null | tr -d '[:space:]')
