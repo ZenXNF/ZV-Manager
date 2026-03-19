@@ -224,7 +224,7 @@ else
     current_xray=$(_xray_current)
     latest_xray=$(_xray_latest)
     if [[ -n "$latest_xray" && -n "$current_xray" && "$current_xray" != "$latest_xray" ]]; then
-        _run "Xray-core $current_xray → $latest_xray" "v${latest_xray}" _task_xray_update
+        _run "Xray-core $current_xray -> $latest_xray" "v${latest_xray}" _task_xray_update
     else
         _skip "Xray-core" "sudah terbaru (v${current_xray})"
     fi
