@@ -158,6 +158,7 @@ _change_host() {
 }
 
 _web_info() {
+    while true; do
     local url; url=$(_get_url)
     local ssl_type; ssl_type=$(cat /etc/zv-manager/ssl/ssl-type 2>/dev/null || echo "self-signed")
     local ssl_label
@@ -197,17 +198,20 @@ _web_info() {
             local cur_host; cur_host=$(cat /etc/zv-manager/web-host 2>/dev/null)
             if [[ -z "$cur_host" || "$cur_host" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
                 print_error "Set domain dulu via opsi [2] sebelum request SSL!"
-                press_any_key; return
+                press_any_key; continue
             fi
             read -rp "  Request Let's Encrypt untuk ${cur_host}? [y/N]: " yn
-            [[ "$yn" != "y" && "$yn" != "Y" ]] && return
+            [[ "$yn" != "y" && "$yn" != "Y" ]] && continue
             source /etc/zv-manager/core/ssl.sh
             setup_ssl_letsencrypt "$cur_host"
             systemctl reload nginx &>/dev/null || true
             press_any_key
             ;;
-        4) _uninstall_web ;;
+        4) _uninstall_web; break ;;
+        0) break ;;
+        *) ;;
     esac
+    done
 }
 
 # ── Main ──────────────────────────────────────────────────────
