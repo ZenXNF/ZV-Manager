@@ -177,8 +177,6 @@ _task_cron() {
         > /etc/cron.d/zv-bw-check
     printf '%s\n' "*/5 * * * * root /bin/bash /etc/zv-manager/cron/watchdog.sh" \
         > /etc/cron.d/zv-watchdog
-    printf '%s\n' "*/5 * * * * root /bin/bash /etc/zv-manager/cron/status-page.sh" \
-        > /etc/cron.d/zv-status-page
     printf '%s\n' "0 2 * * * root /bin/bash /etc/zv-manager/cron/backup.sh" \
         > /etc/cron.d/zv-backup
     printf '%s\n' "0 6 * * * root /bin/bash /etc/zv-manager/cron/check-update.sh" \

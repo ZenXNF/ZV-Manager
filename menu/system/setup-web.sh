@@ -7,43 +7,53 @@ source /etc/zv-manager/utils/colors.sh
 source /etc/zv-manager/utils/logger.sh
 source /etc/zv-manager/utils/helpers.sh
 
-NGINX_PORT=$(grep "^NGINX_PORT=" /etc/zv-manager/config.conf 2>/dev/null | cut -d= -f2 | tr -d '"')
-NGINX_PORT=${NGINX_PORT:-81}
 WEB_DIR="/var/www/zv-manager"
-STATUS_CRON="/etc/cron.d/zv-status-page"
 STATUS_SCRIPT="/etc/zv-manager/cron/status-page.sh"
+WEB_MARKER="/etc/zv-manager/.web-installed"
 
 _is_web_installed() {
-    [[ -f "$STATUS_CRON" && -d "$WEB_DIR" ]]
+    [[ -f "$WEB_MARKER" && -d "$WEB_DIR" ]]
+}
+
+_get_url() {
+    local host; host=$(cat /etc/zv-manager/web-host 2>/dev/null)
+    [[ -z "$host" ]] && { echo ""; return; }
+    [[ "$host" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] && echo "http://${host}" || echo "https://${host}"
 }
 
 _install_web() {
     clear
-    echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-    echo -e " │         ${BWHITE}INSTALL HALAMAN WEB STATUS${NC}          │"
-    echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+    _sep
+    _grad " INSTALL HALAMAN WEB STATUS" 0 210 255 160 80 255
+    _sep
     echo ""
-    echo -e "  Halaman web ini menampilkan status semua server"
-    echo -e "  secara real-time dan bisa diakses oleh user."
+    echo -e "  Halaman web menampilkan status server secara real-time."
+    echo -e "  Dapat diakses oleh user/reseller kamu."
     echo ""
-    
-    echo -e "  ${BWHITE}Contoh    :${NC} ${BYELLOW}https://${DOMAIN}${NC}"
-    echo -e "  ${BWHITE}Update    :${NC} ${BYELLOW}Otomatis setiap 5 menit${NC}"
+
+    # Default host
+    local local_ip; local_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null)
+    local domain; domain=$(cat /etc/zv-manager/domain 2>/dev/null | tr -d '[:space:]')
+    local default_host="$local_ip"
+    # Jika domain bukan IP, pakai domain
+    if [[ -n "$domain" && ! "$domain" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        default_host="$domain"
+        echo -e "  ${D}Default :${NC} ${W}https://${domain}${NC} ${D}(domain)${NC}"
+    else
+        echo -e "  ${D}Default :${NC} ${W}http://${local_ip}${NC} ${D}(IPv4)${NC}"
+    fi
     echo ""
-    read -rp "  Lanjutkan install? [y/N]: " conf
+    read -rp "  Install sekarang? [y/N]: " conf
     [[ "${conf,,}" != "y" ]] && return
 
     echo ""
-    print_info "Membuat direktori web..."
     mkdir -p "$WEB_DIR"
     chown -R www-data:www-data "$WEB_DIR" 2>/dev/null || true
 
-    print_info "Mengkonfigurasi nginx..."
-    # Cek apakah nginx sudah ada konfigurasi port ini
+    # Nginx config
     if ! nginx -T 2>/dev/null | grep -q "location /status"; then
         cat > /etc/nginx/sites-available/zv-status << NGINXEOF
 server {
-    
     server_name _;
     root ${WEB_DIR};
     index index.html;
@@ -58,49 +68,44 @@ NGINXEOF
         nginx -t &>/dev/null && systemctl reload nginx &>/dev/null || true
     fi
 
-    print_info "Menambahkan cron status page..."
-    cat > "$STATUS_CRON" << CRONEOF
-# ZV-Manager status page — update tiap 5 menit
-*/5 * * * * root /bin/bash ${STATUS_SCRIPT} >/dev/null 2>&1
-CRONEOF
+    # Set default host
+    echo "$default_host" > /etc/zv-manager/web-host
 
-    print_info "Generate halaman pertama kali..."
+    # Marker file
+    touch "$WEB_MARKER"
+
+    # Tambah cron status-page
+    printf '%s\n' "*/5 * * * * root /bin/bash /etc/zv-manager/cron/status-page.sh" \
+        > /etc/cron.d/zv-status-page
+
+    # Generate halaman pertama
     bash "$STATUS_SCRIPT" 2>/dev/null
 
     echo ""
-    # Default host = IPv4
-    local local_ip
-    local_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null)
-    echo "$local_ip" > /etc/zv-manager/web-host
-
+    local url; url=$(_get_url)
     print_ok "Halaman web berhasil diinstall!"
+    echo -e "  ${D}Akses di :${NC} ${G}${url}${NC}"
     echo ""
-    echo -e "  ${BWHITE}Akses di :${NC} ${BGREEN}https://${DOMAIN}${NC}"
-    echo ""
-    echo -e "  ${BYELLOW}Ingin menggunakan domain custom?${NC}"
-    read -rp "  Ganti ke domain? [y/N]: " ganti
-    if [[ "${ganti,,}" == "y" ]]; then
-        _change_host
-        bash "$STATUS_SCRIPT" 2>/dev/null
-    fi
     press_any_key
 }
 
 _uninstall_web() {
     clear
-    echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-    echo -e " │        ${BWHITE}UNINSTALL HALAMAN WEB STATUS${NC}         │"
-    echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+    _sep
+    _grad " UNINSTALL HALAMAN WEB STATUS" 255 50 50 255 150 0
+    _sep
     echo ""
-    echo -e "  ${BRED}Ini akan menghapus halaman web dan cron update.${NC}"
+    echo -e "  ${BRED}Ini akan menghapus halaman web status.${NC}"
     echo ""
     read -rp "  Yakin uninstall? [y/N]: " conf
     [[ "${conf,,}" != "y" ]] && return
 
-    rm -f "$STATUS_CRON"
+    rm -f "$WEB_MARKER"
+    rm -f /etc/cron.d/zv-status-page
     rm -f /etc/nginx/sites-enabled/zv-status
     rm -f /etc/nginx/sites-available/zv-status
     rm -rf "$WEB_DIR"
+    rm -f /etc/zv-manager/web-host
     nginx -t &>/dev/null && systemctl reload nginx &>/dev/null || true
 
     echo ""
@@ -109,21 +114,18 @@ _uninstall_web() {
 }
 
 _change_host() {
-    local local_ip current
-    local_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null)
-    current=$(cat /etc/zv-manager/web-host 2>/dev/null || echo "$local_ip")
+    local local_ip; local_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null)
+    local current; current=$(cat /etc/zv-manager/web-host 2>/dev/null || echo "$local_ip")
 
     clear
-    echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-    echo -e " │         ${BWHITE}PILIH ALAMAT WEB STATUS${NC}             │"
-    echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+    _sep
+    _grad " GANTI ALAMAT WEB STATUS" 0 210 255 160 80 255
+    _sep
     echo ""
-    echo -e "  Saat ini  : ${BYELLOW}${current}${NC}"
+    echo -e "  ${D}Saat ini :${NC} ${W}${current}${NC}"
     echo ""
-    echo -e "  ${BGREEN}[1]${NC} IPv4 — ${local_ip}"
-    echo -e "  ${BGREEN}[2]${NC} Domain (masukkan manual)"
-    echo -e "  ${BGREEN}[3]${NC} Request Let's Encrypt SSL ${BCYAN}(HTTPS gratis)${NC}"
-    echo ""
+    echo -e "  $(_grad '[1]' 0 210 255 160 80 255) IPv4 — ${local_ip}"
+    echo -e "  $(_grad '[2]' 0 210 255 160 80 255) Domain (masukkan manual)"
     echo -e "  ${BRED}[0]${NC} Kembali"
     echo ""
     read -rp "  Pilihan: " ch
@@ -135,21 +137,18 @@ _change_host() {
             ;;
         2)
             echo ""
-            read -rp "  Masukkan domain (contoh: status.zenxu.my.id): " input_domain
+            read -rp "  Domain (contoh: status.zenxu.my.id): " input_domain
             input_domain="${input_domain// /}"
-            if [[ -z "$input_domain" ]]; then
-                print_error "Domain tidak boleh kosong!"; sleep 1; return
-            fi
+            [[ -z "$input_domain" ]] && { print_error "Domain tidak boleh kosong!"; sleep 1; return; }
             print_info "Memverifikasi domain ${input_domain}..."
             local resolved
             resolved=$(dig +short "$input_domain" A 2>/dev/null | head -1)
+            [[ -z "$resolved" ]] && resolved=$(host -t A "$input_domain" 2>/dev/null | awk '/has address/{print $4}' | head -1)
             if [[ -z "$resolved" ]]; then
-                print_error "Domain tidak bisa di-resolve. Pastikan DNS sudah dikonfigurasi."
-                press_any_key; return
+                print_error "Domain tidak bisa di-resolve."; press_any_key; return
             fi
             if [[ "$resolved" != "$local_ip" ]]; then
-                print_error "Domain mengarah ke ${resolved}, bukan ke VPS ini (${local_ip})."
-                press_any_key; return
+                print_error "Domain mengarah ke ${resolved}, bukan ${local_ip}."; press_any_key; return
             fi
             echo "$input_domain" > /etc/zv-manager/web-host
             print_ok "Domain valid! Berubah ke: ${input_domain}"
@@ -158,36 +157,26 @@ _change_host() {
     esac
 }
 
-_open_web_info() {
-    local cur_host
-    cur_host=$(cat /etc/zv-manager/web-host 2>/dev/null)
-    local ssl_type
-    ssl_type=$(cat /etc/zv-manager/ssl/ssl-type 2>/dev/null || echo "self-signed")
+_web_info() {
+    local url; url=$(_get_url)
+    local ssl_type; ssl_type=$(cat /etc/zv-manager/ssl/ssl-type 2>/dev/null || echo "self-signed")
     local ssl_label
     [[ "$ssl_type" == "letsencrypt" || "$ssl_type" == "wildcard" ]] && \
         ssl_label="${BGREEN}Let's Encrypt ✓${NC}" || ssl_label="${BYELLOW}Self-Signed${NC}"
-    # Format URL sesuai tipe host
-    local cur_url
-    if [[ -z "$cur_host" ]]; then
-        cur_url="(belum diset)"
-    elif [[ "$cur_host" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-        cur_url="http://${cur_host}"
-    else
-        cur_url="https://${cur_host}"
-    fi
+
     clear
-    echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-    echo -e " │          ${BWHITE}INFO HALAMAN WEB STATUS${NC}             │"
-    echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+    _sep
+    _grad " HALAMAN WEB STATUS" 0 210 255 160 80 255
+    _sep
     echo ""
-    echo -e "  ${BWHITE}Status    :${NC} ${BGREEN}Aktif${NC}"
-    echo -e "  ${BWHITE}URL       :${NC} ${BYELLOW}${cur_url}${NC}"
-    echo -e "  ${BWHITE}SSL       :${NC} ${ssl_label}"
-    echo -e "  ${BWHITE}Update    :${NC} ${BYELLOW}Otomatis setiap 5 menit${NC}"
+    echo -e "  ${BWHITE}Status :${NC} ${BGREEN}Aktif ●${NC}"
+    echo -e "  ${BWHITE}URL    :${NC} ${BYELLOW}${url:-belum diset}${NC}"
+    echo -e "  ${BWHITE}SSL    :${NC} ${ssl_label}"
+    echo -e "  ${BWHITE}Update :${NC} ${BYELLOW}Otomatis setiap 5 menit${NC}"
     echo ""
-    echo -e "  ${BGREEN}[1]${NC} Refresh sekarang"
-    echo -e "  ${BGREEN}[2]${NC} Ganti domain/IPv4"
-    echo -e "  ${BGREEN}[3]${NC} Request Let's Encrypt SSL ${BCYAN}(HTTPS gratis)${NC}"
+    echo -e "  $(_grad '[1]' 0 210 255 160 80 255) Refresh sekarang"
+    echo -e "  $(_grad '[2]' 0 210 255 160 80 255) Ganti domain/IPv4"
+    echo -e "  $(_grad '[3]' 0 210 255 160 80 255) Request Let's Encrypt SSL"
     echo -e "  ${BRED}[4]${NC} Uninstall"
     echo ""
     echo -e "  ${BRED}[0]${NC} Kembali"
@@ -197,11 +186,15 @@ _open_web_info() {
         1)
             print_info "Refresh halaman..."
             bash "$STATUS_SCRIPT" 2>/dev/null
-            print_ok "Selesai! Buka ${cur_url}"
+            print_ok "Selesai! Buka ${url}"
             press_any_key
             ;;
-        2) _change_host; bash "$STATUS_SCRIPT" 2>/dev/null ;;
+        2)
+            _change_host
+            bash "$STATUS_SCRIPT" 2>/dev/null
+            ;;
         3)
+            local cur_host; cur_host=$(cat /etc/zv-manager/web-host 2>/dev/null)
             if [[ -z "$cur_host" || "$cur_host" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
                 print_error "Set domain dulu via opsi [2] sebelum request SSL!"
                 press_any_key; return
@@ -210,19 +203,16 @@ _open_web_info() {
             [[ "$yn" != "y" && "$yn" != "Y" ]] && return
             source /etc/zv-manager/core/ssl.sh
             setup_ssl_letsencrypt "$cur_host"
-            systemctl reload nginx &>/dev/null || systemctl restart nginx &>/dev/null
+            systemctl reload nginx &>/dev/null || true
             press_any_key
             ;;
         4) _uninstall_web ;;
     esac
 }
 
-setup_web_menu() {
-    if _is_web_installed; then
-        _open_web_info
-    else
-        _install_web
-    fi
-}
-
-setup_web_menu
+# ── Main ──────────────────────────────────────────────────────
+if _is_web_installed; then
+    _web_info
+else
+    _install_web
+fi

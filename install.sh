@@ -280,13 +280,11 @@ _t_cron() {
     printf '%s\n' "* * * * * root for i in 1 2 3 4 5 6; do /bin/bash /etc/zv-manager/cron/bw-check.sh; sleep 10; done" "*/5 * * * * root /bin/bash /etc/zv-manager/cron/bw-vmess.sh" "* * * * * root /bin/bash /etc/zv-manager/cron/ip-limit.sh" > /etc/cron.d/zv-bw-check
     printf '%s\n' "*/5 * * * * root /bin/bash /etc/zv-manager/cron/watchdog.sh" > /etc/cron.d/zv-watchdog
     printf '%s\n' "*/5 * * * * root /bin/bash /etc/zv-manager/cron/worker-check.sh" > /etc/cron.d/zv-worker-check
-    printf '%s\n' "*/5 * * * * root /bin/bash /etc/zv-manager/cron/status-page.sh" > /etc/cron.d/zv-status-page
     printf '%s\n' "0 2 * * * root /bin/bash /etc/zv-manager/cron/backup.sh" > /etc/cron.d/zv-backup
     printf '%s\n' "0 6 * * * root /bin/bash /etc/zv-manager/cron/check-update.sh" > /etc/cron.d/zv-check-update
     mkdir -p /var/lib/zv-manager/status
     service cron restart &>/dev/null
     /bin/bash /etc/zv-manager/cron/check-update.sh &>/dev/null &
-    /bin/bash /etc/zv-manager/cron/status-page.sh &>/dev/null &
 }
 _t_bw() {
     mkdir -p /tmp/zv-bw

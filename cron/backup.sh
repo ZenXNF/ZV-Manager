@@ -111,7 +111,8 @@ NOTETXT
     [[ -f "${BASE_DIR}/ssl/key.pem"  ]] && cp "${BASE_DIR}/ssl/key.pem"  "${dst}/ssl/"
 
     # Domain config + banner
-    [[ -f "${BASE_DIR}/web-host"    ]] && cp "${BASE_DIR}/web-host"    "$dst/"
+    [[ -f "${BASE_DIR}/web-host"       ]] && cp "${BASE_DIR}/web-host"       "$dst/"
+    [[ -f "${BASE_DIR}/.web-installed" ]] && cp "${BASE_DIR}/.web-installed" "$dst/"
     [[ -f "${BASE_DIR}/domain"      ]] && cp "${BASE_DIR}/domain"      "$dst/"
     [[ -f "${BASE_DIR}/banner.conf" ]] && cp "${BASE_DIR}/banner.conf" "$dst/"
 
