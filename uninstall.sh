@@ -180,7 +180,48 @@ _run "Hapus semua file"        "selesai"                  _t_del_files
 
 _log "====== UNINSTALL SELESAI ======"
 
-# ── .profile ─────────────────────────────────────────────────
+# Reset .profile segera agar tidak loop ke menu lagi
+if [[ "$SILENT" == false ]]; then
+    tee /root/.profile > /dev/null << 'TMPPROF'
+if [ "$BASH" ]; then if [ -f ~/.bashrc ]; then . ~/.bashrc; fi; fi
+mesg n 2>/dev/null || true
+# ZV-Manager uninstalled — run dialog jika ada
+[ -f /root/.zv_uninstall_pending ] && bash /root/.zv_uninstall_dialog.sh
+TMPPROF
+
+    # Simpan dialog sebagai file terpisah
+    cat > /root/.zv_uninstall_dialog.sh << 'DIALOGEOF'
+#!/bin/bash
+rm -f /root/.zv_uninstall_pending /root/.zv_uninstall_dialog.sh
+
+R="\e[1;31m" G="\e[1;32m" O="\e[1;33m" C="\e[1;36m" D="\e[0;37m" NC="\e[0m"
+
+echo ""
+echo -e "  ${G}ZV-Manager telah dihapus dari VPS ini.${NC}"
+echo ""
+echo -e "  ${O}[1]${NC}  Hapus file installer (zv.sh) & kembalikan ke default penuh"
+echo -e "  ${D}[0]${NC}  Keluar (dialog ini tidak muncul lagi)"
+echo ""
+read -rp "  Pilihan: " _opt
+case "$_opt" in
+    1)
+        rm -f /root/zv.sh /usr/local/bin/zv 2>/dev/null
+        tee /root/.profile > /dev/null << 'DEFPROF'
+if [ "$BASH" ]; then if [ -f ~/.bashrc ]; then . ~/.bashrc; fi; fi
+mesg n 2>/dev/null || true
+DEFPROF
+        echo ""
+        echo -e "  ${G}+ File installer dihapus. VPS kembali ke default.${NC}"
+        echo ""
+        ;;
+    *)
+        echo ""
+        ;;
+esac
+DIALOGEOF
+    chmod +x /root/.zv_uninstall_dialog.sh
+    touch /root/.zv_uninstall_pending
+fi
 if [[ "$SILENT" == true ]]; then
     tee /root/.profile > /dev/null << 'NOTIF'
 if [ "$BASH" ]; then if [ -f ~/.bashrc ]; then . ~/.bashrc; fi; fi
@@ -197,11 +238,6 @@ echo ""
 echo "  Hubungi: @ZenXNF / t.me/ZenXNF"
 echo ""
 NOTIF
-else
-    tee /root/.profile > /dev/null << 'DEFPROF'
-if [ "$BASH" ]; then if [ -f ~/.bashrc ]; then . ~/.bashrc; fi; fi
-mesg n 2>/dev/null || true
-DEFPROF
 fi
 
 rm -f "$0"
@@ -216,34 +252,11 @@ if [[ "$SILENT" == false ]] && [ -t 1 ]; then
     printf "  \e[1;32m+\e[0m  Semua komponen ZV-Manager telah dihapus.\n"
     printf "  \e[1;32m+\e[0m  VPS sudah kembali bersih.\n"
     echo ""
-    _sep
+    echo -e "  \e[0;37mMasuk lagi ke VPS untuk menyelesaikan pembersihan.\e[0m"
     echo ""
-    echo -e "  \e[1;33m[1]\e[0m  Hapus file installer (zv.sh)"
-    echo -e "  \e[0;37m[0]\e[0m  Keluar"
-    echo ""
-    read -rp "  Pilihan: " _opt < /dev/tty
-    case "$_opt" in
-        1)
-            rm -f /root/zv.sh /usr/local/bin/zv 2>/dev/null
-            # Reset .profile ke default bersih
-            tee /root/.profile > /dev/null << 'DEFPROF'
-if [ "$BASH" ]; then if [ -f ~/.bashrc ]; then . ~/.bashrc; fi; fi
-mesg n 2>/dev/null || true
-DEFPROF
-            echo ""
-            printf "  \e[1;32m+\e[0m  File installer dihapus. VPS kembali ke default.\n"
-            echo ""
-            sleep 1
-            # Tutup sesi ini
-            kill -9 $$ 2>/dev/null
-            ;;
-        *)
-            echo ""
-            ;;
-    esac
 fi
 
-# Tutup semua sesi SSH yang terkait ZV-Manager
+# Kill menu parent process
 pkill -f "menu.sh" 2>/dev/null || true
 
 exit 0
