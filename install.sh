@@ -182,9 +182,27 @@ case "$install_mode" in
             fi
             echo ""
 
-            echo -e "  ${O}Apakah domain berubah dari sebelumnya?${NC}"
-            read -rp "  Ganti domain? [y/n]: " ganti_domain < /dev/tty
-            [[ "$ganti_domain" =~ ^[Yy]$ ]] && install_mode="restore_with_domain" || install_mode="restore_skip_domain"
+            # Baca domain dari backup
+            _backup_domain=$(tar -xOf "$BACKUP_FILE" ./domain 2>/dev/null | tr -d '[:space:]')
+
+            if [[ -z "$_backup_domain" || "$_backup_domain" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                # Backup pakai IP — skip domain question, auto pakai IP baru
+                install_mode="restore_with_domain"
+                _RESTORE_USE_IP=true
+            else
+                # Backup punya domain asli — tampilkan dan tanya
+                echo -e "  ${D}Domain di backup:${NC} ${W}${_backup_domain}${NC}"
+                echo ""
+                echo -e "  ${O}[y]${NC} Ganti domain"
+                echo -e "  ${D}[n]${NC} Pakai domain yang sama (${_backup_domain})"
+                echo ""
+                read -rp "  Pilihan [y/n]: " ganti_domain < /dev/tty
+                if [[ "$ganti_domain" =~ ^[Yy]$ ]]; then
+                    install_mode="restore_with_domain"
+                else
+                    install_mode="restore_skip_domain"
+                fi
+            fi
 
             # Cek apakah telegram sudah dikonfigurasi di backup
             _backup_tg_token=$(tar -xOf "$BACKUP_FILE" ./telegram.conf 2>/dev/null | grep "^TG_TOKEN=" | cut -d= -f2 | tr -d '"' | tr -d "[:space:]")
@@ -300,23 +318,55 @@ fi
 
 # ── Setup Domain ──────────────────────────────────────────────
 if [[ "$install_mode" == "restore_skip_domain" ]]; then
-    _note "Domain" "dipertahankan dari backup"
+    _note "Domain" "dipertahankan dari backup ($_backup_domain)"
     _note "SSL" "dipertahankan dari backup"
 else
     PUBLIC_IP=$(curl -s --max-time 10 ipv4.icanhazip.com 2>/dev/null || hostname -I | awk '{print $1}')
-    if [[ "$install_mode" == "restore_with_domain" ]]; then
+    if [[ "$_RESTORE_USE_IP" == true ]]; then
+        # Backup pakai IP, langsung pakai IP baru
+        echo "$PUBLIC_IP" > /etc/zv-manager/domain
+        printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}%s${NC}\n" "Domain" "$PUBLIC_IP (ganti via Setup Web jika punya domain)"
+        echo ""
+        _run "Setup SSL" "sertifikat dipasang" _t_ssl
+    elif [[ "$install_mode" == "restore_with_domain" ]]; then
         echo ""
         echo -e "  ${D}IP Publik VPS:${NC} ${W}${PUBLIC_IP}${NC}"
         echo ""
-        read -rp "  Domain baru (kosongkan = pakai IP): " _input_domain < /dev/tty
-        _input_domain=$(echo "$_input_domain" | tr -d '[:space:]')
-        if [[ -n "$_input_domain" && ! "$_input_domain" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "$_input_domain" > /etc/zv-manager/domain
-            printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}%s${NC}\n" "Domain" "$_input_domain"
-        else
-            echo "$PUBLIC_IP" > /etc/zv-manager/domain
-            printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}%s${NC}\n" "Domain" "$PUBLIC_IP"
-        fi
+        while true; do
+            read -rp "  Domain baru (kosongkan = pakai IP): " _input_domain < /dev/tty
+            _input_domain=$(echo "$_input_domain" | tr -d '[:space:]')
+            # Kosong = pakai IP
+            if [[ -z "$_input_domain" ]]; then
+                echo "$PUBLIC_IP" > /etc/zv-manager/domain
+                printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}%s${NC}\n" "Domain" "$PUBLIC_IP"
+                break
+            fi
+            # Format IP = langsung pakai
+            if [[ "$_input_domain" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                echo "$_input_domain" > /etc/zv-manager/domain
+                printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}%s${NC}\n" "Domain" "$_input_domain"
+                break
+            fi
+            # Domain = verifikasi DNS
+            printf "  ${D}Memverifikasi domain %s...${NC}\n" "$_input_domain"
+            _resolved=""
+            command -v dig &>/dev/null && _resolved=$(dig +short "$_input_domain" A 2>/dev/null | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+            [[ -z "$_resolved" ]] && command -v host &>/dev/null && _resolved=$(host -t A "$_input_domain" 2>/dev/null | awk '/has address/{print $4}' | head -1)
+            if [[ -z "$_resolved" ]]; then
+                echo -e "  ${R}[!]${NC} Domain tidak bisa di-resolve. Pastikan DNS sudah diset."
+                echo -e "  ${D}    Coba lagi atau kosongkan untuk pakai IP.${NC}"
+                continue
+            elif [[ "$_resolved" != "$PUBLIC_IP" ]]; then
+                echo -e "  ${R}[!]${NC} Domain mengarah ke ${_resolved}, bukan ${PUBLIC_IP}!"
+                echo -e "  ${D}    Pastikan DNS record A untuk ${_input_domain} diset ke ${PUBLIC_IP}.${NC}"
+                echo -e "  ${D}    Coba lagi atau kosongkan untuk pakai IP.${NC}"
+                continue
+            else
+                echo "$_input_domain" > /etc/zv-manager/domain
+                printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}%s → %s${NC}\n" "Domain" "$_input_domain" "$_resolved"
+                break
+            fi
+        done
     else
         echo "$PUBLIC_IP" > /etc/zv-manager/domain
         printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}%s${NC}\n" "Domain" "$PUBLIC_IP (IP default, ganti di Setup Web)"

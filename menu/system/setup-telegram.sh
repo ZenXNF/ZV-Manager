@@ -19,11 +19,22 @@ setup_telegram_menu() {
         echo ""
 
         # Tampilkan status saat ini
+        _svc_active=false
+        _aiogram_ok=false
+        systemctl is-active --quiet zv-telegram 2>/dev/null && _svc_active=true
+        pip3 show aiogram &>/dev/null 2>&1 && _aiogram_ok=true
+
         if tg_enabled; then
             tg_load
-            echo -e "  ${BWHITE}Status   :${NC} ${BGREEN}Aktif${NC}"
+            if [[ "$_svc_active" == true ]]; then
+                echo -e "  ${BWHITE}Status   :${NC} ${BGREEN}Aktif ●${NC}"
+            else
+                echo -e "  ${BWHITE}Status   :${NC} ${BRED}Tidak Berjalan ●${NC}"
+            fi
             echo -e "  ${BWHITE}Bot      :${NC} ${BYELLOW}@${TG_BOT_NAME}${NC}"
             echo -e "  ${BWHITE}Admin ID :${NC} ${BYELLOW}${TG_ADMIN_ID}${NC}"
+            [[ "$_aiogram_ok" == false ]] && \
+                echo -e "  ${BWHITE}Library  :${NC} ${BRED}aiogram belum terinstall${NC}"
         else
             echo -e "  ${BWHITE}Status   :${NC} ${BRED}Belum dikonfigurasi${NC}"
         fi
@@ -160,8 +171,32 @@ _start_bot() {
         press_any_key
         return
     fi
-    systemctl start zv-telegram &>/dev/null
-    sleep 1
+
+    # Deploy file bot ke /opt/zv-telegram
+    echo -e "  ${BYELLOW}>>>${NC} Menyiapkan file bot..."
+    local BOT_DIR="/opt/zv-telegram"
+    mkdir -p "$BOT_DIR"
+    cp -r /etc/zv-manager/services/telegram/. "$BOT_DIR/"
+    find "$BOT_DIR" -name "*.py" -exec chmod +x {} \;
+
+    # Install aiogram jika belum ada
+    if ! pip3 show aiogram &>/dev/null 2>&1; then
+        echo -e "  ${BYELLOW}>>>${NC} Menginstall library aiogram..."
+        pip3 install -q "aiogram==3.*" --break-system-packages 2>/dev/null || \
+        pip3 install -q "aiogram==3.*" 2>/dev/null
+    fi
+
+    # Buat/update systemd service
+    python3 -c "
+svc = '[Unit]\nDescription=ZV-Manager Telegram Bot (Python)\nAfter=network.target\nStartLimitIntervalSec=60\nStartLimitBurst=5\n\n[Service]\nType=simple\nWorkingDirectory=/opt/zv-telegram\nExecStart=/usr/bin/python3 -u /opt/zv-telegram/bot.py\nRestart=always\nRestartSec=10s\nMemoryMax=120M\nMemorySwapMax=0\nCPUQuota=60%\nStandardOutput=append:/var/log/zv-manager/telegram-bot.log\nStandardError=append:/var/log/zv-manager/telegram-bot.log\n\n[Install]\nWantedBy=multi-user.target\n'
+open('/etc/systemd/system/zv-telegram.service','w').write(svc)
+" 2>/dev/null
+
+    systemctl daemon-reload &>/dev/null
+    systemctl enable zv-telegram &>/dev/null
+    systemctl restart zv-telegram &>/dev/null
+    sleep 2
+
     if systemctl is-active --quiet zv-telegram; then
         print_ok "Bot berhasil distart!"
     else
