@@ -71,16 +71,16 @@ backup_otak() {
     # Akun semua — paling penting untuk restore
     [[ -d "${BASE_DIR}/accounts" ]] && cp -r "${BASE_DIR}/accounts" "$dst/"
 
-    # Server conf — strip IP/PORT/USER/PASS, simpan NAME/DOMAIN/ISP/TYPE saja
+    # Server conf — strip PASS saja, simpan IP/PORT/USER + NAME/DOMAIN/ISP/TYPE
     if [[ -d "${BASE_DIR}/servers" ]]; then
         mkdir -p "${dst}/servers"
         for sc in "${BASE_DIR}/servers"/*.conf; do
             [[ -f "$sc" ]] || continue
             local fname; fname=$(basename "$sc")
-            # Salin hanya field yang masih berguna setelah suspend
-            grep -E "^(NAME|DOMAIN|ISP|AUTH_TYPE|TG_SERVER_TYPE)=" "$sc" \
+            # Salin semua field KECUALI PASS dan SSH_KEY_PATH
+            grep -E "^(NAME|DOMAIN|ISP|IP|PORT|USER|AUTH_TYPE|TG_SERVER_TYPE)=" "$sc" \
                 > "${dst}/servers/${fname}" 2>/dev/null
-            echo "# IP/PORT/USER/PASS tidak disimpan (tidak valid setelah suspend)" \
+            echo "# PASS tidak disimpan demi keamanan" \
                 >> "${dst}/servers/${fname}"
         done
         # Salin .tg.conf apa adanya (berisi label, max akun, dll — tidak ada IP/PASS)

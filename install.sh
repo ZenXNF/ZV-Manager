@@ -392,6 +392,63 @@ _run "Bandwidth tracking"  "aktif"            _t_bw
 _run "Command 'menu'"      "siap digunakan"   _t_menu
 
 # ── Restore: recreate SSH users + inject Xray + install bot ──
+# Fungsi backup recovery untuk server yang tidak bisa dikonek
+_do_recovery_backup() {
+    local sname="$1" sc="$2" reason="$3"
+    local BACKUP_DIR="/var/backups/zv-manager"
+    local DATE; DATE=$(TZ="Asia/Jakarta" date +"%Y-%m-%d")
+    local TMP; TMP=$(mktemp -d)
+    local label; [[ "$reason" == "offline" ]] && label="offline" || label="skip"
+    local dst="${TMP}/recovery"
+    mkdir -p "$dst/ssh-accounts" "$dst/vmess-accounts"
+
+    # Salin akun yang terkait server ini
+    local ssh_c=0 vmess_c=0
+    for _cf in /etc/zv-manager/accounts/ssh/*.conf; do
+        [[ -f "$_cf" ]] || continue
+        [[ "$(grep "^SERVER=" "$_cf" | cut -d= -f2 | tr -d '"')" == "$sname" ]] || continue
+        cp "$_cf" "$dst/ssh-accounts/"; ssh_c=$((ssh_c+1))
+    done
+    for _cf in /etc/zv-manager/accounts/vmess/*.conf; do
+        [[ -f "$_cf" ]] || continue
+        [[ "$(grep "^SERVER=" "$_cf" | cut -d= -f2 | tr -d '"')" == "$sname" ]] || continue
+        cp "$_cf" "$dst/vmess-accounts/"; vmess_c=$((vmess_c+1))
+    done
+
+    # Credits
+    local _sdom; _sdom=$(grep "^DOMAIN=" "$sc" | cut -d= -f2 | tr -d '"')
+    printf '%s\n' \
+        "================================================" \
+        "  ZV-Manager — Backup Recovery Server" \
+        "================================================" \
+        "  Status   : ${label}" \
+        "  Server   : ${sname}" \
+        "  Domain   : ${_sdom:-?}" \
+        "  Tanggal  : $(TZ='Asia/Jakarta' date +'%Y-%m-%d %H:%M WIB')" \
+        "  Akun SSH : ${ssh_c}" \
+        "  Akun VMess: ${vmess_c}" \
+        "================================================" \
+        "  Dibuat oleh  : ZenXNF" \
+        "  Telegram     : @ZenXNF / t.me/ZenXNF" \
+        "================================================" > "$dst/credits.txt"
+
+    mkdir -p "$BACKUP_DIR"
+    local outfile="${BACKUP_DIR}/zv-server-${sname}-${label}-${DATE}.zvbak"
+    tar -czf "$outfile" -C "$dst" . 2>/dev/null
+
+    # Kirim ke Telegram jika bisa
+    source /etc/zv-manager/core/telegram.sh 2>/dev/null
+    tg_load 2>/dev/null && curl -s -X POST \
+        "https://api.telegram.org/bot${TG_TOKEN}/sendDocument" \
+        -F "chat_id=${TG_ADMIN_ID}" \
+        -F "document=@${outfile}" \
+        -F "caption=⚠️ <b>Backup Recovery: ${sname}</b>%0AStatus: ${label}%0ASSH: ${ssh_c} akun%0AVMess: ${vmess_c} akun" \
+        -F "parse_mode=HTML" --max-time 30 &>/dev/null
+
+    printf "  ${O}–${NC}  ${W}%-35s${NC}  ${D}backup recovery dikirim ke Telegram${NC}\n" "Recovery ${sname}"
+    rm -rf "$TMP"
+}
+
 if [[ "$install_mode" == restore_* ]]; then
     echo ""
     _sep
@@ -452,8 +509,163 @@ if [[ "$install_mode" == restore_* ]]; then
         printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}aktif${NC}\n" "Telegram Bot"
     fi
 
+    # ── Push akun ke server worker ────────────────────────────
+    # Baca semua server yang ada di backup (tanpa IP/PASS)
+    _has_workers=false
+    for sc in /etc/zv-manager/servers/*.conf; do
+        [[ -f "$sc" ]] || continue
+        [[ "$sc" == *.tg.conf ]] && continue
+        _sname=$(grep "^NAME=" "$sc" | cut -d= -f2 | tr -d '"')
+        _sip=$(grep "^IP=" "$sc" | cut -d= -f2 | tr -d '"')
+        _sdom=$(grep "^DOMAIN=" "$sc" | cut -d= -f2 | tr -d '"')
+        _sisp=$(grep "^ISP=" "$sc" | cut -d= -f2 | tr -d '"')
+        _has_workers=true
+
+        echo ""
+        _sep
+        _grad " SERVER WORKER: ${_sname}" 0 210 255 160 80 255
+        _sep
+        echo ""
+        printf "  ${D}≥${NC}  ${W}%-12s${NC}  %s\n" "Nama"   "$_sname"
+        [[ -n "$_sip" ]] && printf "  ${D}≥${NC}  ${W}%-12s${NC}  %s\n" "IP"     "$_sip"
+        printf "  ${D}≥${NC}  ${W}%-12s${NC}  %s\n" "Domain" "${_sdom:-?}"
+        printf "  ${D}≥${NC}  ${W}%-12s${NC}  %s\n" "ISP"    "${_sisp:-?}"
+        echo ""
+
+        # Tanya IP hanya jika belum ada
+        if [[ -z "$_sip" ]]; then
+            echo -e "  ${O}IP tidak tersimpan di backup. Masukkan IP server:${NC}"
+            echo ""
+            read -rp "  IP Address server (kosong = lewati): " _new_sip < /dev/tty
+            _new_sip=$(echo "$_new_sip" | tr -d '[:space:]')
+            if [[ -z "$_new_sip" ]]; then
+                echo -e "  ${O}–${NC} Server dilewati, buat backup recovery..."
+                _do_recovery_backup "$_sname" "$sc" "skip"
+                continue
+            fi
+            _sip="$_new_sip"
+            echo "IP=\"${_sip}\"" >> "$sc"
+        fi
+
+        echo ""
+        echo -e "  ${O}Masukkan password server ${_sip}:${NC}"
+        echo ""
+        _srv_pass=""
+        _retry=0
+        while true; do
+            read -rsp "  Password (atau 's' untuk lewati): " _srv_pass < /dev/tty
+            echo ""
+            _srv_pass=$(echo "$_srv_pass" | tr -d '[:space:]')
+
+            if [[ "$_srv_pass" == "s" || "$_srv_pass" == "S" ]]; then
+                echo -e "  ${O}–${NC} Server dilewati, buat backup recovery..."
+                _do_recovery_backup "$_sname" "$sc" "skip"
+                _srv_pass=""
+                break
+            fi
+
+            if [[ -z "$_srv_pass" ]]; then
+                echo -e "  ${R}[!]${NC} Password tidak boleh kosong. Ketik 's' untuk lewati."
+                continue
+            fi
+
+            printf "  ${D}Mencoba koneksi ke %s...${NC}\n" "$_sip"
+            _ssh_opts="-q -o StrictHostKeyChecking=no -o ConnectTimeout=8 -o LogLevel=ERROR"
+            if sshpass -p "$_srv_pass" ssh $_ssh_opts -p 22 "root@${_sip}" "echo ZV-OK" 2>/dev/null | grep -q "ZV-OK"; then
+                printf "  ${G}✔${NC}  Koneksi berhasil!\n"
+                echo "PORT=\"22\"" >> "$sc"
+                echo "USER=\"root\"" >> "$sc"
+                echo "PASS=\"${_srv_pass}\"" >> "$sc"
+                break
+            else
+                _retry=$((_retry+1))
+                echo -e "  ${R}[!]${NC} Koneksi gagal. Server mati atau password salah."
+                if [[ $_retry -ge 3 ]]; then
+                    echo -e "  ${R}[!]${NC} 3x gagal. Buat backup recovery dan lewati."
+                    _do_recovery_backup "$_sname" "$sc" "offline"
+                    _srv_pass=""
+                    break
+                fi
+                echo -e "  ${D}    Coba lagi ($_retry/3) atau ketik 's' untuk lewati.${NC}"
+            fi
+        done
+
+        if [[ -n "$_srv_pass" ]]; then
+            printf "  ${D}Mengecek akun di server worker...${NC}\n"
+            _agent_check=$(sshpass -p "$_srv_pass" ssh $_ssh_opts -p 22 "root@${_sip}" \
+                "command -v zv-agent &>/dev/null && echo OK || echo NO" 2>/dev/null)
+
+            if [[ "$_agent_check" != "OK" ]]; then
+                printf "  ${O}–${NC} Agent belum ada, deploy dulu...\n"
+                bash /etc/zv-manager/menu/server/deploy-agent.sh "$_sname" >> "$_INSTALL_LOG" 2>&1 || true
+            fi
+
+            _pushed_ssh=0
+            for _cf in /etc/zv-manager/accounts/ssh/*.conf; do
+                [[ -f "$_cf" ]] || continue
+                _csrv=$(grep "^SERVER=" "$_cf" | cut -d= -f2 | tr -d '"')
+                [[ "$_csrv" != "$_sname" ]] && continue
+                _cu=$(grep "^USERNAME=" "$_cf" | cut -d= -f2 | tr -d '"[:space:]')
+                _cp=$(grep "^PASSWORD=" "$_cf" | cut -d= -f2 | tr -d '"[:space:]')
+                [[ -z "$_cu" || -z "$_cp" ]] && continue
+                _exists=$(sshpass -p "$_srv_pass" ssh $_ssh_opts -p 22 "root@${_sip}" \
+                    "id '$_cu' &>/dev/null && echo YES || echo NO" 2>/dev/null)
+                [[ "$_exists" == "YES" ]] && continue
+                zv-agent -h "$_sip" -p "$_srv_pass" add-ssh "$_cu" "$_cp" >> "$_INSTALL_LOG" 2>&1 || true
+                _pushed_ssh=$((_pushed_ssh+1))
+            done
+
+            _pushed_vmess=0
+            for _cf in /etc/zv-manager/accounts/vmess/*.conf; do
+                [[ -f "$_cf" ]] || continue
+                _csrv=$(grep "^SERVER=" "$_cf" | cut -d= -f2 | tr -d '"')
+                [[ "$_csrv" != "$_sname" ]] && continue
+                _cu=$(grep "^USERNAME=" "$_cf" | cut -d= -f2 | tr -d '"[:space:]')
+                _cuuid=$(grep "^UUID=" "$_cf" | cut -d= -f2 | tr -d '"[:space:]')
+                [[ -z "$_cu" || -z "$_cuuid" ]] && continue
+                _exists=$(sshpass -p "$_srv_pass" ssh $_ssh_opts -p 22 "root@${_sip}" \
+                    "/usr/local/bin/zv-vmess-agent exists '$_cu' 2>/dev/null && echo YES || echo NO" 2>/dev/null)
+                [[ "$_exists" == "YES" ]] && continue
+                remote_vmess_agent "$_sname" add "$_cu" >> "$_INSTALL_LOG" 2>&1 || true
+                _pushed_vmess=$((_pushed_vmess+1))
+            done
+
+            printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}SSH: %d pushed, VMess: %d pushed${NC}\n" \
+                "Push ke ${_sname}" "$_pushed_ssh" "$_pushed_vmess"
+        fi
+    done
+
     _restore_date=$(TZ="Asia/Jakarta" date +"%Y-%m-%d %H:%M WIB")
     _new_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null | tr -d '[:space:]')
+
+    # Recreate web status jika sebelumnya aktif
+    if [[ -f "/etc/zv-manager/.web-installed" ]]; then
+        local WEB_DIR="/var/www/zv-manager"
+        mkdir -p "$WEB_DIR"
+        chown -R www-data:www-data "$WEB_DIR" 2>/dev/null || true
+        # Recreate nginx config
+        cat > /etc/nginx/sites-available/zv-status << NGINXEOF
+server {
+    server_name _;
+    root ${WEB_DIR};
+    index index.html;
+    location / {
+        try_files \$uri \$uri/ /index.html;
+    }
+    access_log off;
+}
+NGINXEOF
+        ln -sf /etc/nginx/sites-available/zv-status \
+                /etc/nginx/sites-enabled/zv-status 2>/dev/null || true
+        nginx -t &>/dev/null && systemctl reload nginx &>/dev/null || true
+        # Tambah cron status-page
+        printf '%s\n' "*/5 * * * * root /bin/bash /etc/zv-manager/cron/status-page.sh" \
+            > /etc/cron.d/zv-status-page
+        # Generate halaman
+        bash /etc/zv-manager/cron/status-page.sh &>/dev/null &
+        printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}aktif — %s${NC}\n" "Web Status" \
+            "$(cat /etc/zv-manager/web-host 2>/dev/null)"
+    fi
     cat > /etc/zv-manager/.restore_pending << FLAGEOF
 SSH_OK=${ssh_ok}
 VMESS_OK=${vmess_ok}
