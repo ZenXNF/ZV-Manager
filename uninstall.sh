@@ -192,27 +192,28 @@ TMPPROF
     # Simpan dialog sebagai file terpisah
     cat > /root/.zv_uninstall_dialog.sh << 'DIALOGEOF'
 #!/bin/bash
-rm -f /root/.zv_uninstall_pending /root/.zv_uninstall_dialog.sh
-
-R="\e[1;31m" G="\e[1;32m" O="\e[1;33m" C="\e[1;36m" D="\e[0;37m" NC="\e[0m"
+G="\e[1;32m" O="\e[1;33m" D="\e[0;37m" NC="\e[0m"
 
 echo ""
 echo -e "  ${G}ZV-Manager telah dihapus dari VPS ini.${NC}"
 echo ""
-echo -e "  ${O}[1]${NC}  Hapus file installer (zv.sh) & kembalikan ke default penuh"
-echo -e "  ${D}[0]${NC}  Keluar (dialog ini tidak muncul lagi)"
+echo -e "  ${O}[1]${NC}  Hapus file installer (zv.sh) & reboot"
+echo -e "  ${D}[0]${NC}  Nanti saja (dialog muncul lagi next login)"
 echo ""
 read -rp "  Pilihan: " _opt
+
 case "$_opt" in
     1)
+        rm -f /root/.zv_uninstall_pending /root/.zv_uninstall_dialog.sh
         rm -f /root/zv.sh /usr/local/bin/zv 2>/dev/null
-        tee /root/.profile > /dev/null << 'DEFPROF'
-if [ "$BASH" ]; then if [ -f ~/.bashrc ]; then . ~/.bashrc; fi; fi
-mesg n 2>/dev/null || true
-DEFPROF
+        printf '%s\n' \
+            'if [ "$BASH" ]; then if [ -f ~/.bashrc ]; then . ~/.bashrc; fi; fi' \
+            'mesg n 2>/dev/null || true' > /root/.profile
         echo ""
-        echo -e "  ${G}+ File installer dihapus. VPS kembali ke default.${NC}"
+        echo -e "  ${G}+ Selesai. VPS kembali ke default bersih.${NC}"
         echo ""
+        read -rp "  Reboot sekarang? [y/n]: " _rb
+        [[ "$_rb" =~ ^[Yy]$ ]] && echo "  Rebooting..." && sleep 1 && reboot
         ;;
     *)
         echo ""
