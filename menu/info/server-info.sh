@@ -20,9 +20,9 @@ show_server_info() {
     ram_total=$(free -m | awk '/Mem:/ {print $2}')
     disk=$(df -h / | awk 'NR==2 {print $3 "/" $2 " (" $5 ")"}')
 
-    echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-    echo -e " │             ${BWHITE}INFORMASI SERVER${NC}                  │"
-    echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+    _sep
+    _grad " INFORMASI SERVER" 255 0 127 0 210 255
+    _sep
     echo ""
     echo -e "  ${BWHITE}IP Publik   :${NC} ${BGREEN}${ip}${NC}"
     echo -e "  ${BWHITE}Domain/Host :${NC} ${BGREEN}${domain}${NC}"
@@ -33,9 +33,9 @@ show_server_info() {
     echo -e "  ${BWHITE}RAM         :${NC} ${BYELLOW}${ram_used}MB / ${ram_total}MB${NC}"
     echo -e "  ${BWHITE}Disk        :${NC} ${BYELLOW}${disk}${NC}"
     echo ""
-    echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-    echo -e " │               ${BWHITE}PORT AKTIF${NC}                     │"
-    echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+    _sep
+    _grad " PORT AKTIF" 255 0 127 0 210 255
+    _sep
     echo ""
     echo -e "  ${BWHITE}OpenSSH     :${NC} ${BPURPLE}22, 500, 40000${NC}"
     echo -e "  ${BWHITE}Dropbear    :${NC} ${BPURPLE}109, 143${NC}"

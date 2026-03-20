@@ -10,9 +10,9 @@ source /etc/zv-manager/core/vmess.sh
 
 add_vmess() {
     clear
-    echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-    echo -e " │           ${BWHITE}BUAT AKUN VMESS${NC}                  │"
-    echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+    _sep
+    _grad " BUAT AKUN VMESS" 255 0 127 0 210 255
+    _sep
     echo ""
 
     if ! xray_installed; then
@@ -127,9 +127,9 @@ CONFEOF
     local url_grpc; url_grpc=$(vmess_url "$uuid" "$domain" "443" "tls" "grpc" "vmess-grpc" "${username}-gRPC")
 
     clear
-    echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-    echo -e " │         ${BWHITE}AKUN VMESS BERHASIL DIBUAT${NC}          │"
-    echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+    _sep
+    _grad " AKUN VMESS BERHASIL DIBUAT" 255 0 127 0 210 255
+    _sep
     echo ""
     echo -e "  ${BWHITE}Username  :${NC} ${BYELLOW}${username}${NC}"
     echo -e "  ${BWHITE}UUID      :${NC} ${BYELLOW}${uuid}${NC}"

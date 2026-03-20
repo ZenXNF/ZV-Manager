@@ -49,9 +49,9 @@ add_ssh_user() {
     target_info=$(target_display)
 
     clear
-    echo -e "${BCYAN} ┌─────────────────────────────────────────────┐${NC}"
-    echo -e " │           ${BWHITE}TAMBAH AKUN SSH BARU${NC}              │"
-    echo -e "${BCYAN} └─────────────────────────────────────────────┘${NC}"
+    _sep
+    _grad " TAMBAH AKUN SSH BARU" 255 0 127 0 210 255
+    _sep
     echo ""
     echo -e "  ${BWHITE}Target :${NC} ${BGREEN}${target_info}${NC}"
     echo ""

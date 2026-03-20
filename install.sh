@@ -662,19 +662,42 @@ if [[ "$install_mode" == restore_* ]]; then
     # Recreate web status jika sebelumnya aktif
     if [[ -f "/etc/zv-manager/.web-installed" ]]; then
         _WEB_DIR="/var/www/zv-manager"
+        _WEB_HOST=$(cat /etc/zv-manager/web-host 2>/dev/null | tr -d '[:space:]')
         mkdir -p "$_WEB_DIR"
         chown -R www-data:www-data "$_WEB_DIR" 2>/dev/null || true
-        cat > /etc/nginx/sites-available/zv-status << NGINXEOF
+
+        # Tulis nginx config — pakai SSL jika cert tersedia
+        _CERT="/etc/letsencrypt/live/${_WEB_HOST}/fullchain.pem"
+        _KEY="/etc/letsencrypt/live/${_WEB_HOST}/privkey.pem"
+        if [[ -n "$_WEB_HOST" && ! "$_WEB_HOST" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ && -f "$_CERT" ]]; then
+            cat > /etc/nginx/sites-available/zv-status << NGINXEOF
+server {
+    listen 80;
+    server_name ${_WEB_HOST};
+    return 301 https://\$host\$request_uri;
+}
+server {
+    listen 443 ssl;
+    server_name ${_WEB_HOST};
+    ssl_certificate ${_CERT};
+    ssl_certificate_key ${_KEY};
+    root ${_WEB_DIR};
+    index index.html;
+    location / { try_files \$uri \$uri/ /index.html; }
+    access_log off;
+}
+NGINXEOF
+        else
+            cat > /etc/nginx/sites-available/zv-status << NGINXEOF
 server {
     server_name _;
     root ${_WEB_DIR};
     index index.html;
-    location / {
-        try_files \$uri \$uri/ /index.html;
-    }
+    location / { try_files \$uri \$uri/ /index.html; }
     access_log off;
 }
 NGINXEOF
+        fi
         ln -sf /etc/nginx/sites-available/zv-status \
                 /etc/nginx/sites-enabled/zv-status 2>/dev/null || true
         nginx -t &>/dev/null && systemctl reload nginx &>/dev/null || true

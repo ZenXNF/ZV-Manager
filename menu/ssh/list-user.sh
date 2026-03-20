@@ -17,9 +17,9 @@ list_ssh_users() {
     local today
     today=$(date +"%Y-%m-%d")
 
-    echo -e "${BCYAN} ┌──────────────────────────────────────────────────────────┐${NC}"
-    echo -e " │                  ${BWHITE}DAFTAR AKUN SSH AKTIF${NC}                  │"
-    echo -e "${BCYAN} └──────────────────────────────────────────────────────────┘${NC}"
+    _sep
+    _grad " DAFTAR AKUN SSH AKTIF" 255 0 127 0 210 255
+    _sep
     echo ""
     echo -e "  ${BWHITE}Target :${NC} ${BGREEN}${target_info}${NC}"
     echo ""

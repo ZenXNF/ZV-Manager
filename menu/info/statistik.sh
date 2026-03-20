@@ -131,9 +131,9 @@ show_statistik() {
         done
 
         # ── Tampilan ──────────────────────────────────────────────
-        echo -e "${BCYAN}  ┌──────────────────────────────────────────────┐${NC}"
-        echo -e "  │           ${BWHITE}STATISTIK PENJUALAN${NC}               │"
-        echo -e "${BCYAN}  └──────────────────────────────────────────────┘${NC}"
+        _sep
+        _grad " STATISTIK PENJUALAN" 255 0 127 0 210 255
+        _sep
         echo ""
         echo -e "  ${BCYAN}[ Akun SSH ]${NC}"
         printf "  ${BWHITE}%-22s${NC} ${BGREEN}%s${NC}\n" "Total SSH"     "$ssh_total"

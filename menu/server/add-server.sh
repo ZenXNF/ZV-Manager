@@ -23,9 +23,9 @@ mkdir -p "$SERVER_DIR"
 
 add_server() {
     clear
-    echo -e "${BCYAN} ┌─────────────────────────────────────────────┐${NC}"
-    echo -e " │           ${BWHITE}TAMBAH SERVER BARU${NC}                │"
-    echo -e "${BCYAN} └─────────────────────────────────────────────┘${NC}"
+    _sep
+    _grad " TAMBAH SERVER BARU" 255 0 127 0 210 255
+    _sep
     echo ""
     echo -e "  ${BYELLOW}Tip: Neva (VPS ini sendiri) juga bisa ditambahkan.${NC}"
     echo ""
@@ -147,9 +147,9 @@ add_server() {
     echo ""
 
     # --- Pilih tipe server ---
-    echo -e "${BCYAN}  ┌─────────────────────────────────────────────┐${NC}"
-    echo -e "  │            ${BWHITE}TIPE SERVER${NC}                      │"
-    echo -e "${BCYAN}  └─────────────────────────────────────────────┘${NC}"
+    _sep
+    _grad " TIPE SERVER" 255 0 127 0 210 255
+    _sep
     echo ""
     echo -e "  ${BWHITE}[1]${NC} SSH only   — muncul di menu SSH"
     echo -e "  ${BWHITE}[2]${NC} VMess only — muncul di menu VMess"
@@ -186,9 +186,9 @@ CONFEOF
     # ================================================================
     #   PENGATURAN TELEGRAM BOT
     # ================================================================
-    echo -e "${BCYAN}  ┌─────────────────────────────────────────────┐${NC}"
-    echo -e "  │        ${BWHITE}PENGATURAN TELEGRAM BOT${NC}               │"
-    echo -e "${BCYAN}  └─────────────────────────────────────────────┘${NC}"
+    _sep
+    _grad " PENGATURAN TELEGRAM BOT" 255 0 127 0 210 255
+    _sep
     echo ""
     echo -e "  ${BYELLOW}Tekan Enter untuk pakai nilai default.${NC}"
     echo ""
@@ -319,9 +319,9 @@ TGEOF
 
     # --- Tanya kirim notif server baru ke user ---
     echo ""
-    echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-    echo -e " │         ${BWHITE}NOTIFIKASI SERVER BARU${NC}                │"
-    echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+    _sep
+    _grad " NOTIFIKASI SERVER BARU" 255 0 127 0 210 255
+    _sep
     echo ""
     echo -e "  Kirim notif ke user tentang server baru ini?"
 
@@ -408,9 +408,9 @@ Buka bot untuk beli akun di server ini! 🚀"
 
     # --- Tanya restore akun dari backup ---
     echo ""
-    echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-    echo -e " │           ${BWHITE}RESTORE AKUN (OPSIONAL)${NC}            │"
-    echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+    _sep
+    _grad " RESTORE AKUN (OPSIONAL)" 255 0 127 0 210 255
+    _sep
     echo ""
     echo -e "  Apakah server ini ${BWHITE}pengganti server lama${NC} yang suspend?"
     echo -e "  Jika ya, akun SSH+VMess lama bisa di-restore sekarang."

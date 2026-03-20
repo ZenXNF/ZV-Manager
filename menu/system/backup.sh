@@ -25,9 +25,9 @@ _fmt_size() {
 backup_menu() {
     while true; do
         clear
-        echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-        echo -e " │           ${BWHITE}BACKUP & RESTORE${NC}                  │"
-        echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+        _sep
+        _grad " BACKUP & RESTORE" 255 0 127 0 210 255
+        _sep
         echo ""
 
         # Tampilkan backup otak terakhir
@@ -97,9 +97,9 @@ backup_menu() {
                 ;;
             3)
                 clear
-                echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-                echo -e " │              ${BWHITE}DAFTAR BACKUP${NC}                  │"
-                echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+                _sep
+                _grad " DAFTAR BACKUP" 255 0 127 0 210 255
+                _sep
                 echo ""
                 echo -e "  ${BWHITE}── Backup Otak ──${NC}"
                 local found=0
@@ -128,9 +128,9 @@ backup_menu() {
             4)
                 # ── Restore Otak ──────────────────────────────
                 clear
-                echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-                echo -e " │            ${BWHITE}RESTORE OTAK${NC}                     │"
-                echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+                _sep
+                _grad " RESTORE OTAK" 255 0 127 0 210 255
+                _sep
                 echo ""
                 echo -e "  ${BYELLOW}⚠ Restore akan MENIMPA conf akun yang ada sekarang!${NC}"
                 echo ""
@@ -173,9 +173,9 @@ backup_menu() {
             5)
                 # ── Restore Server Tunneling ──────────────────
                 clear
-                echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-                echo -e " │        ${BWHITE}RESTORE SERVER TUNNELING${NC}              │"
-                echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+                _sep
+                _grad " RESTORE SERVER TUNNELING" 255 0 127 0 210 255
+                _sep
                 echo ""
                 echo -e "  ${BYELLOW}Fungsi: Push akun SSH+VMess ke server baru${NC}"
                 echo -e "  ${BYELLOW}(Gunakan setelah tambah server pengganti)${NC}"

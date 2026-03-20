@@ -10,9 +10,9 @@ source /etc/zv-manager/core/vmess.sh
 
 list_vmess() {
     clear
-    echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-    echo -e " │           ${BWHITE}LIST AKUN VMESS${NC}                  │"
-    echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+    _sep
+    _grad " LIST AKUN VMESS" 255 0 127 0 210 255
+    _sep
     echo ""
 
     local now_ts

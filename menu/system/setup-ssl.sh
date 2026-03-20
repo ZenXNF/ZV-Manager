@@ -29,9 +29,9 @@ _show_ssl_status() {
 
 _setup_self_signed() {
     clear
-    echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-    echo -e " │         ${BWHITE}GENERATE SSL SELF-SIGNED${NC}              │"
-    echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+    _sep
+    _grad " GENERATE SSL SELF-SIGNED" 255 0 127 0 210 255
+    _sep
     echo ""
     echo -e "  ${BYELLOW}Self-signed tidak dipercaya browser, tapi cukup${NC}"
     echo -e "  ${BYELLOW}untuk koneksi SSH via WebSocket/UDP.${NC}"
@@ -50,9 +50,9 @@ _setup_self_signed() {
 
 _setup_wildcard() {
     clear
-    echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-    echo -e " │     ${BWHITE}LET'S ENCRYPT WILDCARD SSL${NC}               │"
-    echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+    _sep
+    _grad " LET'S ENCRYPT WILDCARD SSL" 255 0 127 0 210 255
+    _sep
     echo ""
     echo -e "  ${BYELLOW}Syarat:${NC}"
     echo -e "  ${BWHITE}1.${NC} Domain sudah diarahkan ke IP VPS ini"
@@ -124,9 +124,9 @@ _setup_wildcard() {
 
 _renew_manual() {
     clear
-    echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-    echo -e " │           ${BWHITE}RENEW SSL CERTIFICATE${NC}               │"
-    echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+    _sep
+    _grad " RENEW SSL CERTIFICATE" 255 0 127 0 210 255
+    _sep
     echo ""
 
     if ! is_letsencrypt; then
@@ -146,9 +146,9 @@ _renew_manual() {
 setup_ssl_menu() {
     while true; do
         clear
-        echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-        echo -e " │            ${BWHITE}MANAJEMEN SSL${NC}                      │"
-        echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+        _sep
+        _grad " MANAJEMEN SSL" 255 0 127 0 210 255
+        _sep
 
         _show_ssl_status
 
