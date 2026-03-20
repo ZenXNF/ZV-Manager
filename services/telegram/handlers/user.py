@@ -778,7 +778,7 @@ async def cb_vl_buat(cb: CallbackQuery):
 
     saldo = saldo_get(uid)
     harga = int(tg.get("TG_HARGA_VLESS_HARI", tg.get("TG_HARGA_HARI", "0")) or 0)
-    state_set(uid, "vless_beli", {"sname": sname, "step": "days"})
+    state_set(uid, "vless_beli", __import__("json").dumps({"sname": sname})); state_set(uid, "vless_beli_step", "days")
     await cb.message.edit_text(
         f"🔵 <b>Beli Akun VLESS</b>\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
@@ -790,10 +790,10 @@ async def cb_vl_buat(cb: CallbackQuery):
         reply_markup=kb_back("proto_buat_vless"))
     await cb.answer()
 
-@router.message(lambda m: state_get(m.from_user.id, "vless_beli", {}).get("step") == "days")
+@router.message(lambda m: state_get(m.from_user.id, "vless_beli_step") == "days")
 async def cb_vl_buat_days(msg: Message):
     uid  = msg.from_user.id
-    data = state_get(uid, "vless_beli", {})
+    data = __import__("json").loads(state_get(uid, "vless_beli") or "{}")
     if not data: return
     days_str = msg.text.strip() if msg.text else ""
     if not days_str.isdigit() or int(days_str) < 1:
@@ -808,7 +808,7 @@ async def cb_vl_buat_days(msg: Message):
     if saldo < total:
         await msg.answer(f"❌ Saldo tidak cukup. Saldo: Rp{fmt(saldo)}, Butuh: Rp{fmt(total)}")
         state_clear(uid); return
-    state_set(uid, "vless_beli", {**data, "days": days, "total": total, "step": "konfirm"})
+    state_set(uid, "vless_beli", __import__("json").dumps({**data, "days": days, "total": total, "step": "konfirm"})); state_set(uid, "vless_beli_step", "konfirm")
     await msg.answer(
         f"🔵 <b>Konfirmasi Pembelian VLESS</b>\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
@@ -822,7 +822,7 @@ async def cb_vl_buat_days(msg: Message):
 @router.callback_query(F.data == "konfirm_vless")
 async def cb_konfirm_vless(cb: CallbackQuery):
     uid  = cb.from_user.id
-    data = state_get(uid, "vless_beli", {})
+    data = __import__("json").loads(state_get(uid, "vless_beli") or "{}")
     if not data or data.get("step") != "konfirm":
         await cb.answer("❌ Sesi habis."); return
 
@@ -965,7 +965,7 @@ async def cb_vless_renew(cb: CallbackQuery):
     tg    = load_tg_server_conf(sname) or {}
     harga = int(tg.get("TG_HARGA_VLESS_HARI", tg.get("TG_HARGA_HARI","0")) or 0)
     saldo = saldo_get(uid)
-    state_set(uid, "vless_renew", {"username": username, "sname": sname, "step": "days"})
+    state_set(uid, "vless_renew", __import__("json").dumps({"username": username, "sname": sname})); state_set(uid, "vless_renew_step", "days")
     await cb.message.edit_text(
         f"🔵 <b>Perpanjang VLESS</b>\n━━━━━━━━━━━━━━━━━━━\n"
         f"👤 Username : <code>{username}</code>\n"
@@ -975,10 +975,10 @@ async def cb_vless_renew(cb: CallbackQuery):
         reply_markup=kb_back("m_perpanjang_vless"))
     await cb.answer()
 
-@router.message(lambda m: state_get(m.from_user.id, "vless_renew", {}).get("step") == "days")
+@router.message(lambda m: state_get(m.from_user.id, "vless_renew_step") == "days")
 async def cb_vless_renew_days(msg: Message):
     uid  = msg.from_user.id
-    data = state_get(uid, "vless_renew", {})
+    data = __import__("json").loads(state_get(uid, "vless_renew") or "{}")
     if not data: return
     days_str = msg.text.strip() if msg.text else ""
     if not days_str.isdigit() or int(days_str) < 1:
@@ -993,7 +993,7 @@ async def cb_vless_renew_days(msg: Message):
     if saldo < total:
         await msg.answer(f"❌ Saldo tidak cukup. Saldo: Rp{fmt(saldo)}, Butuh: Rp{fmt(total)}")
         state_clear(uid); return
-    state_set(uid, "vless_renew", {**data, "days": days, "total": total, "step": "konfirm"})
+    state_set(uid, "vless_renew", __import__("json").dumps({**data, "days": days, "total": total, "step": "konfirm"})); state_set(uid, "vless_renew_step", "konfirm")
     await msg.answer(
         f"🔵 <b>Konfirmasi Perpanjang VLESS</b>\n━━━━━━━━━━━━━━━━━━━\n"
         f"👤 Username : <code>{username}</code>\n"
@@ -1005,7 +1005,7 @@ async def cb_vless_renew_days(msg: Message):
 @router.callback_query(F.data == "konfirm_renew_vless")
 async def cb_konfirm_renew_vless(cb: CallbackQuery):
     uid  = cb.from_user.id
-    data = state_get(uid, "vless_renew", {})
+    data = __import__("json").loads(state_get(uid, "vless_renew") or "{}")
     if not data or data.get("step") != "konfirm":
         await cb.answer("❌ Sesi habis."); return
     username = data["username"]

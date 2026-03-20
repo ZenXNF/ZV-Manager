@@ -47,7 +47,7 @@ def text_home(fname: str, uid: int) -> str:
 
 
 def text_server_list(title: str, proto: str = "ssh") -> str:
-    """Daftar server untuk pilih saat beli/trial. proto='ssh' atau 'vmess'."""
+    """Daftar server untuk pilih saat beli/trial. proto='ssh', 'vmess', atau 'vless'."""
     servers = get_server_list_by_type(proto)
     out = f"<b>{title}</b>\n\n"
     if not servers:
@@ -56,40 +56,56 @@ def text_server_list(title: str, proto: str = "ssh") -> str:
         name = s.get("NAME", "")
         ip   = s.get("IP", "")
         tg   = load_tg_server_conf(name)
-        stype = s.get("SERVER_TYPE", tg.get("TG_SERVER_TYPE", "both"))
-        # Hitung akun sesuai proto yang ditampilkan
+
+        # Hitung akun sesuai proto
         if proto == "vmess":
             cnt = count_vmess_accounts(ip)
+        elif proto == "vless":
+            from storage import count_vless_accounts
+            cnt = count_vless_accounts(ip)
         else:
             cnt = count_ssh_accounts(ip)
-        # Harga: VMess pakai TG_HARGA_VMESS_HARI jika > 0, else fallback SSH
+
+        # Harga sesuai proto
         if proto == "vmess":
             harga_hari_raw = tg.get("TG_HARGA_VMESS_HARI","0") or "0"
             if harga_hari_raw == "0":
                 harga_hari_raw = tg.get("TG_HARGA_HARI","0") or "0"
+        elif proto == "vless":
+            harga_hari_raw = tg.get("TG_HARGA_VLESS_HARI","0") or "0"
+            if harga_hari_raw == "0":
+                harga_hari_raw = tg.get("TG_HARGA_HARI","0") or "0"
         else:
             harga_hari_raw = tg.get("TG_HARGA_HARI","0") or "0"
+
         hh = f"Rp{fmt(harga_hari_raw)}" if harga_hari_raw != "0" else "Hubungi admin"
         hb_raw = str(int(harga_hari_raw) * 30) if harga_hari_raw.isdigit() else "0"
         hb = f"Rp{fmt(hb_raw)}" if hb_raw != "0" else "Hubungi admin"
+
+        # BW, max akun, limit IP sesuai proto
         if proto == "vmess":
             bw_hr    = int(tg.get("TG_BW_PER_HARI_VMESS", tg.get("TG_BW_PER_HARI", "5")) or "5")
             max_akun = int(tg.get("TG_MAX_AKUN_VMESS", tg.get("TG_MAX_AKUN", "500")) or "500")
             limit_ip = tg.get("TG_LIMIT_IP_VMESS", tg.get("TG_LIMIT_IP", "2"))
+        elif proto == "vless":
+            bw_hr    = int(tg.get("TG_BW_PER_HARI_VLESS", tg.get("TG_BW_PER_HARI", "5")) or "5")
+            max_akun = int(tg.get("TG_MAX_AKUN_VLESS", tg.get("TG_MAX_AKUN", "500")) or "500")
+            limit_ip = tg.get("TG_LIMIT_IP_VLESS", tg.get("TG_LIMIT_IP", "2"))
         else:
             bw_hr    = int(tg.get("TG_BW_PER_HARI", "5") or "5")
             max_akun = int(tg.get("TG_MAX_AKUN", "500") or "500")
             limit_ip = tg.get("TG_LIMIT_IP", "2")
+
         bw_30 = bw_hr * 30
         bandwidth = f"{bw_hr} GB/hari · {bw_30} GB/30hr" if bw_hr > 0 else "Unlimited"
-        is_full  = cnt >= max_akun
-        # Label total akun sesuai proto
+        is_full = cnt >= max_akun
+
+        proto_label = {"vmess": "VMess", "vless": "VLESS"}.get(proto, "SSH")
         if is_full:
-            akun_label = f"👥 {'VMess' if proto == 'vmess' else 'SSH'}: <b>🔴 TERJUAL HABIS</b>"
-        elif proto == "vmess":
-            akun_label = f"👥 Total VMess: {cnt}/{max_akun}"
+            akun_label = f"👥 {proto_label}: <b>🔴 TERJUAL HABIS</b>"
         else:
-            akun_label = f"👥 Total SSH: {cnt}/{max_akun}"
+            akun_label = f"👥 Total {proto_label}: {cnt}/{max_akun}"
+
         out += (
             f"🌐 <b>{tg['TG_SERVER_LABEL']}</b>{'  🔴 Penuh' if is_full else ''}\n"
             f"💰 Harga/hari: {hh}\n"

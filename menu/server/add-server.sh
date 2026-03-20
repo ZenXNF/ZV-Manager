@@ -212,7 +212,7 @@ CONFEOF
     local tg_bw_per_hari_vmess="5"
 
     # --- Pengaturan SSH ---
-    if [[ "$server_type" == "ssh" || "$server_type" == "both" ]]; then
+    if [[ "$server_type" == "ssh" || "$server_type" == "both" || "$server_type" == "all" ]]; then
         echo ""
         echo -e "  ${BWHITE}── Pengaturan SSH ──────────────────────────${NC}"
         echo -e "  ${BYELLOW}(Semua field wajib diisi)${NC}"
