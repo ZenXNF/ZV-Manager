@@ -323,13 +323,13 @@ async def _handle_state(msg: Message, uid: int, text: str, state: str):
             await msg.answer("❌ Password minimal 4 karakter.\n\nKetik password:"); return
         state_set(uid, "PASSWORD", text)
         state_set(uid, "STATE", "await_days")
-        await msg.answer("Berapa hari masa aktif? (1-365)")
+        await msg.answer("Berapa hari masa aktif?")
         return
 
     # ── Buat akun: days ───────────────────────────────────
     if state == "await_days":
-        if not text.isdigit() or not (1 <= int(text) <= 365):
-            await msg.answer("❌ Masukkan angka antara 1 sampai 365.\n\nBerapa hari masa aktif?"); return
+        if not text.isdigit() or int(text) < 1:
+            await msg.answer("❌ Masukkan angka hari yang valid (minimal 1)."); return
         days     = int(text)
         sname    = state_get(uid, "SERVER")
         username = state_get(uid, "USERNAME")
@@ -404,14 +404,14 @@ async def _handle_state(msg: Message, uid: int, text: str, state: str):
             f"🌐 Server   : {tg['TG_SERVER_LABEL']}\n"
             f"💰 Harga    : {hh}\n"
             f"━━━━━━━━━━━━━━━━━━━\n"
-            f"Berapa hari? (1–365)",
+            f"Berapa hari?",
             parse_mode="HTML"
         )
         return
 
     if state == "vmess_await_days":
-        if not text.isdigit() or not (1 <= int(text) <= 365):
-            await msg.answer("❌ Masukkan angka antara 1 sampai 365."); return
+        if not text.isdigit() or int(text) < 1:
+            await msg.answer("❌ Masukkan angka hari yang valid (minimal 1)."); return
         days  = int(text)
         sname = state_get(uid, "SERVER")
         tg    = load_tg_server_conf(sname)
@@ -452,8 +452,8 @@ async def _handle_state(msg: Message, uid: int, text: str, state: str):
 
     # ── Perpanjang VMess: days ─────────────────────────────
     if state == "vrenew_days":
-        if not text.isdigit() or not (1 <= int(text) <= 365):
-            await msg.answer("❌ Masukkan angka antara 1 sampai 365.\n\nBerapa hari perpanjang VMess?"); return
+        if not text.isdigit() or int(text) < 1:
+            await msg.answer("❌ Masukkan angka hari yang valid (minimal 1)."); return
         days     = int(text)
         sname    = state_get(uid, "SERVER")
         username = state_get(uid, "USERNAME")

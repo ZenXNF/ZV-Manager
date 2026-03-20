@@ -255,7 +255,7 @@ def text_vless_info(tipe: str, username: str, uuid: str, domain: str,
     lines = [
         f"<b>{header}</b>",
         "━━━━━━━━━━━━━━━━━━━",
-        f"🌐 Username : <code>{username}</code>",
+        f"🔐 Username : <code>{username}</code>",
         f"🌐 Server   : {server_label}",
     ]
     if isp:
