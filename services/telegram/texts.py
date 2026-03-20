@@ -207,3 +207,69 @@ def text_vmess_info(tipe: str, username: str, uuid: str, domain: str,
     ]
     return "\n".join(lines)
 
+
+def vless_build_urls(username: str, uuid: str, domain: str):
+    """Kembalikan (url_tls, url_http, url_grpc) untuk VLESS."""
+    def _url(port, security, net, path, label):
+        if net == "ws":
+            return (f"vless://{uuid}@{domain}:{port}"
+                    f"?encryption=none&security={security}&type=ws"
+                    f"&host={domain}&path={path}#{label}")
+        else:
+            return (f"vless://{uuid}@{domain}:{port}"
+                    f"?encryption=none&security={security}&type=grpc"
+                    f"&serviceName={path}#{label}")
+    return (
+        _url(443,  "tls",  "ws",   "/vless",     f"{username}-TLS"),
+        _url(80,   "none", "ws",   "/vless",     f"{username}-HTTP"),
+        _url(8443, "tls",  "grpc", "vless-grpc", f"{username}-gRPC"),
+    )
+
+
+def text_vless_info(tipe: str, username: str, uuid: str, domain: str,
+                    exp_display: str, server_label: str,
+                    days: int = 0, total: int = 0,
+                    isp: str = "") -> str:
+    """Pesan info akun VLESS — semua dalam 1 pesan termasuk URL."""
+    from utils import fmt
+    is_trial = (tipe == "TRIAL")
+    header   = "🌟 TRIAL VLESS PREMIUM 🌟" if is_trial else "✅ AKUN VLESS PREMIUM"
+    url_tls, url_http, url_grpc = vless_build_urls(username, uuid, domain)
+
+    lines = [
+        f"<b>{header}</b>",
+        "━━━━━━━━━━━━━━━━━━━",
+        f"🔵 Username : <code>{username}</code>",
+        f"🌐 Server   : {server_label}",
+    ]
+    if isp:
+        lines.append(f"🏢 ISP      : {isp}")
+    lines += [
+        f"🔑 UUID     : <code>{uuid}</code>",
+        "━━━━━━━━━━━━━━━━━━━",
+        "📡 Port TLS  : 443 (WS + gRPC)",
+        "📡 Port HTTP : 80 (WS)",
+        "📎 Path WS   : /vless",
+        "📎 Path gRPC : vless-grpc",
+        "━━━━━━━━━━━━━━━━━━━",
+    ]
+    if is_trial:
+        lines.append("⏳ Expired : 30 menit")
+    else:
+        lines.append(f"⏳ Expired : {exp_display}")
+        if days and total:
+            lines.append(f"💸 Dibayar : {days} hari — Rp{fmt(total)}")
+    lines += [
+        "━━━━━━━━━━━━━━━━━━━",
+        "🔐 <b>URL VLESS TLS</b>",
+        f"<code>{url_tls}</code>",
+        "",
+        "🔓 <b>URL VLESS HTTP</b>",
+        f"<code>{url_http}</code>",
+        "",
+        "🔒 <b>URL VLESS gRPC</b>",
+        f"<code>{url_grpc}</code>",
+        "━━━━━━━━━━━━━━━━━━━",
+        "✨ Selamat menikmati layanan! ✨",
+    ]
+    return "\n".join(lines)

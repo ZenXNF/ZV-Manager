@@ -265,3 +265,55 @@ deploy_vmess_agent() {
         return 1
     fi
 }
+
+# ── VLESS agent helper ────────────────────────────────────────
+# remote_vless_agent <server_name> [zv-vless-agent args...]
+remote_vless_agent() {
+    local name="$1"
+    shift
+    local agent_args="$*"
+    if [[ "$name" == "local" || -z "$name" ]]; then
+        bash /etc/zv-manager/zv-vless-agent.sh $agent_args
+        return $?
+    fi
+    local conf="${SERVER_DIR}/${name}.conf"
+    [[ ! -f "$conf" ]] && { echo "REMOTE-ERR|Server '$name' tidak ditemukan"; return 1; }
+    _load_server_conf "$conf"
+    _ensure_sshpass
+    local result
+    result=$(sshpass -p "$PASS" ssh $_ssh_opts -p "$PORT" "${USER}@${IP}" \
+        "zv-vless-agent $agent_args" 2>&1)
+    local rc=$?
+    if echo "$result" | grep -qi "command not found\|not found\|No such file"; then
+        echo "REMOTE-ERR|zv-vless-agent tidak ditemukan di '${name}'. Deploy dulu via Menu Server → Deploy Agent."
+        return 1
+    fi
+    echo "$result"
+    return $rc
+}
+
+# Upload dan install zv-vless-agent ke remote server
+deploy_vless_agent() {
+    local name="$1"
+    local conf="${SERVER_DIR}/${name}.conf"
+    [[ ! -f "$conf" ]] && { echo "DEPLOY-ERR|Server '$name' tidak ditemukan"; return 1; }
+    local agent_src="/etc/zv-manager/zv-vless-agent.sh"
+    [[ ! -f "$agent_src" ]] && { echo "DEPLOY-ERR|File zv-vless-agent.sh tidak ada"; return 1; }
+    _load_server_conf "$conf"
+    _ensure_sshpass
+    sshpass -p "$PASS" ssh $_ssh_opts -p "$PORT" "${USER}@${IP}" \
+        "mkdir -p /etc/zv-manager/accounts/vless" 2>&1
+    sshpass -p "$PASS" ssh $_ssh_opts -p "$PORT" "${USER}@${IP}" \
+        "cat > /usr/local/bin/zv-vless-agent && chmod +x /usr/local/bin/zv-vless-agent" \
+        < "$agent_src" 2>&1
+    [[ $? -ne 0 ]] && { echo "DEPLOY-ERR|Gagal upload file"; return 1; }
+    local test_result
+    test_result=$(sshpass -p "$PASS" ssh $_ssh_opts -p "$PORT" "${USER}@${IP}" \
+        "zv-vless-agent ping" 2>&1)
+    if [[ "$test_result" == "ZV-VLESS-AGENT-OK" ]]; then
+        echo "DEPLOY-OK"
+    else
+        echo "DEPLOY-ERR|Upload berhasil tapi ping gagal: ${test_result}"
+        return 1
+    fi
+}

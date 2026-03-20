@@ -171,6 +171,9 @@ case "$install_mode" in
                 chmod +x /usr/local/bin/zv-agent
                 cp "$INSTALL_DIR/zv-vmess-agent.sh" /usr/local/bin/zv-vmess-agent
                 chmod +x /usr/local/bin/zv-vmess-agent
+                cp "$INSTALL_DIR/zv-vless-agent.sh" /usr/local/bin/zv-vless-agent
+                chmod +x /usr/local/bin/zv-vless-agent
+                mkdir -p "$INSTALL_DIR/accounts/vless"
             }
             _run_inline "Salin file ZV-Manager" "berhasil" _t_copy_restore
             _t_restore_backup() { tar -xzf "$BACKUP_FILE" -C "$INSTALL_DIR/" 2>/dev/null; }
@@ -261,6 +264,9 @@ _t_copy_files() {
     chmod +x /usr/local/bin/zv-agent
     cp "$INSTALL_DIR/zv-vmess-agent.sh" /usr/local/bin/zv-vmess-agent
     chmod +x /usr/local/bin/zv-vmess-agent
+    cp "$INSTALL_DIR/zv-vless-agent.sh" /usr/local/bin/zv-vless-agent
+    chmod +x /usr/local/bin/zv-vless-agent
+    mkdir -p /etc/zv-manager/accounts/vless
 }
 _t_ssl()      { source "$INSTALL_DIR/core/ssl.sh" && setup_ssl; }
 _t_system()   { source "$INSTALL_DIR/core/system.sh" && run_system_setup; }
@@ -277,7 +283,7 @@ _t_cron() {
     printf '%s\n' "0 * * * * root /bin/bash /etc/zv-manager/cron/tg-notify.sh" > /etc/cron.d/zv-tg-notify
     printf '%s\n' "* * * * * root for i in 1 2 3 4 5; do /bin/bash /etc/zv-manager/cron/expired.sh; sleep 12; done" > /etc/cron.d/zv-expired
     printf '%s\n' "5 0 * * * root /bin/bash /etc/zv-manager/cron/license-check.sh" "0 7 * * * root /bin/bash /etc/zv-manager/cron/daily-report.sh" > /etc/cron.d/zv-license
-    printf '%s\n' "* * * * * root for i in 1 2 3 4 5 6; do /bin/bash /etc/zv-manager/cron/bw-check.sh; sleep 10; done" "*/5 * * * * root /bin/bash /etc/zv-manager/cron/bw-vmess.sh" "* * * * * root /bin/bash /etc/zv-manager/cron/ip-limit.sh" > /etc/cron.d/zv-bw-check
+    printf '%s\n' "* * * * * root for i in 1 2 3 4 5 6; do /bin/bash /etc/zv-manager/cron/bw-check.sh; sleep 10; done" "*/5 * * * * root /bin/bash /etc/zv-manager/cron/bw-vmess.sh" "*/5 * * * * root /bin/bash /etc/zv-manager/cron/bw-vless.sh" "* * * * * root /bin/bash /etc/zv-manager/cron/ip-limit.sh" > /etc/cron.d/zv-bw-check
     printf '%s\n' "*/5 * * * * root /bin/bash /etc/zv-manager/cron/watchdog.sh" > /etc/cron.d/zv-watchdog
     printf '%s\n' "*/5 * * * * root /bin/bash /etc/zv-manager/cron/worker-check.sh" > /etc/cron.d/zv-worker-check
     printf '%s\n' "0 2 * * * root /bin/bash /etc/zv-manager/cron/backup.sh" > /etc/cron.d/zv-backup
@@ -507,6 +513,31 @@ if [[ "$install_mode" == restore_* ]]; then
     bash /usr/local/bin/zv-vmess-agent rebuild-config >> "$_INSTALL_LOG" 2>&1 || true
     systemctl restart zv-xray >> "$_INSTALL_LOG" 2>&1
     printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}%s${NC}\n" "Recreate VMess clients" "${vmess_ok} akun"
+
+    # Recreate VLESS
+    vless_ok=0
+    for cf in /etc/zv-manager/accounts/vless/*.conf; do
+        [[ -f "$cf" ]] || continue
+        _u=$(grep "^USERNAME=" "$cf" | cut -d= -f2 | tr -d '"[:space:]')
+        _uuid=$(grep "^UUID=" "$cf" | cut -d= -f2 | tr -d '"[:space:]')
+        _srv=$(grep "^SERVER=" "$cf" | cut -d= -f2 | tr -d '"')
+        _sip=""
+        for sc in /etc/zv-manager/servers/*.conf; do
+            _sname=$(grep "^NAME=" "$sc" 2>/dev/null | cut -d= -f2 | tr -d '"')
+            [[ "$_sname" == "$_srv" ]] && _sip=$(grep "^IP=" "$sc" 2>/dev/null | cut -d= -f2 | tr -d '"') && break
+        done
+        if [[ -z "$_sip" || "$_sip" == "$local_ip" ]]; then
+            if [[ -n "$_u" && -n "$_uuid" ]]; then
+                /usr/local/bin/xray api adu -s "127.0.0.1:10085" -inbound "vless-ws" \
+                    -user "{\"vless\":{\"id\":\"${_uuid}\",\"email\":\"${_u}@vless\"}}" &>/dev/null || true
+                /usr/local/bin/xray api adu -s "127.0.0.1:10085" -inbound "vless-grpc" \
+                    -user "{\"vless\":{\"id\":\"${_uuid}\",\"email\":\"${_u}@vless\"}}" &>/dev/null || true
+                vless_ok=$((vless_ok+1))
+            fi
+        fi
+    done >> "$_INSTALL_LOG" 2>&1
+    bash /usr/local/bin/zv-vless-agent rebuild-config >> "$_INSTALL_LOG" 2>&1 || true
+    printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}%s${NC}\n" "Recreate VLESS clients" "${vless_ok} akun"
 
     if [[ "$RESTORE_SKIP_TG" == true ]]; then
         printf "  ${O}–${NC}  ${W}%-35s${NC}  ${D}dilewati — setup via menu nanti${NC}\n" "Telegram Bot"

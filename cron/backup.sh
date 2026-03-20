@@ -71,6 +71,9 @@ backup_otak() {
     # Akun semua — paling penting untuk restore
     [[ -d "${BASE_DIR}/accounts" ]] && cp -r "${BASE_DIR}/accounts" "$dst/"
 
+    # Pastikan folder vless ada di backup
+    mkdir -p "${dst}/accounts/vless"
+
     # Server conf — strip PASS saja, simpan IP/PORT/USER + NAME/DOMAIN/ISP/TYPE
     if [[ -d "${BASE_DIR}/servers" ]]; then
         mkdir -p "${dst}/servers"
@@ -121,6 +124,7 @@ NOTETXT
     local _ip; _ip=$(cat "${BASE_DIR}/accounts/ipvps" 2>/dev/null | tr -d '[:space:]')
     local _n_ssh; _n_ssh=$(ls "${BASE_DIR}/accounts/ssh/"*.conf 2>/dev/null | wc -l)
     local _n_vmess; _n_vmess=$(ls "${BASE_DIR}/accounts/vmess/"*.conf 2>/dev/null | wc -l)
+    local _n_vless; _n_vless=$(ls "${BASE_DIR}/accounts/vless/"*.conf 2>/dev/null | wc -l)
     local _n_user; _n_user=$(ls "${BASE_DIR}/accounts/users/"*.user 2>/dev/null | wc -l)
     cat > "${dst}/credits.txt" << CREDITEOF
 ================================================
@@ -133,6 +137,7 @@ NOTETXT
   IP VPS   : ${_ip:-?}
   Akun SSH : ${_n_ssh}
   Akun VMess: ${_n_vmess}
+  Akun VLESS: ${_n_vless}
   User Bot : ${_n_user}
 ================================================
   Dibuat oleh  : ZenXNF
@@ -195,6 +200,18 @@ SRVTXT
         fi
     done
 
+    # Conf akun VLESS yang terkait server ini
+    local vless_count=0
+    mkdir -p "${dst}/vless-accounts"
+    for lc in "${BASE_DIR}/accounts/vless"/*.conf; do
+        [[ -f "$lc" ]] || continue
+        local srv; srv=$(grep "^SERVER=" "$lc" | cut -d= -f2 | tr -d '"')
+        if [[ "$srv" == "$sname" ]]; then
+            cp "$lc" "${dst}/vless-accounts/"
+            vless_count=$((vless_count + 1))
+        fi
+    done
+
     # Ambil xray config.json (lokal atau remote)
     local local_ip; local_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null | tr -d '[:space:]')
     local ssh_opts="-q -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o LogLevel=ERROR"
@@ -223,6 +240,7 @@ SRVTXT
   ISP      : ${ISP:-?}
   Akun SSH : ${ssh_count}
   Akun VMess: ${vmess_count}
+  Akun VLESS: ${vless_count}
 ================================================
   Dibuat oleh  : ZenXNF
   Telegram     : @ZenXNF / t.me/ZenXNF
@@ -260,7 +278,7 @@ CATATAN:
 NOTETXT
 
     [[ "$ok" == false ]] && echo "GAGAL: koneksi ke ${sname}" > "${dst}/error.txt"
-    echo "${ok}|${ssh_count}|${vmess_count}"
+    echo "${ok}|${ssh_count}|${vmess_count}|${vless_count}"
 }
 
 # ── Bersihkan backup lama (> 7 hari) ───────────────────────
@@ -341,6 +359,7 @@ for conf in "${BASE_DIR}/servers"/*.conf; do
     ok=$(echo "$result" | cut -d'|' -f1)
     ssh_c=$(echo "$result" | cut -d'|' -f2)
     vmess_c=$(echo "$result" | cut -d'|' -f3)
+    vless_c=$(echo "$result" | cut -d'|' -f4)
 
     SRV_FILE="${BACKUP_DIR}/zv-server-${sname}-${DATE}.zvbak"
     tar -czf "$SRV_FILE" -C "${TMP_DIR}/ssh-${sname}" . 2>/dev/null
@@ -358,9 +377,10 @@ for conf in "${BASE_DIR}/servers"/*.conf; do
 📦 Ukuran     : ${SRV_SIZE}
 🔑 Akun SSH   : ${ssh_c}
 ⚡ Akun VMess : ${vmess_c}
+🔵 Akun VLESS : ${vless_c}
 📊 Status     : ${STATUS}
 ━━━━━━━━━━━━━━━━━━━
-<i>Berisi: conf akun SSH+VMess, xray UUID config</i>
+<i>Berisi: conf akun SSH+VMess+VLESS, xray UUID config</i>
 <i>Ganti domain saja saat restore, user+UUID tetap sama</i>"
 done
 

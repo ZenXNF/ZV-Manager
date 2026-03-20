@@ -138,16 +138,28 @@ def get_server_list() -> list[dict]:
     return result
 
 def get_server_list_by_type(stype: str) -> list[dict]:
-    """Filter server berdasarkan tipe: 'ssh', 'vmess', atau 'both'.
-    stype='ssh'   → return server dengan SERVER_TYPE ssh atau both
-    stype='vmess' → return server dengan SERVER_TYPE vmess atau both
+    """Filter server berdasarkan tipe.
+    stype='ssh'   → server dengan tipe ssh, both, atau all
+    stype='vmess' → server dengan tipe vmess, both, atau all
+    stype='vless' → server dengan tipe vless, atau all
     """
     result = []
     for s in get_server_list():
         t = s.get("TG_SERVER_TYPE", s.get("SERVER_TYPE", "both"))
-        if t == "both" or t == stype:
+        if t == "all":
             result.append(s)
-    return result
+        elif stype == "ssh"   and t in ("ssh",   "both", "all"): result.append(s)
+        elif stype == "vmess" and t in ("vmess", "both", "all"): result.append(s)
+        elif stype == "vless" and t in ("vless", "all"):         result.append(s)
+    # Deduplikasi
+    seen = set()
+    deduped = []
+    for s in result:
+        n = s.get("NAME", "")
+        if n not in seen:
+            seen.add(n)
+            deduped.append(s)
+    return deduped
 
 def count_accounts(srv_ip: str) -> int:
     """Backward compat — hitung SSH saja."""
@@ -345,3 +357,29 @@ def already_trial_vmess(uid: int, sname: str) -> bool:
 def mark_trial_vmess(uid: int, sname: str) -> None:
     Path(TRIAL_DIR).mkdir(parents=True, exist_ok=True)
     (Path(TRIAL_DIR) / f"vmess_{uid}_{sname}").touch()
+
+# ── VLESS helpers ────────────────────────────────────────────────────────
+def already_trial_vless(uid: int, sname: str) -> bool:
+    """Cek apakah user sudah trial VLESS di server ini dalam 24 jam."""
+    marker = Path(TRIAL_DIR) / f"vless_{uid}_{sname}"
+    if not marker.exists():
+        return False
+    return (time.time() - marker.stat().st_mtime) < 86400
+
+def mark_trial_vless(uid: int, sname: str) -> None:
+    Path(TRIAL_DIR).mkdir(parents=True, exist_ok=True)
+    (Path(TRIAL_DIR) / f"vless_{uid}_{sname}").touch()
+
+def count_vless_accounts(srv_ip: str) -> int:
+    from config import BASE_DIR
+    key = f"vless:{srv_ip}"
+    import glob
+    count = 0
+    for conf in glob.glob(f"{BASE_DIR}/accounts/vless/*.conf"):
+        try:
+            d = _read_conf_file(conf)
+            if d.get("SERVER","") or True:  # Hitung semua
+                count += 1
+        except Exception:
+            pass
+    return count

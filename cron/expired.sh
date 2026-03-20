@@ -200,6 +200,41 @@ Buat akun baru lewat bot."
     [[ $count -gt 0 ]] && _log "VMESS: Total dihapus: $count akun"
 }
 
+
+# ============================================================
+# VLESS: hapus akun VLESS expired
+# ============================================================
+_sweep_vless() {
+    local vless_dir="/etc/zv-manager/accounts/vless"
+    [[ -d "$vless_dir" ]] || return
+    source /etc/zv-manager/utils/remote.sh 2>/dev/null
+    local count=0
+    local now_ts; now_ts=$(date +%s)
+    for conf_file in "$vless_dir"/*.conf; do
+        [[ -f "$conf_file" ]] || continue
+        USERNAME=$(grep "^USERNAME=" "$conf_file" | cut -d= -f2 | tr -d '"' | tr -d "[:space:]")
+        EXPIRED_TS=$(grep "^EXPIRED_TS=" "$conf_file" | cut -d= -f2 | tr -d '"' | tr -d "[:space:]")
+        TG_USER_ID=$(grep "^TG_USER_ID=" "$conf_file" | cut -d= -f2 | tr -d '"' | tr -d "[:space:]")
+        IS_TRIAL=$(grep "^IS_TRIAL=" "$conf_file" | cut -d= -f2 | tr -d '"' | tr -d "[:space:]")
+        SERVER=$(grep "^SERVER=" "$conf_file" | cut -d= -f2 | tr -d '"')
+        [[ -z "$USERNAME" ]] && continue
+        [[ -z "$EXPIRED_TS" ]] && continue
+        if [[ "$EXPIRED_TS" -lt "$now_ts" ]]; then
+            local sname="${SERVER:-local}"
+            local result
+            result=$(remote_vless_agent "$sname" del "$USERNAME" 2>/dev/null)
+            _log "VLESS [$sname]: Auto-deleted expired: $USERNAME ($result)"
+            rm -f "$conf_file"
+            rm -f "/tmp/zv-tg-state/vless_${USERNAME}.notified"
+            if [[ "$IS_TRIAL" != "1" && -n "$TG_USER_ID" && "$TG_USER_ID" != "0" ]]; then
+                _tg_send "$TG_USER_ID" "\U0001f5d1\ufe0f <b>Akun VLESS Dihapus</b>\n\nUsername : <code>${USERNAME}</code>\nServer   : ${sname}\n\nAkun VLESS kamu sudah expired dan telah dihapus otomatis.\nBuat akun baru lewat bot."
+            fi
+            count=$((count + 1))
+        fi
+    done
+    [[ $count -gt 0 ]] && _log "VLESS: Total dihapus: $count akun"
+}
+
 # ============================================================
 # Main
 # ============================================================
@@ -207,5 +242,6 @@ _log "=== Mulai cron expired sweep ==="
 _sweep_local
 _sweep_remote
 _sweep_vmess
+_sweep_vless
 
 _log "=== Selesai ==="

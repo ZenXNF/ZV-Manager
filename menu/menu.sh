@@ -200,20 +200,22 @@ main_menu() {
         _sep
         echo ""
         echo -e "  $(_grad '[1]' 0 210 255 160 80 255) Akun SSH             $(_grad '[2]' 0 210 255 160 80 255) Akun VMess"
-        echo -e "  $(_grad '[3]' 0 210 255 160 80 255) Manajemen Server     $(_grad '[4]' 0 210 255 160 80 255) Sistem"
-        echo -e "  $(_grad '[5]' 0 210 255 160 80 255) Info & Statistik     $(_grad '[6]' 0 210 255 160 80 255) Update Script"
+        echo -e "  $(_grad '[3]' 0 210 255 160 80 255) Akun VLESS           $(_grad '[4]' 0 210 255 160 80 255) Manajemen Server"
+        echo -e "  $(_grad '[5]' 0 210 255 160 80 255) Sistem               $(_grad '[6]' 0 210 255 160 80 255) Info & Statistik"
+        echo -e "  $(_grad '[7]' 0 210 255 160 80 255) Update Script"
         echo ""
         echo -e "  \e[38;2;255;200;0m[r]\e[0m Restart Semua        \e[38;2;255;80;80m[0]\e[0m Keluar"
         echo ""
-        read -rp "  Pilihan [0-6/r]: " choice
+        read -rp "  Pilihan [0-7/r]: " choice
 
         case $choice in
             1) bash /etc/zv-manager/menu/ssh/menu-ssh.sh ;;
             2) bash /etc/zv-manager/menu/vmess/menu-vmess.sh ;;
-            3) bash /etc/zv-manager/menu/server/menu-server.sh ;;
-            4) bash /etc/zv-manager/menu/system/menu-system.sh ;;
-            5) bash /etc/zv-manager/menu/info/menu-info.sh ;;
-            6)
+            3) bash /etc/zv-manager/menu/vless/menu-vless.sh ;;
+            4) bash /etc/zv-manager/menu/server/menu-server.sh ;;
+            5) bash /etc/zv-manager/menu/system/menu-system.sh ;;
+            6) bash /etc/zv-manager/menu/info/menu-info.sh ;;
+            7)
                 echo ""
                 echo -e "  ${BYELLOW}Menjalankan update...${NC}"
                 echo ""

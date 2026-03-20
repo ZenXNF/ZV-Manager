@@ -88,7 +88,7 @@ _task_copy() {
     cp -r core services menu utils cron checker /etc/zv-manager/
     chmod +x /etc/zv-manager/checker/zv-checker
     chmod +x /etc/zv-manager/services/telegram/bot.py 2>/dev/null || true
-    cp config.conf install.sh update.sh uninstall.sh zv-agent.sh zv-vmess-agent.sh /etc/zv-manager/
+    cp config.conf install.sh update.sh uninstall.sh zv-agent.sh zv-vmess-agent.sh zv-vless-agent.sh /etc/zv-manager/
 }
 
 _task_agent() {
@@ -96,6 +96,9 @@ _task_agent() {
     chmod +x /usr/local/bin/zv-agent
     cp /etc/zv-manager/zv-vmess-agent.sh /usr/local/bin/zv-vmess-agent
     chmod +x /usr/local/bin/zv-vmess-agent
+    cp /etc/zv-manager/zv-vless-agent.sh /usr/local/bin/zv-vless-agent
+    chmod +x /usr/local/bin/zv-vless-agent
+    mkdir -p /etc/zv-manager/accounts/vless
 }
 
 _task_bot() {
@@ -173,6 +176,7 @@ _task_cron() {
     printf '%s\n' \
         "*/5 * * * * root /bin/bash /etc/zv-manager/cron/bw-check.sh" \
         "*/5 * * * * root /bin/bash /etc/zv-manager/cron/bw-vmess.sh" \
+        "*/5 * * * * root /bin/bash /etc/zv-manager/cron/bw-vless.sh" \
         "* * * * * root /bin/bash /etc/zv-manager/cron/ip-limit.sh" \
         > /etc/cron.d/zv-bw-check
     printf '%s\n' "*/5 * * * * root /bin/bash /etc/zv-manager/cron/watchdog.sh" \

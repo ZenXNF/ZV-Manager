@@ -153,16 +153,20 @@ add_server() {
     echo ""
     echo -e "  ${BWHITE}[1]${NC} SSH only   — muncul di menu SSH"
     echo -e "  ${BWHITE}[2]${NC} VMess only — muncul di menu VMess"
-    echo -e "  ${BWHITE}[3]${NC} Keduanya   — muncul di SSH + VMess"
+    echo -e "  ${BWHITE}[3]${NC} VLESS only — muncul di menu VLESS"
+    echo -e "  ${BWHITE}[4]${NC} SSH + VMess"
+    echo -e "  ${BWHITE}[5]${NC} Semua      — SSH + VMess + VLESS"
     echo ""
     local server_type_choice
     while true; do
-        read -rp "  Pilih tipe [1/2/3]: " server_type_choice
+        read -rp "  Pilih tipe [1-5]: " server_type_choice
         case "$server_type_choice" in
             1) server_type="ssh";   break ;;
             2) server_type="vmess"; break ;;
-            3) server_type="both";  break ;;
-            *) echo -e "  ${BRED}Pilih 1, 2, atau 3${NC}" ;;
+            3) server_type="vless"; break ;;
+            4) server_type="both";  break ;;
+            5) server_type="all";   break ;;
+            *) echo -e "  ${BRED}Pilih 1-5${NC}" ;;
         esac
     done
     echo ""
@@ -236,12 +240,15 @@ CONFEOF
     fi
 
     # --- Pengaturan VMess ---
-    if [[ "$server_type" == "vmess" || "$server_type" == "both" ]]; then
+    local tg_harga_vless_hari="0" tg_harga_vless_bulan="0"
+    local tg_limit_ip_vless="2" tg_max_akun_vless="500"
+    local tg_bw_per_hari_vless="0"
+
+    if [[ "$server_type" == "vmess" || "$server_type" == "both" || "$server_type" == "all" ]]; then
         echo ""
         echo -e "  ${BWHITE}── Pengaturan VMess ────────────────────────${NC}"
         echo -e "  ${BYELLOW}(Kosongkan/Enter = ikuti setting SSH)${NC}"
-        # Default VMess ikuti SSH jika server type both
-        if [[ "$server_type" == "both" ]]; then
+        if [[ "$server_type" == "both" || "$server_type" == "all" ]]; then
             tg_harga_vmess_hari="${tg_harga_hari}"
             tg_limit_ip_vmess="${tg_limit_ip}"
             tg_max_akun_vmess="${tg_max_akun}"
@@ -258,6 +265,28 @@ CONFEOF
         [[ "$v" =~ ^[0-9]+$ ]] && tg_bw_per_hari_vmess="$v"
     fi
 
+    # --- Pengaturan VLESS ---
+    if [[ "$server_type" == "vless" || "$server_type" == "all" ]]; then
+        echo ""
+        echo -e "  ${BWHITE}── Pengaturan VLESS ────────────────────────${NC}"
+        echo -e "  ${BYELLOW}(Kosongkan/Enter = ikuti setting SSH)${NC}"
+        if [[ "$server_type" == "all" ]]; then
+            tg_harga_vless_hari="${tg_harga_hari}"
+            tg_limit_ip_vless="${tg_limit_ip}"
+            tg_max_akun_vless="${tg_max_akun}"
+            tg_bw_per_hari_vless="${tg_bw_per_hari}"
+        fi
+        read -rp "  Harga VLESS / hari (Rp)     [${tg_harga_vless_hari}]: " v
+        [[ "$v" =~ ^[0-9]+$ ]] && tg_harga_vless_hari="$v"
+        tg_harga_vless_bulan=$(( tg_harga_vless_hari * 30 ))
+        read -rp "  Limit IP VLESS per akun     [${tg_limit_ip_vless}]: " v
+        [[ "$v" =~ ^[0-9]+$ ]] && tg_limit_ip_vless="$v"
+        read -rp "  Maks akun VLESS             [${tg_max_akun_vless}]: " v
+        [[ "$v" =~ ^[0-9]+$ ]] && tg_max_akun_vless="$v"
+        read -rp "  Bandwidth VLESS / hari (GB) [${tg_bw_per_hari_vless}]: " v
+        [[ "$v" =~ ^[0-9]+$ ]] && tg_bw_per_hari_vless="$v"
+    fi
+
     # --- Tulis tg.conf ---
     cat > "${SERVER_DIR}/${name}.tg.conf" <<TGEOF
 TG_SERVER_LABEL="${tg_label}"
@@ -272,6 +301,11 @@ TG_HARGA_VMESS_BULAN="${tg_harga_vmess_bulan}"
 TG_LIMIT_IP_VMESS="${tg_limit_ip_vmess}"
 TG_MAX_AKUN_VMESS="${tg_max_akun_vmess}"
 TG_BW_PER_HARI_VMESS="${tg_bw_per_hari_vmess}"
+TG_HARGA_VLESS_HARI="${tg_harga_vless_hari}"
+TG_HARGA_VLESS_BULAN="${tg_harga_vless_bulan}"
+TG_LIMIT_IP_VLESS="${tg_limit_ip_vless}"
+TG_MAX_AKUN_VLESS="${tg_max_akun_vless}"
+TG_BW_PER_HARI_VLESS="${tg_bw_per_hari_vless}"
 TGEOF
 
     echo ""
@@ -282,24 +316,27 @@ TGEOF
     echo -e "  ${BWHITE}ISP    :${NC} ${BGREEN}${isp}${NC}"
     echo -e "  ${BWHITE}Label  :${NC} ${BGREEN}${tg_label}${NC}"
     echo -e "  ${BWHITE}Tipe   :${NC} ${BGREEN}${server_type}${NC}"
-    [[ "$server_type" != "vmess" ]] && \
+    [[ "$server_type" != "vmess" && "$server_type" != "vless" ]] && \
         echo -e "  ${BWHITE}Harga SSH   :${NC} ${BGREEN}Rp${tg_harga_hari}/hari${NC}"
-    [[ "$server_type" != "ssh" ]] && \
+    [[ "$server_type" != "ssh" && "$server_type" != "vless" ]] && \
         echo -e "  ${BWHITE}Harga VMess :${NC} ${BGREEN}Rp${tg_harga_vmess_hari}/hari${NC}"
+    [[ "$server_type" == "vless" || "$server_type" == "all" ]] && \
+        echo -e "  ${BWHITE}Harga VLESS :${NC} ${BGREEN}Rp${tg_harga_vless_hari}/hari${NC}"
 
     # --- Auto deploy agent ke server ---
     local local_ip
     local_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null)
 
     if [[ "$ip" == "$local_ip" ]]; then
-        # Server lokal — pastikan binary sudah ada
         cp /etc/zv-manager/zv-agent.sh /usr/local/bin/zv-agent 2>/dev/null
         chmod +x /usr/local/bin/zv-agent 2>/dev/null
         cp /etc/zv-manager/zv-vmess-agent.sh /usr/local/bin/zv-vmess-agent 2>/dev/null
         chmod +x /usr/local/bin/zv-vmess-agent 2>/dev/null
+        cp /etc/zv-manager/zv-vless-agent.sh /usr/local/bin/zv-vless-agent 2>/dev/null
+        chmod +x /usr/local/bin/zv-vless-agent 2>/dev/null
+        mkdir -p /etc/zv-manager/accounts/vless
         print_ok "Agent lokal siap."
     else
-        # Server remote — deploy via SSH
         echo ""
         print_info "Deploy agent ke remote server ${name}..."
         source /etc/zv-manager/utils/remote.sh
@@ -314,6 +351,12 @@ TGEOF
             print_ok "zv-vmess-agent berhasil di-deploy ke ${name}!"
         else
             print_warning "zv-vmess-agent gagal: ${r2#DEPLOY-ERR|}"
+        fi
+        local r3; r3=$(deploy_vless_agent "$name")
+        if [[ "$r3" == "DEPLOY-OK" ]]; then
+            print_ok "zv-vless-agent berhasil di-deploy ke ${name}!"
+        else
+            print_warning "zv-vless-agent gagal: ${r3#DEPLOY-ERR|}"
         fi
     fi
 

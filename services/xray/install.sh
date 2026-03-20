@@ -101,9 +101,10 @@ _write_xray_config() {
     cat > "$tmppy" << 'PYEOF2'
 import json, glob
 
-acct_dir = "/etc/zv-manager/accounts/vmess"
-clients  = []
-for conf in sorted(glob.glob(f"{acct_dir}/*.conf")):
+# ── Kumpulkan VMess clients ───────────────────────────────────
+vmess_dir = "/etc/zv-manager/accounts/vmess"
+vmess_clients = []
+for conf in sorted(glob.glob(f"{vmess_dir}/*.conf")):
     d = {}
     with open(conf) as f:
         for line in f:
@@ -112,15 +113,36 @@ for conf in sorted(glob.glob(f"{acct_dir}/*.conf")):
                 k, _, v = line.partition("=")
                 d[k] = v.strip('"')
     if d.get("UUID") and d.get("USERNAME"):
-        clients.append({
+        vmess_clients.append({
             "id":      d["UUID"],
             "alterId": 0,
             "email":   f"{d['USERNAME']}@vmess"
         })
 
-if not clients:
-    clients = [{"id": "00000000-0000-0000-0000-000000000000",
-                "alterId": 0, "email": "placeholder@vmess"}]
+if not vmess_clients:
+    vmess_clients = [{"id": "00000000-0000-0000-0000-000000000000",
+                      "alterId": 0, "email": "placeholder@vmess"}]
+
+# ── Kumpulkan VLESS clients ───────────────────────────────────
+vless_dir = "/etc/zv-manager/accounts/vless"
+vless_clients = []
+for conf in sorted(glob.glob(f"{vless_dir}/*.conf")):
+    d = {}
+    with open(conf) as f:
+        for line in f:
+            line = line.strip()
+            if "=" in line:
+                k, _, v = line.partition("=")
+                d[k] = v.strip('"')
+    if d.get("UUID") and d.get("USERNAME"):
+        vless_clients.append({
+            "id":    d["UUID"],
+            "email": f"{d['USERNAME']}@vless"
+        })
+
+if not vless_clients:
+    vless_clients = [{"id": "00000000-0000-0000-0000-000000000001",
+                      "email": "placeholder@vless"}]
 
 cfg = {
   "log": {"loglevel": "info", "access": "/var/log/xray-access.log", "error": "/var/log/xray-error.log"},
@@ -143,16 +165,31 @@ cfg = {
       "tag": "vmess-ws",
       "listen": "127.0.0.1", "port": 10001,
       "protocol": "vmess",
-      "settings": {"clients": clients},
+      "settings": {"clients": vmess_clients},
       "streamSettings": {"network": "ws", "wsSettings": {"path": "/vmess"}}
     },
     {
       "tag": "vmess-grpc",
       "listen": "127.0.0.1", "port": 10002,
       "protocol": "vmess",
-      "settings": {"clients": clients},
+      "settings": {"clients": vmess_clients},
       "streamSettings": {"network": "grpc",
                          "grpcSettings": {"serviceName": "vmess-grpc"}}
+    },
+    {
+      "tag": "vless-ws",
+      "listen": "127.0.0.1", "port": 10004,
+      "protocol": "vless",
+      "settings": {"clients": vless_clients, "decryption": "none"},
+      "streamSettings": {"network": "ws", "wsSettings": {"path": "/vless"}}
+    },
+    {
+      "tag": "vless-grpc",
+      "listen": "127.0.0.1", "port": 10005,
+      "protocol": "vless",
+      "settings": {"clients": vless_clients, "decryption": "none"},
+      "streamSettings": {"network": "grpc",
+                         "grpcSettings": {"serviceName": "vless-grpc"}}
     }
   ],
   "outbounds": [

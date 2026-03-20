@@ -111,6 +111,10 @@ def kb_admin_panel() -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="⚡ Kelola VMess",      callback_data="adm_vmess_menu")
     )
     b.row(
+        InlineKeyboardButton(text="🔵 Kelola VLESS",      callback_data="adm_vless_menu"),
+        InlineKeyboardButton(text="🟢 Online VMess",      callback_data="adm_online_vmess")
+    )
+    b.row(
         InlineKeyboardButton(text="🏠 Menu Utama",        callback_data="home")
     )
     return b.as_markup()
@@ -131,6 +135,27 @@ def kb_vmess_server_list(prefix: str, page: int = 0, back_cb: str = "m_buat") ->
         nav.append(InlineKeyboardButton(text="◀ Sebelumnya", callback_data=f"vpage_{prefix}_{page-1}"))
     if start + per_page < len(servers):
         nav.append(InlineKeyboardButton(text="Berikutnya ▶", callback_data=f"vpage_{prefix}_{page+1}"))
+    if nav:
+        b.row(*nav)
+    b.row(InlineKeyboardButton(text="↩ Kembali", callback_data=back_cb))
+    return b.as_markup()
+
+def kb_vless_server_list(prefix: str, page: int = 0, back_cb: str = "m_buat") -> InlineKeyboardMarkup:
+    """Server list untuk VLESS — filter tipe vless/all."""
+    servers = get_server_list_by_type("vless")
+    per_page = 6
+    start    = page * per_page
+    chunk    = servers[start:start + per_page]
+    b        = InlineKeyboardBuilder()
+    for s in chunk:
+        name = s.get("NAME", "")
+        b.button(text=name, callback_data=f"{prefix}_{name}")
+    b.adjust(2)
+    nav = []
+    if page > 0:
+        nav.append(InlineKeyboardButton(text="◀ Sebelumnya", callback_data=f"lpage_{prefix}_{page-1}"))
+    if start + per_page < len(servers):
+        nav.append(InlineKeyboardButton(text="Berikutnya ▶", callback_data=f"lpage_{prefix}_{page+1}"))
     if nav:
         b.row(*nav)
     b.row(InlineKeyboardButton(text="↩ Kembali", callback_data=back_cb))

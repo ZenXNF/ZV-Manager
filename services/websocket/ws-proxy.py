@@ -30,12 +30,14 @@ SSL_KEY        = '/etc/zv-manager/ssl/key.pem'
 DEFAULT_HOST   = '127.0.0.1'
 DEFAULT_PORT   = 22
 XRAY_PORT      = 10001
+XRAY_VLESS_PORT = 10004
 NGINX_PORT     = 8080
 BUFLEN         = 8192
 TIMEOUT        = 120
 MAX_WORKERS    = 200
 LISTEN_BACKLOG = 50
 VMESS_ACTIVE_FILE = '/tmp/zv-vmess-active.json'
+VLESS_ACTIVE_FILE = '/tmp/zv-vless-active.json'
 ZV_SERVERS_DIR    = '/etc/zv-manager/servers'
 
 logging.disable(logging.CRITICAL)
@@ -49,6 +51,10 @@ CONNECT_RESPONSE = "HTTP/1.1 200 Connection Established\r\n\r\n"
 # ── VMess IP tracking (thread-safe) ──────────────────────────
 _vmess_lock    = threading.Lock()
 _vmess_active  = {}   # {client_ip: active_connection_count}
+
+# ── VLESS IP tracking (thread-safe) ──────────────────────────
+_vless_lock    = threading.Lock()
+_vless_active  = {}   # {client_ip: active_connection_count}
 
 def _vmess_get_limit():
     """Baca TG_LIMIT_IP_VMESS dari semua server tg.conf, ambil nilai terkecil (paling ketat)"""
@@ -90,6 +96,45 @@ def _vmess_save():
     try:
         with open(VMESS_ACTIVE_FILE, 'w') as fp:
             json.dump(_vmess_active, fp)
+    except Exception:
+        pass
+
+def _vless_get_limit():
+    """Baca TG_LIMIT_IP_VLESS dari server tg.conf."""
+    limit = 2
+    try:
+        for f in glob.glob(f'{ZV_SERVERS_DIR}/*.tg.conf'):
+            for line in open(f):
+                if line.startswith('TG_LIMIT_IP_VLESS='):
+                    v = line.split('=',1)[1].strip().strip('"\'')
+                    try: limit = min(limit, int(v))
+                    except ValueError: pass
+    except Exception:
+        pass
+    return limit
+
+def _vless_register(client_ip):
+    limit = _vless_get_limit()
+    with _vless_lock:
+        current_ips = set(ip for ip, cnt in _vless_active.items() if cnt > 0)
+        if client_ip not in current_ips and len(current_ips) >= limit:
+            return False
+        _vless_active[client_ip] = _vless_active.get(client_ip, 0) + 1
+        _vless_save()
+        return True
+
+def _vless_unregister(client_ip):
+    with _vless_lock:
+        if client_ip in _vless_active:
+            _vless_active[client_ip] -= 1
+            if _vless_active[client_ip] <= 0:
+                del _vless_active[client_ip]
+        _vless_save()
+
+def _vless_save():
+    try:
+        with open(VLESS_ACTIVE_FILE, 'w') as fp:
+            json.dump(_vless_active, fp)
     except Exception:
         pass
 
@@ -153,6 +198,8 @@ def handle_connection(client_sock, client_ip='unknown'):
     target = None
     vmess_registered = False
     vmess_real_ip = None
+    vless_registered = False
+    vless_real_ip = None
     try:
         client_sock.settimeout(30)
 
@@ -233,6 +280,22 @@ def handle_connection(client_sock, client_ip='unknown'):
                 target.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
                 target.sendall(raw)
                 _relay(client_sock, target, leftover)
+            elif path.startswith('/vless') and is_ws:
+                real_ip = _parse_real_ip(data, client_ip)
+                if DEBUG: print(f"[ZV] VLESS conn client_ip={client_ip} real_ip={real_ip}", flush=True)
+                if not _vless_register(real_ip):
+                    if DEBUG: print(f"[ZV] VLESS REJECTED {real_ip}", flush=True)
+                    try:
+                        client_sock.sendall(b'HTTP/1.1 429 Too Many Connections\r\n\r\n')
+                    except Exception:
+                        pass
+                    return
+                vless_registered = True
+                vless_real_ip = real_ip
+                target = socket.create_connection((DEFAULT_HOST, XRAY_VLESS_PORT), timeout=10)
+                target.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+                target.sendall(raw)
+                _relay(client_sock, target, leftover)
             elif is_ws:
                 target = socket.create_connection((DEFAULT_HOST, DEFAULT_PORT), timeout=10)
                 target.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
@@ -258,6 +321,8 @@ def handle_connection(client_sock, client_ip='unknown'):
     finally:
         if vmess_registered and vmess_real_ip:
             _vmess_unregister(vmess_real_ip)
+        if vless_registered and vless_real_ip:
+            _vless_unregister(vless_real_ip)
         for s in (client_sock, target):
             if s:
                 try: s.close()

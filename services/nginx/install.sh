@@ -156,6 +156,19 @@ http {
             proxy_buffering off;
         }
 
+        # VLESS WebSocket
+        location /vless {
+            proxy_pass http://127.0.0.1:10004;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade \$http_upgrade;
+            proxy_set_header Connection \$connection_upgrade;
+            proxy_set_header Host \$host;
+            proxy_set_header X-Real-IP \$remote_addr;
+            proxy_read_timeout 3600s;
+            proxy_send_timeout 3600s;
+            proxy_buffering off;
+        }
+
     }
 
     # ── Port 8443 — VMess WS/gRPC (SSL) + Status Page ────────
@@ -195,9 +208,30 @@ http {
             proxy_buffering off;
         }
 
+        # VLESS WebSocket (TLS)
+        location /vless {
+            proxy_pass http://127.0.0.1:10004;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade \$http_upgrade;
+            proxy_set_header Connection \$connection_upgrade;
+            proxy_set_header Host \$host;
+            proxy_set_header X-Real-IP \$remote_addr;
+            proxy_read_timeout 3600s;
+            proxy_send_timeout 3600s;
+            proxy_buffering off;
+        }
+
         # VMess gRPC (TLS)
         location /vmess-grpc {
             grpc_pass grpc://127.0.0.1:10002;
+            grpc_set_header Host \$host;
+            grpc_read_timeout 3600s;
+            grpc_send_timeout 3600s;
+        }
+
+        # VLESS gRPC (TLS)
+        location /vless-grpc {
+            grpc_pass grpc://127.0.0.1:10005;
             grpc_set_header Host \$host;
             grpc_read_timeout 3600s;
             grpc_send_timeout 3600s;

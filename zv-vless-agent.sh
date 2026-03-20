@@ -1,10 +1,10 @@
 #!/bin/bash
 # ============================================================
-#   ZV-VMess-Agent - VMess Account Management Agent
-#   Diinstall di remote VPS: /usr/local/bin/zv-vmess-agent
+#   ZV-VLESS-Agent - VLESS Account Management Agent
+#   Diinstall di remote VPS: /usr/local/bin/zv-vless-agent
 #   Dipanggil dari brain VPS via SSH
 #
-#   Usage: zv-vmess-agent <command> [args...]
+#   Usage: zv-vless-agent <command> [args...]
 #
 #   Commands:
 #     ping
@@ -16,53 +16,50 @@
 #     enable <user>
 #     disable <user>
 #     check  <user>
-#     bw     <user>          → bandwidth used bytes
+#     exists <user>
+#     bw     <user>
+#     rebuild-config
 # ============================================================
 
-VMESS_DIR="/etc/zv-manager/accounts/vmess"
+VLESS_DIR="/etc/zv-manager/accounts/vless"
 XRAY_BIN="/usr/local/bin/xray"
 XRAY_DIR="/usr/local/etc/xray"
 API_ADDR="127.0.0.1:10085"
 
-mkdir -p "$VMESS_DIR"
+mkdir -p "$VLESS_DIR"
 
 # ── helpers ──────────────────────────────────────────────────
-_today()  { date +"%Y-%m-%d"; }
+_today()         { date +"%Y-%m-%d"; }
 _exp_from_days() { date -d "$1 days" +"%Y-%m-%d" 2>/dev/null; }
-_exp_from_base() { date -d "$1 +$2 days" +"%Y-%m-%d" 2>/dev/null; }
-_conf()   { echo "${VMESS_DIR}/$1.conf"; }
-_exists() { [[ -f "$(_conf "$1")" ]]; }
-_read()   {
-    unset USERNAME UUID EXPIRED CREATED TG_USER_ID BW_LIMIT_GB BW_USED_BYTES SERVER
+_conf()          { echo "${VLESS_DIR}/$1.conf"; }
+_exists()        { [[ -f "$(_conf "$1")" ]]; }
+_read()          {
+    unset USERNAME UUID EXPIRED EXPIRED_TS CREATED TG_USER_ID BW_LIMIT_GB BW_USED_BYTES SERVER
     source "$(_conf "$1")" 2>/dev/null
 }
 
 _xray_add() {
     local user="$1" uuid="$2"
-    local j="{\"vmess\":{\"id\":\"${uuid}\",\"email\":\"${user}@vmess\",\"alterId\":0}}"
-    # Hapus placeholder dari memory jika masih ada
-    "$XRAY_BIN" api rmu -s "$API_ADDR" -inbound "vmess-ws"   -email "placeholder@vmess" &>/dev/null || true
-    "$XRAY_BIN" api rmu -s "$API_ADDR" -inbound "vmess-grpc" -email "placeholder@vmess" &>/dev/null || true
-    "$XRAY_BIN" api adu -s "$API_ADDR" -inbound "vmess-ws"   -user "$j" &>/dev/null || true
-    "$XRAY_BIN" api adu -s "$API_ADDR" -inbound "vmess-grpc" -user "$j" &>/dev/null || true
+    local j="{\"vless\":{\"id\":\"${uuid}\",\"email\":\"${user}@vless\",\"encryption\":\"none\"}}"
+    "$XRAY_BIN" api rmu -s "$API_ADDR" -inbound "vless-ws"   -email "placeholder@vless" &>/dev/null || true
+    "$XRAY_BIN" api rmu -s "$API_ADDR" -inbound "vless-grpc" -email "placeholder@vless" &>/dev/null || true
+    "$XRAY_BIN" api adu -s "$API_ADDR" -inbound "vless-ws"   -user "$j" &>/dev/null || true
+    "$XRAY_BIN" api adu -s "$API_ADDR" -inbound "vless-grpc" -user "$j" &>/dev/null || true
     _xray_config_rebuild
 }
 
 _xray_del() {
     local user="$1"
-    "$XRAY_BIN" api rmu -s "$API_ADDR" -inbound "vmess-ws"   -email "${user}@vmess" &>/dev/null || true
-    "$XRAY_BIN" api rmu -s "$API_ADDR" -inbound "vmess-grpc" -email "${user}@vmess" &>/dev/null || true
+    "$XRAY_BIN" api rmu -s "$API_ADDR" -inbound "vless-ws"   -email "${user}@vless" &>/dev/null || true
+    "$XRAY_BIN" api rmu -s "$API_ADDR" -inbound "vless-grpc" -email "${user}@vless" &>/dev/null || true
     _xray_config_rebuild
 }
 
-# ── Rebuild config.json dari semua akun VMess + VLESS aktif ──
-# Fungsi terpusat — dipanggil oleh vmess-agent DAN vless-agent
-# Supaya tidak ada yang overwrite satu sama lain
+# ── Rebuild terpusat VMess + VLESS ────────────────────────────
 _xray_config_rebuild() {
     local config_file="${XRAY_DIR}/config.json"
     local now_ts; now_ts=$(date +%s)
 
-    # Kumpulkan VMess clients
     local vmess_ws="" vmess_grpc=""
     for f in "/etc/zv-manager/accounts/vmess"/*.conf; do
         [[ -f "$f" ]] || continue
@@ -74,12 +71,10 @@ _xray_config_rebuild() {
         vmess_ws="${vmess_ws}${entry},"
         vmess_grpc="${vmess_grpc}${entry},"
     done
-    vmess_ws="${vmess_ws%,}"
-    vmess_grpc="${vmess_grpc%,}"
+    vmess_ws="${vmess_ws%,}"; vmess_grpc="${vmess_grpc%,}"
 
-    # Kumpulkan VLESS clients
     local vless_ws="" vless_grpc=""
-    for f in "/etc/zv-manager/accounts/vless"/*.conf; do
+    for f in "${VLESS_DIR}"/*.conf; do
         [[ -f "$f" ]] || continue
         unset USERNAME UUID EXPIRED_TS
         source "$f" 2>/dev/null
@@ -89,17 +84,16 @@ _xray_config_rebuild() {
         vless_ws="${vless_ws}${entry},"
         vless_grpc="${vless_grpc}${entry},"
     done
-    vless_ws="${vless_ws%,}"
-    vless_grpc="${vless_grpc%,}"
+    vless_ws="${vless_ws%,}"; vless_grpc="${vless_grpc%,}"
 
     python3 - "$config_file" "$vmess_ws" "$vmess_grpc" "$vless_ws" "$vless_grpc" << 'PYEOF'
 import sys, json
 
-config_file   = sys.argv[1]
-vmess_ws_raw  = sys.argv[2]
-vmess_grpc_raw= sys.argv[3]
-vless_ws_raw  = sys.argv[4]
-vless_grpc_raw= sys.argv[5]
+config_file    = sys.argv[1]
+vmess_ws_raw   = sys.argv[2]
+vmess_grpc_raw = sys.argv[3]
+vless_ws_raw   = sys.argv[4]
+vless_grpc_raw = sys.argv[5]
 
 def parse_clients(raw):
     if not raw.strip():
@@ -109,10 +103,10 @@ def parse_clients(raw):
     except Exception:
         return []
 
-vmess_clients_ws   = parse_clients(vmess_ws_raw)   or [{"id":"00000000-0000-0000-0000-000000000000","alterId":0,"email":"placeholder@vmess"}]
-vmess_clients_grpc = parse_clients(vmess_grpc_raw) or [{"id":"00000000-0000-0000-0000-000000000000","alterId":0,"email":"placeholder@vmess"}]
-vless_clients_ws   = parse_clients(vless_ws_raw)   or [{"id":"00000000-0000-0000-0000-000000000001","email":"placeholder@vless"}]
-vless_clients_grpc = parse_clients(vless_grpc_raw) or [{"id":"00000000-0000-0000-0000-000000000001","email":"placeholder@vless"}]
+vmess_ws   = parse_clients(vmess_ws_raw)   or [{"id":"00000000-0000-0000-0000-000000000000","alterId":0,"email":"placeholder@vmess"}]
+vmess_grpc = parse_clients(vmess_grpc_raw) or [{"id":"00000000-0000-0000-0000-000000000000","alterId":0,"email":"placeholder@vmess"}]
+vless_ws   = parse_clients(vless_ws_raw)   or [{"id":"00000000-0000-0000-0000-000000000001","email":"placeholder@vless"}]
+vless_grpc = parse_clients(vless_grpc_raw) or [{"id":"00000000-0000-0000-0000-000000000001","email":"placeholder@vless"}]
 
 with open(config_file) as f:
     cfg = json.load(f)
@@ -120,14 +114,14 @@ with open(config_file) as f:
 for inbound in cfg.get("inbounds", []):
     tag = inbound.get("tag")
     if tag == "vmess-ws":
-        inbound["settings"]["clients"] = vmess_clients_ws
+        inbound["settings"]["clients"] = vmess_ws
     elif tag == "vmess-grpc":
-        inbound["settings"]["clients"] = vmess_clients_grpc
+        inbound["settings"]["clients"] = vmess_grpc
     elif tag == "vless-ws":
-        inbound["settings"]["clients"] = vless_clients_ws
+        inbound["settings"]["clients"] = vless_ws
         inbound["settings"]["decryption"] = "none"
     elif tag == "vless-grpc":
-        inbound["settings"]["clients"] = vless_clients_grpc
+        inbound["settings"]["clients"] = vless_grpc
         inbound["settings"]["decryption"] = "none"
 
 with open(config_file, "w") as f:
@@ -137,30 +131,29 @@ PYEOF
 }
 
 # ── ping ─────────────────────────────────────────────────────
-cmd_ping() { echo "ZV-VMESS-AGENT-OK"; }
+cmd_ping() { echo "ZV-VLESS-AGENT-OK"; }
 
 # ── add ──────────────────────────────────────────────────────
-# add <user> <uuid> <days> <bw_limit_gb> [tg_uid]
 cmd_add() {
     local user="$1" uuid="$2" days="$3" bw="$4" tg_uid="${5:-0}"
     [[ -z "$user" || -z "$uuid" || -z "$days" ]] && {
         echo "ADD-ERR|Argumen tidak lengkap (user uuid days bw_limit_gb)"; return 1
     }
     [[ -z "$bw" ]] && bw=0
-    # Kalau conf sudah ada (dibuat oleh brain bot), skip buat conf tapi tetap inject ke xray
     if _exists "$user"; then
         _read "$user"
         _xray_add "$user" "${UUID:-$uuid}"
         echo "ADD-OK|${user}|${UUID:-$uuid}|${EXPIRED:-?}"
         return 0
     fi
-    local exp
-    exp=$(_exp_from_days "$days")
+    local exp; exp=$(_exp_from_days "$days")
     [[ -z "$exp" ]] && { echo "ADD-ERR|Format hari tidak valid: $days"; return 1; }
-    cat > "$(_conf "$user")" <<CONFEOF
+    local exp_ts; exp_ts=$(date -d "$exp" +%s 2>/dev/null || echo "0")
+    cat > "$(_conf "$user")" << CONFEOF
 USERNAME="${user}"
 UUID="${uuid}"
 EXPIRED="${exp}"
+EXPIRED_TS="${exp_ts}"
 CREATED="$(_today)"
 TG_USER_ID="${tg_uid}"
 BW_LIMIT_GB="${bw}"
@@ -178,7 +171,7 @@ cmd_del() {
     [[ -z "$user" ]] && { echo "DEL-ERR|Username wajib diisi"; return 1; }
     _exists "$user" || { echo "DEL-ERR|Akun '${user}' tidak ditemukan"; return 1; }
     _xray_del "$user"
-    rm -f "$(_conf "$user")" "${VMESS_DIR}/${user}.disabled"
+    rm -f "$(_conf "$user")" "${VLESS_DIR}/${user}.disabled"
     echo "DEL-OK|${user}"
 }
 
@@ -192,10 +185,9 @@ cmd_info() {
 }
 
 # ── list ─────────────────────────────────────────────────────
-# Output per baris: USERNAME|UUID|EXPIRED|CREATED|BW_LIMIT_GB|BW_USED_BYTES
 cmd_list() {
     local count=0
-    for conf in "${VMESS_DIR}"/*.conf; do
+    for conf in "${VLESS_DIR}"/*.conf; do
         [[ -f "$conf" ]] || continue
         unset USERNAME UUID EXPIRED CREATED BW_LIMIT_GB BW_USED_BYTES
         source "$conf"
@@ -210,13 +202,13 @@ cmd_renew() {
     local user="$1" days="$2"
     [[ -z "$user" || -z "$days" ]] && { echo "RENEW-ERR|Argumen tidak lengkap (user days)"; return 1; }
     _exists "$user" || { echo "RENEW-ERR|Akun '${user}' tidak ditemukan"; return 1; }
-    local new_exp
-    new_exp=$(_exp_from_days "$days")
+    local new_exp; new_exp=$(_exp_from_days "$days")
     [[ -z "$new_exp" ]] && { echo "RENEW-ERR|Format hari tidak valid"; return 1; }
+    local new_ts; new_ts=$(date -d "$new_exp" +%s 2>/dev/null || echo "0")
     sed -i "s/^EXPIRED=.*/EXPIRED=\"${new_exp}\"/" "$(_conf "$user")"
-    # Re-add ke xray jika sebelumnya disabled
-    if [[ -f "${VMESS_DIR}/${user}.disabled" ]]; then
-        mv "${VMESS_DIR}/${user}.disabled" "$(_conf "$user")"
+    sed -i "s/^EXPIRED_TS=.*/EXPIRED_TS=\"${new_ts}\"/" "$(_conf "$user")"
+    if [[ -f "${VLESS_DIR}/${user}.disabled" ]]; then
+        mv "${VLESS_DIR}/${user}.disabled" "$(_conf "$user")"
         _read "$user"
         _xray_add "$user" "$UUID"
     fi
@@ -227,14 +219,14 @@ cmd_renew() {
 cmd_enable() {
     local user="$1"
     [[ -z "$user" ]] && { echo "ENABLE-ERR|Username wajib diisi"; return 1; }
-    local disabled="${VMESS_DIR}/${user}.disabled"
+    local disabled="${VLESS_DIR}/${user}.disabled"
     if [[ -f "$disabled" ]]; then
         mv "$disabled" "$(_conf "$user")"
         _read "$user"
         _xray_add "$user" "$UUID"
         echo "ENABLE-OK|${user}"
     elif _exists "$user"; then
-        echo "ENABLE-OK|${user}"  # sudah aktif
+        echo "ENABLE-OK|${user}"
     else
         echo "ENABLE-ERR|Akun '${user}' tidak ditemukan"
     fi
@@ -245,21 +237,26 @@ cmd_disable() {
     [[ -z "$user" ]] && { echo "DISABLE-ERR|Username wajib diisi"; return 1; }
     _exists "$user" || { echo "DISABLE-ERR|Akun '${user}' tidak ditemukan"; return 1; }
     _xray_del "$user"
-    mv "$(_conf "$user")" "${VMESS_DIR}/${user}.disabled"
+    mv "$(_conf "$user")" "${VLESS_DIR}/${user}.disabled"
     echo "DISABLE-OK|${user}"
 }
 
-# ── check ────────────────────────────────────────────────────
+# ── check / exists ───────────────────────────────────────────
 cmd_check() {
     local user="$1"
     [[ -z "$user" ]] && { echo "CHECK-ERR|Username wajib diisi"; return 1; }
     if _exists "$user"; then
         echo "EXISTS|${user}"
-    elif [[ -f "${VMESS_DIR}/${user}.disabled" ]]; then
+    elif [[ -f "${VLESS_DIR}/${user}.disabled" ]]; then
         echo "DISABLED|${user}"
     else
         echo "NOTFOUND|${user}"
     fi
+}
+
+cmd_exists() {
+    local user="$1"
+    _exists "$user" && echo "YES" || echo "NO"
 }
 
 # ── bw ───────────────────────────────────────────────────────
@@ -268,9 +265,8 @@ cmd_bw() {
     [[ -z "$user" ]] && { echo "BW-ERR|Username wajib diisi"; return 1; }
     _exists "$user" || { echo "BW-ERR|Akun '${user}' tidak ditemukan"; return 1; }
     _read "$user"
-    # Query xray stats
     local tmpf; tmpf=$(mktemp)
-    "$XRAY_BIN" api statsquery -s "$API_ADDR" -pattern "user>>>${user}@vmess" --reset > "$tmpf" 2>/dev/null
+    "$XRAY_BIN" api statsquery -s "$API_ADDR" -pattern "user>>>${user}@vless" --reset > "$tmpf" 2>/dev/null
     local used
     used=$(python3 - "$tmpf" << 'PYEOF'
 import sys, json
@@ -300,11 +296,12 @@ case "$CMD" in
     enable)         cmd_enable  "$@"     ;;
     disable)        cmd_disable "$@"     ;;
     check)          cmd_check   "$@"     ;;
+    exists)         cmd_exists  "$@"     ;;
     bw)             cmd_bw      "$@"     ;;
     rebuild-config) _xray_config_rebuild; echo "REBUILD-OK" ;;
     *)
-        echo "ZV-VMess-Agent"
-        echo "Usage: zv-vmess-agent <command> [args]"
+        echo "ZV-VLESS-Agent"
+        echo "Usage: zv-vless-agent <command> [args]"
         echo ""
         echo "Commands:"
         echo "  ping"
@@ -316,6 +313,7 @@ case "$CMD" in
         echo "  enable <user>"
         echo "  disable <user>"
         echo "  check  <user>"
+        echo "  exists <user>"
         echo "  bw     <user>"
         exit 1
         ;;
