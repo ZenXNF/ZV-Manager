@@ -23,8 +23,8 @@ from keyboards import kb_admin_panel, kb_home_btn
 import time
 from storage import (
     load_account_conf, load_server_conf, load_user_info, load_vmess_conf,
-    saldo_get, state_clear, state_set, invalidate_account_cache,
-    get_server_list_by_type, get_server_list,
+    saldo_get, saldo_add, saldo_deduct, state_clear, state_set, state_get,
+    invalidate_account_cache, get_server_list_by_type, get_server_list,
 )
 from utils import fmt, tail_log, zv_log
 
@@ -1115,3 +1115,284 @@ async def cb_adm_aps_proto(cb: CallbackQuery):
         page = 0
     text, kb = _render_server_akun(server_name, proto, page)
     await cb.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
+
+# ═══════════════════════════════════════════════════════════════
+# Message handler — topup, kurangi, hapus akun (state machine)
+# ═══════════════════════════════════════════════════════════════
+@router.message()
+async def adm_message_handler(msg: Message):
+    uid = msg.from_user.id
+    if uid != ADMIN_ID:
+        return
+    st = state_get(uid, "STATE", None)
+    if not st:
+        return
+
+    text = msg.text.strip() if msg.text else ""
+
+    # ── Topup: tanya UID ────────────────────────────────────────
+    if st == "adm_topup_uid":
+        if not text.isdigit():
+            await msg.answer("❌ User ID harus angka."); return
+        state_set(uid, "STATE", "adm_topup_amount")
+        state_set(uid, "adm_topup_target", text)
+        await msg.answer(
+            f"💰 <b>Top Up Saldo</b>\n━━━━━━━━━━━━━━━━━━━\n"
+            f"User ID  : <code>{text}</code>\n"
+            f"Saldo saat ini: Rp{fmt(saldo_get(int(text)))}\n"
+            f"━━━━━━━━━━━━━━━━━━━\nMasukkan jumlah topup (Rp):",
+            parse_mode="HTML")
+        return
+
+    # ── Topup: tanya jumlah ─────────────────────────────────────
+    if st == "adm_topup_amount":
+        if not text.isdigit() or int(text) < 1:
+            await msg.answer("❌ Masukkan angka yang valid."); return
+        target_uid = int(state_get(uid, "adm_topup_target", "0"))
+        amount = int(text)
+        saldo_add(target_uid, amount)
+        new_saldo = saldo_get(target_uid)
+        state_clear(uid)
+        zv_log(f"ADM_TOPUP: admin={uid} target={target_uid} amount={amount}")
+        await msg.answer(
+            f"✅ <b>Top Up Berhasil!</b>\n━━━━━━━━━━━━━━━━━━━\n"
+            f"User ID  : <code>{target_uid}</code>\n"
+            f"Ditambah : Rp{fmt(amount)}\n"
+            f"Saldo baru: Rp{fmt(new_saldo)}\n"
+            f"━━━━━━━━━━━━━━━━━━━",
+            parse_mode="HTML", reply_markup=kb_admin_panel())
+        return
+
+    # ── Kurangi: tanya UID ──────────────────────────────────────
+    if st == "adm_kurangi_uid":
+        if not text.isdigit():
+            await msg.answer("❌ User ID harus angka."); return
+        state_set(uid, "STATE", "adm_kurangi_amount")
+        state_set(uid, "adm_kurangi_target", text)
+        await msg.answer(
+            f"➖ <b>Kurangi Saldo</b>\n━━━━━━━━━━━━━━━━━━━\n"
+            f"User ID  : <code>{text}</code>\n"
+            f"Saldo saat ini: Rp{fmt(saldo_get(int(text)))}\n"
+            f"━━━━━━━━━━━━━━━━━━━\nMasukkan jumlah pengurangan (Rp):",
+            parse_mode="HTML")
+        return
+
+    # ── Kurangi: tanya jumlah ───────────────────────────────────
+    if st == "adm_kurangi_amount":
+        if not text.isdigit() or int(text) < 1:
+            await msg.answer("❌ Masukkan angka yang valid."); return
+        target_uid = int(state_get(uid, "adm_kurangi_target", "0"))
+        amount = int(text)
+        saldo_deduct(target_uid, amount)
+        new_saldo = saldo_get(target_uid)
+        state_clear(uid)
+        zv_log(f"ADM_KURANGI: admin={uid} target={target_uid} amount={amount}")
+        await msg.answer(
+            f"✅ <b>Saldo Dikurangi!</b>\n━━━━━━━━━━━━━━━━━━━\n"
+            f"User ID  : <code>{target_uid}</code>\n"
+            f"Dikurangi: Rp{fmt(amount)}\n"
+            f"Saldo baru: Rp{fmt(new_saldo)}\n"
+            f"━━━━━━━━━━━━━━━━━━━",
+            parse_mode="HTML", reply_markup=kb_admin_panel())
+        return
+
+# ═══════════════════════════════════════════════════════════════
+# Kelola VLESS (admin)
+# ═══════════════════════════════════════════════════════════════
+VLESS_DIR_ADMIN = "/etc/zv-manager/accounts/vless"
+
+def _load_vless_list():
+    import glob
+    items = []
+    for conf in sorted(glob.glob(f"{VLESS_DIR_ADMIN}/*.conf")):
+        d = {}
+        try:
+            with open(conf) as f:
+                for line in f:
+                    line = line.strip()
+                    if "=" in line:
+                        k, _, v = line.partition("=")
+                        d[k] = v.strip('"')
+        except Exception:
+            continue
+        if d.get("USERNAME"):
+            items.append(d)
+    return items
+
+def _vless_list_keyboard(prefix: str, back: str = "adm_vless_menu") -> InlineKeyboardMarkup:
+    items = _load_vless_list()
+    b = InlineKeyboardBuilder()
+    for i in items:
+        uname = i.get("USERNAME","?")
+        sname = i.get("SERVER","local")
+        exp   = i.get("EXPIRED_DATE","?")
+        b.row(InlineKeyboardButton(
+            text=f"{uname} [{sname}] — {exp}",
+            callback_data=f"{prefix}|{uname}"
+        ))
+    b.row(InlineKeyboardButton(text="↩ Kembali", callback_data=back))
+    return b.as_markup()
+
+async def _vless_agent_admin(sname: str, *args) -> str:
+    from storage import load_server_conf
+    sconf = load_server_conf(sname) or {}
+    srv_ip = sconf.get("IP", "")
+    cmd_args = " ".join(str(a) for a in args)
+    if not srv_ip or srv_ip == _local_ip_cached():
+        cmd = f"zv-vless-agent {cmd_args}"
+    else:
+        cmd = f"source /etc/zv-manager/utils/remote.sh && remote_vless_agent {sname} {cmd_args}"
+    try:
+        proc = await asyncio.create_subprocess_shell(
+            cmd, stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE, executable="/bin/bash")
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=20)
+        return stdout.decode().strip()
+    except Exception as e:
+        return f"AGENT-ERR|{e}"
+
+@router.callback_query(F.data == "adm_vless_menu")
+async def cb_adm_vless_menu(cb: CallbackQuery):
+    uid = cb.from_user.id
+    if uid != ADMIN_ID:
+        await cb.answer("❌ Akses ditolak"); return
+    await cb.answer()
+    import time as _time
+    items = _load_vless_list()
+    total = len(items)
+    aktif = sum(1 for i in items if int(i.get("EXPIRED_TS","0") or "0") > int(_time.time()))
+    await cb.message.edit_text(
+        f"🔵 <b>Kelola VLESS</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"📊 Total akun : {total}\n"
+        f"✅ Aktif      : {aktif}\n"
+        f"━━━━━━━━━━━━━━━━━━━",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🗑️ Hapus Akun VLESS",  callback_data="adm_vless_hapus")],
+            [InlineKeyboardButton(text="🔄 Renew Akun VLESS",  callback_data="adm_vless_renew")],
+            [InlineKeyboardButton(text="🔇 Disable Akun",      callback_data="adm_vless_disable")],
+            [InlineKeyboardButton(text="🔊 Enable Akun",       callback_data="adm_vless_enable")],
+            [InlineKeyboardButton(text="↩ Kembali",            callback_data="m_admin")],
+        ])
+    )
+
+@router.callback_query(F.data == "adm_vless_hapus")
+async def cb_adm_vless_hapus(cb: CallbackQuery):
+    if cb.from_user.id != ADMIN_ID:
+        await cb.answer("❌"); return
+    await cb.answer()
+    await cb.message.edit_text(
+        "🗑️ <b>Hapus Akun VLESS</b>\n━━━━━━━━━━━━━━━━━━━\nPilih akun:",
+        parse_mode="HTML", reply_markup=_vless_list_keyboard("adm_vldel"))
+
+@router.callback_query(F.data.startswith("adm_vldel|"))
+async def cb_adm_vldel_exec(cb: CallbackQuery):
+    if cb.from_user.id != ADMIN_ID:
+        await cb.answer("❌"); return
+    username = cb.data.split("|", 1)[1]
+    conf_path = Path(f"{VLESS_DIR_ADMIN}/{username}.conf")
+    sname = "local"
+    if conf_path.exists():
+        for line in conf_path.read_text().splitlines():
+            if line.startswith("SERVER="):
+                sname = line.split("=",1)[1].strip().strip('"')
+    result = await _vless_agent_admin(sname, "del", username)
+    conf_path.unlink(missing_ok=True)
+    zv_log(f"ADM_VLESS_DEL: {username} server={sname}")
+    await cb.answer("✅ Dihapus!")
+    await cb.message.edit_text(
+        f"✅ Akun VLESS <code>{username}</code> berhasil dihapus.\nAgent: {result}",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="↩ Kelola VLESS", callback_data="adm_vless_menu")
+        ]]))
+
+@router.callback_query(F.data == "adm_vless_disable")
+async def cb_adm_vless_disable(cb: CallbackQuery):
+    if cb.from_user.id != ADMIN_ID:
+        await cb.answer("❌"); return
+    await cb.answer()
+    await cb.message.edit_text(
+        "🔇 <b>Disable Akun VLESS</b>\n━━━━━━━━━━━━━━━━━━━\nPilih akun:",
+        parse_mode="HTML", reply_markup=_vless_list_keyboard("adm_vldis"))
+
+@router.callback_query(F.data.startswith("adm_vldis|"))
+async def cb_adm_vldis_exec(cb: CallbackQuery):
+    if cb.from_user.id != ADMIN_ID:
+        await cb.answer("❌"); return
+    username = cb.data.split("|", 1)[1]
+    conf_path = Path(f"{VLESS_DIR_ADMIN}/{username}.conf")
+    sname = "local"
+    if conf_path.exists():
+        for line in conf_path.read_text().splitlines():
+            if line.startswith("SERVER="):
+                sname = line.split("=",1)[1].strip().strip('"')
+    result = await _vless_agent_admin(sname, "disable", username)
+    if conf_path.exists():
+        conf_path.rename(f"{VLESS_DIR_ADMIN}/{username}.disabled")
+    await cb.answer("✅")
+    await cb.message.edit_text(
+        f"🔇 Akun <code>{username}</code> dinonaktifkan.\nAgent: {result}",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="↩ Kelola VLESS", callback_data="adm_vless_menu")
+        ]]))
+
+@router.callback_query(F.data == "adm_vless_enable")
+async def cb_adm_vless_enable(cb: CallbackQuery):
+    if cb.from_user.id != ADMIN_ID:
+        await cb.answer("❌"); return
+    await cb.answer()
+    await cb.message.edit_text(
+        "🔊 <b>Enable Akun VLESS</b>\n━━━━━━━━━━━━━━━━━━━\nPilih akun:",
+        parse_mode="HTML", reply_markup=_vless_list_keyboard("adm_vlen"))
+
+@router.callback_query(F.data.startswith("adm_vlen|"))
+async def cb_adm_vlen_exec(cb: CallbackQuery):
+    if cb.from_user.id != ADMIN_ID:
+        await cb.answer("❌"); return
+    username = cb.data.split("|", 1)[1]
+    dis_path = Path(f"{VLESS_DIR_ADMIN}/{username}.disabled")
+    conf_path = Path(f"{VLESS_DIR_ADMIN}/{username}.conf")
+    sname = "local"
+    src = dis_path if dis_path.exists() else conf_path
+    if src.exists():
+        for line in src.read_text().splitlines():
+            if line.startswith("SERVER="):
+                sname = line.split("=",1)[1].strip().strip('"')
+        if dis_path.exists():
+            dis_path.rename(conf_path)
+    result = await _vless_agent_admin(sname, "enable", username)
+    await cb.answer("✅")
+    await cb.message.edit_text(
+        f"🔊 Akun <code>{username}</code> diaktifkan.\nAgent: {result}",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="↩ Kelola VLESS", callback_data="adm_vless_menu")
+        ]]))
+
+@router.callback_query(F.data == "adm_vless_renew")
+async def cb_adm_vless_renew(cb: CallbackQuery):
+    if cb.from_user.id != ADMIN_ID:
+        await cb.answer("❌"); return
+    await cb.answer()
+    await cb.message.edit_text(
+        "🔄 <b>Renew Akun VLESS</b>\n━━━━━━━━━━━━━━━━━━━\nPilih akun:",
+        parse_mode="HTML", reply_markup=_vless_list_keyboard("adm_vlren"))
+
+@router.callback_query(F.data.startswith("adm_vlren|"))
+async def cb_adm_vlren_select(cb: CallbackQuery):
+    if cb.from_user.id != ADMIN_ID:
+        await cb.answer("❌"); return
+    uid = cb.from_user.id
+    username = cb.data.split("|", 1)[1]
+    state_set(uid, "STATE", "adm_vless_renew_days")
+    state_set(uid, "adm_vless_renew_user", username)
+    await cb.answer()
+    await cb.message.edit_text(
+        f"🔄 Renew <code>{username}</code>\nMasukkan jumlah hari:",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="❌ Batal", callback_data="adm_vless_menu")
+        ]]))
