@@ -15,9 +15,9 @@ renew_ssh_user() {
     target_info=$(target_display)
 
     clear
-    echo -e "${BCYAN} ┌─────────────────────────────────────────────┐${NC}"
-    echo -e " │          ${BWHITE}PERPANJANG AKUN SSH${NC}                  │"
-    echo -e "${BCYAN} └─────────────────────────────────────────────┘${NC}"
+    _sep
+    _grad " PERPANJANG AKUN SSH" 255 0 127 0 210 255
+    _sep
     echo ""
     echo -e "  ${BWHITE}Target :${NC} ${BGREEN}${target_info}${NC}"
     echo ""

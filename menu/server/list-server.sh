@@ -11,9 +11,9 @@ SERVER_DIR="/etc/zv-manager/servers"
 
 list_servers() {
     clear
-    echo -e "${BCYAN} ┌──────────────────────────────────────────────────────┐${NC}"
-    echo -e " │                ${BWHITE}DAFTAR SERVER${NC}                        │"
-    echo -e "${BCYAN} └──────────────────────────────────────────────────────┘${NC}"
+    _sep
+    _grad " DAFTAR SERVER" 255 0 127 0 210 255
+    _sep
     echo ""
 
     local count=0

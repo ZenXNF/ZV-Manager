@@ -10,9 +10,9 @@ source /etc/zv-manager/core/vmess.sh
 
 detail_vmess() {
     clear
-    echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-    echo -e " │           ${BWHITE}DETAIL AKUN VMESS${NC}                │"
-    echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+    _sep
+    _grad " DETAIL AKUN VMESS" 255 0 127 0 210 255
+    _sep
     echo ""
 
     local count=0
@@ -61,9 +61,9 @@ detail_vmess() {
     url_grpc=$(vmess_url "$UUID" "$DOMAIN" "443" "tls" "grpc" "vmess-grpc" "${USERNAME}-gRPC")
 
     clear
-    echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-    echo -e " │         ${BWHITE}INFO AKUN — ${USERNAME}${NC}"
-    echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+    _sep
+    _grad " MENU" 255 0 127 0 210 255
+    _sep
     echo ""
     echo -e "  ${BWHITE}Username  :${NC} ${BYELLOW}${USERNAME}${NC}"
     echo -e "  ${BWHITE}UUID      :${NC} ${BYELLOW}${UUID}${NC}"

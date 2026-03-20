@@ -11,9 +11,9 @@ source /etc/zv-manager/core/vmess.sh
 
 del_vmess() {
     clear
-    echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-    echo -e " │           ${BWHITE}HAPUS AKUN VMESS${NC}                 │"
-    echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+    _sep
+    _grad " HAPUS AKUN VMESS" 255 0 127 0 210 255
+    _sep
     echo ""
 
     local count=0

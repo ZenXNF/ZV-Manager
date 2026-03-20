@@ -12,9 +12,9 @@ SERVER_DIR="/etc/zv-manager/servers"
 
 deploy_agent_menu() {
     clear
-    echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-    echo -e " │         ${BWHITE}DEPLOY AGENT KE REMOTE SERVER${NC}         │"
-    echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+    _sep
+    _grad " DEPLOY AGENT KE REMOTE SERVER" 255 0 127 0 210 255
+    _sep
     echo ""
     echo -e "  ${BYELLOW}zv-agent memungkinkan manajemen akun SSH dari jarak jauh.${NC}"
     echo -e "  ${BYELLOW}Install sekali, lalu kelola remote VPS langsung dari sini.${NC}"

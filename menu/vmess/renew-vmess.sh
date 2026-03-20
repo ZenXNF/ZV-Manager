@@ -14,9 +14,9 @@ renew_vmess() {
     local target_info; target_info=$(target_display)
 
     clear
-    echo -e "${BCYAN} ┌─────────────────────────────────────────────┐${NC}"
-    echo -e " │         ${BWHITE}PERPANJANG AKUN VMESS${NC}                │"
-    echo -e "${BCYAN} └─────────────────────────────────────────────┘${NC}"
+    _sep
+    _grad " PERPANJANG AKUN VMESS" 255 0 127 0 210 255
+    _sep
     echo ""
     echo -e "  ${BWHITE}Target :${NC} ${BGREEN}${target_info}${NC}"
     echo ""

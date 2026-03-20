@@ -63,9 +63,9 @@ _del_worker_reboot() {
 worker_reboot_menu() {
     while true; do
         clear
-        echo -e "${BCYAN} ┌─────────────────────────────────────────────┐${NC}"
-        echo -e " │         ${BWHITE}AUTO REBOOT SERVER WORKER${NC}             │"
-        echo -e "${BCYAN} └─────────────────────────────────────────────┘${NC}"
+        _sep
+        _grad " AUTO REBOOT SERVER WORKER" 255 0 127 0 210 255
+        _sep
         echo ""
 
         # Build daftar server worker (skip lokal)
@@ -139,9 +139,9 @@ worker_reboot_menu() {
         # ── Sub-menu server terpilih ──────────────────────────
         while true; do
             clear
-            echo -e "${BCYAN} ┌─────────────────────────────────────────────┐${NC}"
-            echo -e " │         ${BWHITE}AUTO REBOOT SERVER WORKER${NC}             │"
-            echo -e "${BCYAN} └─────────────────────────────────────────────┘${NC}"
+            _sep
+            _grad " AUTO REBOOT SERVER WORKER" 255 0 127 0 210 255
+            _sep
             echo ""
             echo -e "  ${BWHITE}Server  :${NC} ${BGREEN}${sel_label}${NC}"
             if [[ "$sel_sched" == "off" ]]; then

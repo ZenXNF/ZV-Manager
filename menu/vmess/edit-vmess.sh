@@ -10,9 +10,9 @@ source /etc/zv-manager/core/vmess.sh
 
 edit_vmess() {
     clear
-    echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-    echo -e " │           ${BWHITE}EDIT AKUN VMESS${NC}                  │"
-    echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+    _sep
+    _grad " EDIT AKUN VMESS" 255 0 127 0 210 255
+    _sep
     echo ""
 
     local count=0
@@ -49,9 +49,9 @@ edit_vmess() {
     source "$conf"
 
     clear
-    echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-    echo -e " │         ${BWHITE}EDIT — ${selected}${NC}"
-    echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+    _sep
+    _grad " MENU" 255 0 127 0 210 255
+    _sep
     echo ""
     echo -e "  ${BWHITE}Server  :${NC} ${sname}"
     echo -e "  ${BWHITE}Expired :${NC} ${EXPIRED_DATE}"

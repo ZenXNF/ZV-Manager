@@ -194,9 +194,9 @@ Hubungi admin jika ada pertanyaan. 😊"
 
 del_server() {
     clear
-    echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-    echo -e " │              ${BWHITE}HAPUS SERVER${NC}                    │"
-    echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+    _sep
+    _grad " HAPUS SERVER" 255 0 127 0 210 255
+    _sep
     echo ""
 
     local _ipvps; _ipvps=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null | tr -d '[:space:]')

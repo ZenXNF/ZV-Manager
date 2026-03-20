@@ -25,9 +25,9 @@ _get_current_schedule() {
 set_auto_reboot() {
     while true; do
         clear
-        echo -e "${BCYAN} ┌─────────────────────────────────────────────┐${NC}"
-        echo -e " │            ${BWHITE}AUTO REBOOT SCHEDULER${NC}             │"
-        echo -e "${BCYAN} └─────────────────────────────────────────────┘${NC}"
+        _sep
+        _grad " AUTO REBOOT SCHEDULER" 255 0 127 0 210 255
+        _sep
         echo ""
 
         # Tampilkan jadwal aktif

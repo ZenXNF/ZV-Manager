@@ -17,9 +17,9 @@ manage_vmess_lock() {
     local label; [[ "$action" == "lock" ]] && label="LOCK" || label="UNLOCK"
 
     clear
-    echo -e "${BCYAN} ┌─────────────────────────────────────────────┐${NC}"
-    echo -e " │            ${BWHITE}${label} AKUN VMESS${NC}                 │"
-    echo -e "${BCYAN} └─────────────────────────────────────────────┘${NC}"
+    _sep
+    _grad " ${BWHITE}${label} AKUN VMESS${NC}" 255 0 127 0 210 255
+    _sep
     echo ""
     echo -e "  ${BWHITE}Target :${NC} ${BGREEN}${target_info}${NC}"
     echo ""

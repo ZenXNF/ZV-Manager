@@ -13,9 +13,9 @@ TG_CONF="/etc/zv-manager/telegram.conf"
 setup_telegram_menu() {
     while true; do
         clear
-        echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-        echo -e " │           ${BWHITE}SETUP TELEGRAM BOT${NC}                │"
-        echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+        _sep
+        _grad " SETUP TELEGRAM BOT" 255 0 127 0 210 255
+        _sep
         echo ""
 
         # Tampilkan status saat ini
@@ -64,9 +64,9 @@ setup_telegram_menu() {
 
 _wizard_setup() {
     clear
-    echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-    echo -e " │           ${BWHITE}SETUP TELEGRAM BOT${NC}                │"
-    echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+    _sep
+    _grad " SETUP TELEGRAM BOT" 255 0 127 0 210 255
+    _sep
     echo ""
     echo -e "  ${BYELLOW}Cara dapat Bot Token:${NC}"
     echo -e "  ${BWHITE}1.${NC} Buka @BotFather di Telegram"
@@ -213,9 +213,9 @@ _stop_bot() {
 
 _status_bot() {
     clear
-    echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-    echo -e " │              ${BWHITE}STATUS BOT${NC}                       │"
-    echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+    _sep
+    _grad " STATUS BOT" 255 0 127 0 210 255
+    _sep
     echo ""
     systemctl status zv-telegram --no-pager -l 2>/dev/null || \
         echo -e "  ${BYELLOW}Service zv-telegram belum diinstall.${NC}"

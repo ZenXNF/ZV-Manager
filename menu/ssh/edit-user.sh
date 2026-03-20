@@ -263,9 +263,9 @@ edit_user_menu() {
     target_info=$(target_display)
 
     clear
-    echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-    echo -e " │            ${BWHITE}EDIT AKUN SSH${NC}                      │"
-    echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+    _sep
+    _grad " EDIT AKUN SSH" 255 0 127 0 210 255
+    _sep
     echo ""
     echo -e "  ${BWHITE}Target :${NC} ${BGREEN}${target_info}${NC}"
     echo ""
@@ -281,9 +281,9 @@ edit_user_menu() {
 
     while true; do
         clear
-        echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-        echo -e " │            ${BWHITE}EDIT AKUN SSH${NC}                      │"
-        echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+        _sep
+        _grad " EDIT AKUN SSH" 255 0 127 0 210 255
+        _sep
         echo -e "  ${BWHITE}Target :${NC} ${BGREEN}${target_info}${NC}"
 
         if is_local_target; then

@@ -20,9 +20,9 @@ manage_user_lock() {
     local label
     [[ "$action" == "lock" ]] && label="LOCK" || label="UNLOCK"
 
-    echo -e "${BCYAN} ┌─────────────────────────────────────────────┐${NC}"
-    echo -e " │              ${BWHITE}${label} AKUN SSH${NC}                   │"
-    echo -e "${BCYAN} └─────────────────────────────────────────────┘${NC}"
+    _sep
+    _grad " ${BWHITE}${label} AKUN SSH${NC}" 255 0 127 0 210 255
+    _sep
     echo ""
     echo -e "  ${BWHITE}Target :${NC} ${BGREEN}${target_info}${NC}"
     echo ""

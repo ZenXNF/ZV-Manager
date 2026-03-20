@@ -77,9 +77,9 @@ _edit_ssh() {
 
     while true; do
         clear
-        echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-        echo -e " │   ${BWHITE}SSH SETTING — ${name}${NC}"
-        echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+        _sep
+        _grad " MENU" 255 0 127 0 210 255
+        _sep
         echo ""
         echo -e "  ${BWHITE}Label di Bot   :${NC} ${BYELLOW}${TG_SERVER_LABEL}${NC}"
         echo -e "  ${BWHITE}Harga SSH/hari :${NC} ${BYELLOW}Rp${TG_HARGA_HARI}${NC}"
@@ -133,9 +133,9 @@ _edit_vmess() {
 
     while true; do
         clear
-        echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-        echo -e " │   ${BWHITE}VMESS SETTING — ${name}${NC}"
-        echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+        _sep
+        _grad " MENU" 255 0 127 0 210 255
+        _sep
         echo ""
         echo -e "  ${BWHITE}Label di Bot      :${NC} ${BYELLOW}${TG_SERVER_LABEL}${NC}"
         echo -e "  ${BWHITE}Harga VMess/hari  :${NC} ${BYELLOW}Rp${TG_HARGA_VMESS_HARI}${NC}"
@@ -186,9 +186,9 @@ _pick_server() {
 
     while true; do
         clear
-        echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-        echo -e " │   ${BWHITE}${label} SETTING — Pilih Server${NC}"
-        echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+        _sep
+        _grad " MENU" 255 0 127 0 210 255
+        _sep
         echo ""
 
         local servers=()
@@ -238,9 +238,9 @@ _pick_server() {
 tg_server_setting_menu() {
     while true; do
         clear
-        echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-        echo -e " │       ${BWHITE}TELEGRAM SETTING SERVER${NC}                │"
-        echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+        _sep
+        _grad " TELEGRAM SETTING SERVER" 255 0 127 0 210 255
+        _sep
         echo ""
         echo -e "  Pilih kategori setting:"
         echo ""

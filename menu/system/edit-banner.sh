@@ -44,9 +44,9 @@ _apply_banner() {
 _preview_banner() {
     _load_conf
     clear
-    echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-    echo -e " │              ${BWHITE}PREVIEW BANNER${NC}                  │"
-    echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+    _sep
+    _grad " PREVIEW BANNER" 255 0 127 0 210 255
+    _sep
     echo ""
     echo -e "  ${BYELLOW}(Preview terminal — warna mungkin beda di HTTP Custom)${NC}"
     echo ""
@@ -75,9 +75,9 @@ _preview_banner() {
 _edit_welcome() {
     _load_conf
     clear
-    echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-    echo -e " │            ${BWHITE}EDIT TEKS WELCOME${NC}                 │"
-    echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+    _sep
+    _grad " EDIT TEKS WELCOME" 255 0 127 0 210 255
+    _sep
     echo ""
     echo -e "  ${BWHITE}Sekarang :${NC} ${BYELLOW}${BANNER_WELCOME}${NC}"
     echo ""
@@ -92,9 +92,9 @@ _edit_welcome() {
 _edit_subtitle() {
     _load_conf
     clear
-    echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-    echo -e " │           ${BWHITE}EDIT HEADER TERMS & CONDITIONS${NC}     │"
-    echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+    _sep
+    _grad " EDIT HEADER TERMS & CONDITIONS" 255 0 127 0 210 255
+    _sep
     echo ""
     echo -e "  ${BWHITE}Sekarang :${NC} ${BYELLOW}${BANNER_SUBTITLE}${NC}"
     echo ""
@@ -110,9 +110,9 @@ _edit_rules() {
     _load_conf
     while true; do
         clear
-        echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-        echo -e " │              ${BWHITE}EDIT RULES LARANGAN${NC}             │"
-        echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+        _sep
+        _grad " EDIT RULES LARANGAN" 255 0 127 0 210 255
+        _sep
         echo ""
         local i=1
         for r in "$BANNER_RULE_1" "$BANNER_RULE_2" "$BANNER_RULE_3" "$BANNER_RULE_4" "$BANNER_RULE_5"; do
@@ -148,9 +148,9 @@ _edit_rules() {
 _edit_warn() {
     _load_conf
     clear
-    echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-    echo -e " │           ${BWHITE}EDIT PERINGATAN (PUNISHMENT)${NC}        │"
-    echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+    _sep
+    _grad " EDIT PERINGATAN (PUNISHMENT)" 255 0 127 0 210 255
+    _sep
     echo ""
     echo -e "  ${BWHITE}Sekarang :${NC} ${BYELLOW}${BANNER_WARN}${NC}"
     echo ""
@@ -166,9 +166,9 @@ _edit_promo() {
     _load_conf
     while true; do
         clear
-        echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-        echo -e " │            ${BWHITE}EDIT KONTAK PROMOSI${NC}               │"
-        echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+        _sep
+        _grad " EDIT KONTAK PROMOSI" 255 0 127 0 210 255
+        _sep
         echo ""
         if [[ -n "$BANNER_WA" ]]; then
             echo -e "  ${BWHITE}WhatsApp :${NC} ${BGREEN}📱 WA: ${BANNER_WA}${NC}"
@@ -223,9 +223,9 @@ _edit_promo() {
 _edit_theme() {
     _load_conf
     clear
-    echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-    echo -e " │              ${BWHITE}GANTI TEMA WARNA${NC}                │"
-    echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+    _sep
+    _grad " GANTI TEMA WARNA" 255 0 127 0 210 255
+    _sep
     echo ""
     echo -e "  ${BWHITE}Tema sekarang :${NC} ${BYELLOW}${BANNER_THEME}${NC}"
     echo ""
@@ -265,9 +265,9 @@ edit_banner_menu() {
     while true; do
         _load_conf
         clear
-        echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-        echo -e " │            ${BWHITE}EDIT SERVER BANNER${NC}                │"
-        echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+        _sep
+        _grad " EDIT SERVER BANNER" 255 0 127 0 210 255
+        _sep
         echo ""
         echo -e "  ${BWHITE}Welcome  :${NC} ${BYELLOW}${BANNER_WELCOME}${NC}"
         echo -e "  ${BWHITE}T&C      :${NC} ${BYELLOW}${BANNER_SUBTITLE}${NC}"

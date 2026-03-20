@@ -17,9 +17,9 @@ manage_user_lock() {
     target_info=$(target_display)
 
     clear
-    echo -e "${BCYAN} ┌─────────────────────────────────────────────┐${NC}"
-    echo -e " │              ${BWHITE}UNLOCK AKUN SSH${NC}                  │"
-    echo -e "${BCYAN} └─────────────────────────────────────────────┘${NC}"
+    _sep
+    _grad " UNLOCK AKUN SSH" 255 0 127 0 210 255
+    _sep
     echo ""
     echo -e "  ${BWHITE}Target :${NC} ${BGREEN}${target_info}${NC}"
     echo ""

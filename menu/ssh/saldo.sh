@@ -33,9 +33,9 @@ _fmt() {
 saldo_menu() {
     while true; do
         clear
-        echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-        echo -e " │          ${BWHITE}MANAJEMEN SALDO TELEGRAM${NC}              │"
-        echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+        _sep
+        _grad " MANAJEMEN SALDO TELEGRAM" 255 0 127 0 210 255
+        _sep
         echo ""
         echo -e "  ${BGREEN}[1]${NC} Lihat Saldo User"
         echo -e "  ${BGREEN}[2]${NC} Set / Tambah Saldo"
@@ -90,9 +90,9 @@ saldo_menu() {
                 ;;
             4)
                 clear
-                echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
-                echo -e " │              ${BWHITE}DAFTAR SALDO${NC}                    │"
-                echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
+                _sep
+                _grad " DAFTAR SALDO" 255 0 127 0 210 255
+                _sep
                 echo ""
                 printf "  ${BWHITE}%-20s %-15s${NC}\n" "User ID" "Saldo"
                 echo -e "  ${BCYAN}────────────────────────────────────${NC}"
