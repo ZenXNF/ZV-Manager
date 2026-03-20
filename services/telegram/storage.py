@@ -373,7 +373,6 @@ def mark_trial_vless(uid: int, sname: str) -> None:
 def count_vless_accounts(srv_ip: str) -> int:
     from config import BASE_DIR
     import glob
-    local = _local_ip_cached()
     count = 0
     for conf in glob.glob(f"{BASE_DIR}/accounts/vless/*.conf"):
         try:
@@ -382,8 +381,8 @@ def count_vless_accounts(srv_ip: str) -> int:
             if not sname:
                 continue
             sc = load_server_conf(sname) or {}
-            conf_ip = sc.get("IP","") or local
-            if conf_ip == srv_ip or (srv_ip == local and conf_ip == local):
+            conf_ip = sc.get("IP","")
+            if conf_ip == srv_ip:
                 count += 1
         except Exception:
             pass
