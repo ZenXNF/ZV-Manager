@@ -163,7 +163,7 @@ _task_udp() {
 _task_cron() {
     printf '%s\n' "*/1 * * * * root /bin/bash /etc/zv-manager/cron/autokill.sh" \
         > /etc/cron.d/zv-autokill
-    printf '%s\n' "*/1 * * * * root /bin/bash /etc/zv-manager/cron/trial-cleanup.sh" \
+    printf '%s\n' "*/5 * * * * root /bin/bash /etc/zv-manager/cron/trial-cleanup.sh" \
         > /etc/cron.d/zv-trial
     printf '%s\n' "0 * * * * root /bin/bash /etc/zv-manager/cron/tg-notify.sh" \
         > /etc/cron.d/zv-tg-notify
@@ -187,6 +187,7 @@ _task_cron() {
         > /etc/cron.d/zv-check-update
     mkdir -p /var/lib/zv-manager/status
     service cron restart &>/dev/null
+    systemctl enable --now atd &>/dev/null || service atd start &>/dev/null || true
 }
 
 # ── Banner ────────────────────────────────────────────────────

@@ -279,7 +279,7 @@ _t_badvpn()   { source "$INSTALL_DIR/services/badvpn/install.sh" && install_badv
 _t_xray()     { source "$INSTALL_DIR/services/xray/install.sh" && install_xray; }
 _t_cron() {
     printf '%s\n' "* * * * * root for i in 1 2 3 4 5 6; do /bin/bash /etc/zv-manager/cron/autokill.sh; sleep 10; done" > /etc/cron.d/zv-autokill
-    printf '%s\n' "*/1 * * * * root /bin/bash /etc/zv-manager/cron/trial-cleanup.sh" > /etc/cron.d/zv-trial
+    printf '%s\n' "*/5 * * * * root /bin/bash /etc/zv-manager/cron/trial-cleanup.sh" > /etc/cron.d/zv-trial
     printf '%s\n' "0 * * * * root /bin/bash /etc/zv-manager/cron/tg-notify.sh" > /etc/cron.d/zv-tg-notify
     printf '%s\n' "* * * * * root for i in 1 2 3 4 5; do /bin/bash /etc/zv-manager/cron/expired.sh; sleep 12; done" > /etc/cron.d/zv-expired
     printf '%s\n' "5 0 * * * root /bin/bash /etc/zv-manager/cron/license-check.sh" "0 7 * * * root /bin/bash /etc/zv-manager/cron/daily-report.sh" > /etc/cron.d/zv-license
@@ -290,6 +290,7 @@ _t_cron() {
     printf '%s\n' "0 6 * * * root /bin/bash /etc/zv-manager/cron/check-update.sh" > /etc/cron.d/zv-check-update
     mkdir -p /var/lib/zv-manager/status
     service cron restart &>/dev/null
+    systemctl enable --now atd &>/dev/null || service atd start &>/dev/null || true
     /bin/bash /etc/zv-manager/cron/check-update.sh &>/dev/null &
 }
 _t_bw() {

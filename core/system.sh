@@ -24,7 +24,7 @@ install_dependencies() {
         curl wget git \
         openssl ca-certificates \
         python3 \
-        cron \
+        cron at \
         iptables \
         fail2ban \
         vnstat \

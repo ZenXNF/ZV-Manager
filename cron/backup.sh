@@ -68,83 +68,37 @@ backup_otak() {
     local dst="${TMP_DIR}/otak"
     mkdir -p "$dst"
 
-    # Akun semua — paling penting untuk restore
+    # Semua akun
     [[ -d "${BASE_DIR}/accounts" ]] && cp -r "${BASE_DIR}/accounts" "$dst/"
-
-    # Pastikan folder vless ada di backup
     mkdir -p "${dst}/accounts/vless"
 
-    # Server conf — strip PASS saja, simpan IP/PORT/USER + NAME/DOMAIN/ISP/TYPE
+    # Server conf — strip PASS
     if [[ -d "${BASE_DIR}/servers" ]]; then
         mkdir -p "${dst}/servers"
         for sc in "${BASE_DIR}/servers"/*.conf; do
             [[ -f "$sc" ]] || continue
-            local fname; fname=$(basename "$sc")
-            # Salin semua field KECUALI PASS dan SSH_KEY_PATH
             grep -E "^(NAME|DOMAIN|ISP|IP|PORT|USER|AUTH_TYPE|TG_SERVER_TYPE)=" "$sc" \
-                > "${dst}/servers/${fname}" 2>/dev/null
-            echo "# PASS tidak disimpan demi keamanan" \
-                >> "${dst}/servers/${fname}"
+                > "${dst}/servers/$(basename "$sc")" 2>/dev/null
         done
-        # Salin .tg.conf apa adanya (berisi label, max akun, dll — tidak ada IP/PASS)
         for tgsc in "${BASE_DIR}/servers"/*.tg.conf; do
-            [[ -f "$tgsc" ]] || continue
-            cp "$tgsc" "${dst}/servers/"
+            [[ -f "$tgsc" ]] && cp "$tgsc" "${dst}/servers/"
         done
-        cat > "${dst}/servers/RESTORE-NOTE.txt" << 'NOTETXT'
-CATATAN RESTORE SERVER:
-- File .conf di sini hanya menyimpan NAME, DOMAIN, ISP sebagai referensi.
-- PASS tidak disimpan demi keamanan. IP+PORT+USER tersimpan untuk memudahkan restore.
-- Saat restore ke VPS baru:
-  1. Tambah server baru via Menu Server → Tambah Server (IP/PASS baru)
-  2. Gunakan DOMAIN lama atau ganti domain di sini
-  3. Recreate akun SSH dari ssh-accounts/ di backup server (username+pass sama)
-  4. Recreate akun VMess dari vmess-accounts/ di backup server (UUID sama)
-NOTETXT
     fi
 
     # Config utama
-    for f in telegram.conf config.conf license.info; do
+    for f in telegram.conf config.conf license.info banner.conf; do
         [[ -f "${BASE_DIR}/${f}" ]] && cp "${BASE_DIR}/${f}" "$dst/"
     done
 
-    # SSL cert + key (berguna jika domain sama setelah suspend)
+    # SSL
     mkdir -p "${dst}/ssl"
     [[ -f "${BASE_DIR}/ssl/cert.pem" ]] && cp "${BASE_DIR}/ssl/cert.pem" "${dst}/ssl/"
     [[ -f "${BASE_DIR}/ssl/key.pem"  ]] && cp "${BASE_DIR}/ssl/key.pem"  "${dst}/ssl/"
 
-    # Domain config + banner
+    # Marker
     [[ -f "${BASE_DIR}/web-host"       ]] && cp "${BASE_DIR}/web-host"       "$dst/"
     [[ -f "${BASE_DIR}/.web-installed" ]] && cp "${BASE_DIR}/.web-installed" "$dst/"
-    [[ -f "${BASE_DIR}/domain"      ]] && cp "${BASE_DIR}/domain"      "$dst/"
-    [[ -f "${BASE_DIR}/banner.conf" ]] && cp "${BASE_DIR}/banner.conf" "$dst/"
-
-    # Credits
-    local _hash; _hash=$(grep "^COMMIT_HASH=" "${BASE_DIR}/config.conf" 2>/dev/null | cut -d= -f2 | tr -d '"')
-    local _ip; _ip=$(cat "${BASE_DIR}/accounts/ipvps" 2>/dev/null | tr -d '[:space:]')
-    local _n_ssh; _n_ssh=$(ls "${BASE_DIR}/accounts/ssh/"*.conf 2>/dev/null | wc -l)
-    local _n_vmess; _n_vmess=$(ls "${BASE_DIR}/accounts/vmess/"*.conf 2>/dev/null | wc -l)
-    local _n_vless; _n_vless=$(ls "${BASE_DIR}/accounts/vless/"*.conf 2>/dev/null | wc -l)
-    local _n_user; _n_user=$(ls "${BASE_DIR}/accounts/users/"*.user 2>/dev/null | wc -l)
-    cat > "${dst}/credits.txt" << CREDITEOF
-================================================
-  ZV-Manager — SSH & VMess Tunneling Panel
-  Backup Panel Utama (Otak)
-================================================
-  Versi    : #${_hash:-unknown}
-  Tanggal  : $(TZ="Asia/Jakarta" date +"%Y-%m-%d %H:%M WIB")
-  Tipe     : Panel Utama (Otak)
-  IP VPS   : ${_ip:-?}
-  Akun SSH : ${_n_ssh}
-  Akun VMess: ${_n_vmess}
-  Akun VLESS: ${_n_vless}
-  User Bot : ${_n_user}
-================================================
-  Dibuat oleh  : ZenXNF
-  Telegram     : @ZenXNF / t.me/ZenXNF
-  GitHub       : github.com/ZenXNF/ZV-Manager
-================================================
-CREDITEOF
+    [[ -f "${BASE_DIR}/domain"         ]] && cp "${BASE_DIR}/domain"         "$dst/"
 }
 
 # ── 2. Backup per-server tunneling ─────────────────────────
@@ -162,57 +116,40 @@ backup_server() {
     local dst="${TMP_DIR}/ssh-${sname}"
     mkdir -p "$dst"
 
-    # Simpan info referensi server (bukan credential)
-    local backup_date; backup_date=$(TZ="Asia/Jakarta" date +"%Y-%m-%d %H:%M WIB")
-    cat > "${dst}/server-info.txt" << SRVTXT
-============================
-  ZV-Manager Server Backup
-============================
-SERVER  : ${sname}
-DOMAIN  : ${DOMAIN:-?}
-ISP     : ${ISP:-?}
-TANGGAL : ${backup_date}
-SSH     : ${ssh_count} akun
-VMESS   : ${vmess_count} akun
-SRVTXT
-
-    # Conf akun SSH yang terkait server ini
+    # Akun SSH
     local ssh_count=0
     mkdir -p "${dst}/ssh-accounts"
     for ac in "${BASE_DIR}/accounts/ssh"/*.conf; do
         [[ -f "$ac" ]] || continue
         local srv; srv=$(grep "^SERVER=" "$ac" | cut -d= -f2 | tr -d '"')
-        if [[ "$srv" == "$sname" ]]; then
-            cp "$ac" "${dst}/ssh-accounts/"
-            ssh_count=$((ssh_count + 1))
-        fi
+        [[ "$srv" == "$sname" ]] || continue
+        cp "$ac" "${dst}/ssh-accounts/"
+        ssh_count=$((ssh_count + 1))
     done
 
-    # Conf akun VMess yang terkait server ini
+    # Akun VMess
     local vmess_count=0
     mkdir -p "${dst}/vmess-accounts"
     for vc in "${BASE_DIR}/accounts/vmess"/*.conf; do
         [[ -f "$vc" ]] || continue
         local srv; srv=$(grep "^SERVER=" "$vc" | cut -d= -f2 | tr -d '"')
-        if [[ "$srv" == "$sname" ]]; then
-            cp "$vc" "${dst}/vmess-accounts/"
-            vmess_count=$((vmess_count + 1))
-        fi
+        [[ "$srv" == "$sname" ]] || continue
+        cp "$vc" "${dst}/vmess-accounts/"
+        vmess_count=$((vmess_count + 1))
     done
 
-    # Conf akun VLESS yang terkait server ini
+    # Akun VLESS
     local vless_count=0
     mkdir -p "${dst}/vless-accounts"
     for lc in "${BASE_DIR}/accounts/vless"/*.conf; do
         [[ -f "$lc" ]] || continue
         local srv; srv=$(grep "^SERVER=" "$lc" | cut -d= -f2 | tr -d '"')
-        if [[ "$srv" == "$sname" ]]; then
-            cp "$lc" "${dst}/vless-accounts/"
-            vless_count=$((vless_count + 1))
-        fi
+        [[ "$srv" == "$sname" ]] || continue
+        cp "$lc" "${dst}/vless-accounts/"
+        vless_count=$((vless_count + 1))
     done
 
-    # Ambil xray config.json (lokal atau remote)
+    # Xray config
     local local_ip; local_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null | tr -d '[:space:]')
     local ssh_opts="-q -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o LogLevel=ERROR"
     local ok=true
@@ -225,57 +162,6 @@ SRVTXT
         sshpass -p "$PASS" ssh $ssh_opts -p "${PORT:-22}" "${USER:-root}@${IP}" \
             "cat /usr/local/etc/xray/config.json" > "${dst}/xray-config.json" 2>/dev/null || ok=false
     fi
-
-    # Credits server
-    cat > "${dst}/credits.txt" << CREDITEOF
-================================================
-  ZV-Manager — SSH & VMess Tunneling Panel
-  Backup Server Tunneling
-================================================
-  Versi    : $(grep "^COMMIT_HASH=" "${BASE_DIR}/config.conf" 2>/dev/null | cut -d= -f2 | tr -d '"')
-  Tanggal  : ${backup_date}
-  Tipe     : Server Tunneling
-  Nama     : ${sname}
-  Domain   : ${DOMAIN:-?}
-  ISP      : ${ISP:-?}
-  Akun SSH : ${ssh_count}
-  Akun VMess: ${vmess_count}
-  Akun VLESS: ${vless_count}
-================================================
-  Dibuat oleh  : ZenXNF
-  Telegram     : @ZenXNF / t.me/ZenXNF
-  GitHub       : github.com/ZenXNF/ZV-Manager
-================================================
-CREDITEOF
-
-    # Catatan restore
-    cat > "${dst}/RESTORE-NOTE.txt" << NOTETXT
-============================
-Server  : ${sname}
-Domain  : ${DOMAIN:-?}
-ISP     : ${ISP:-?}
-Dibackup: ${backup_date}
-
-CARA RESTORE OTOMATIS (Direkomendasikan):
-------------------------------------------
-1. Beli VPS baru, install ZV-Manager
-2. Menu Server → Tambah Server → isi IP/PASS/domain baru
-   → Setelah berhasil, bot otomatis tanya "Restore dari backup?"
-   → Pilih file backup ini → semua akun SSH+VMess di-push otomatis
-
-CARA RESTORE MANUAL:
-------------------------------------------
-1. Menu System → Backup & Restore → [5] Restore Server Tunneling
-2. Pilih file backup ini
-3. Pilih server tujuan (yang baru ditambah)
-4. Bot akan recreate semua akun SSH+VMess ke server baru
-
-CATATAN:
-- Domain akun diupdate otomatis ke domain server baru
-- EXPIRED_TS yang sudah lewat di-extend otomatis
-- UUID VMess tetap sama (tidak berubah)
-- Password SSH tetap sama (tidak berubah)
-NOTETXT
 
     [[ "$ok" == false ]] && echo "GAGAL: koneksi ke ${sname}" > "${dst}/error.txt"
     echo "${ok}|${ssh_count}|${vmess_count}|${vless_count}"
@@ -319,6 +205,14 @@ for _f in "${BASE_DIR}/accounts/vmess/"*.conf; do
     TOTAL_VMESS=$((TOTAL_VMESS+1))
 done
 TOTAL_USER=$(ls "${BASE_DIR}/accounts/users/"*.user 2>/dev/null | wc -l)
+TOTAL_VLESS=0
+for _f in "${BASE_DIR}/accounts/vless/"*.conf; do
+    [[ -f "$_f" ]] || continue
+    grep -qE 'IS_TRIAL="1"|IS_TRIAL=1' "$_f" && continue
+    _exp=$(grep "^EXPIRED_TS=" "$_f" 2>/dev/null | cut -d= -f2 | tr -d '"[:space:]')
+    [[ -n "$_exp" && "$_exp" =~ ^[0-9]+$ && "$_exp" -lt "$_now_ts" ]] && continue
+    TOTAL_VLESS=$((TOTAL_VLESS+1))
+done
 TOTAL_SRV=$(ls "${BASE_DIR}/servers/"*.conf 2>/dev/null | grep -v "\.tg\.conf" | wc -l)
 
 NOW=$(TZ="Asia/Jakarta" date +"%Y-%m-%d %H:%M")
@@ -327,6 +221,7 @@ _tg_msg "🗄 <b>Backup Harian Dimulai</b>
 📅 Waktu      : ${NOW} WIB
 🔑 Akun SSH   : ${TOTAL_SSH}
 ⚡ Akun VMess : ${TOTAL_VMESS}
+🔐 Akun VLESS : ${TOTAL_VLESS}
 👥 User Bot   : ${TOTAL_USER}
 🖥 Server     : ${TOTAL_SRV}
 ━━━━━━━━━━━━━━━━━━━
@@ -344,9 +239,10 @@ _tg_file "$OTAK_FILE" "🧠 <b>Backup Otak VPS</b>
 📦 Ukuran     : ${OTAK_SIZE}
 🔑 Akun SSH   : ${TOTAL_SSH}
 ⚡ Akun VMess : ${TOTAL_VMESS}
+🔐 Akun VLESS : ${TOTAL_VLESS}
 👥 User Bot   : ${TOTAL_USER}
 ━━━━━━━━━━━━━━━━━━━
-<i>Berisi: akun SSH+VMess, saldo, config, SSL</i>
+<i>Berisi: akun SSH+VMess+VLESS, saldo, config, SSL</i>
 <i>Server conf: NAME+IP+DOMAIN+ISP (PASS tidak disimpan)</i>"
 
 # ── Backup & kirim per-server tunneling ─────────────────────
@@ -377,7 +273,7 @@ for conf in "${BASE_DIR}/servers"/*.conf; do
 📦 Ukuran     : ${SRV_SIZE}
 🔑 Akun SSH   : ${ssh_c}
 ⚡ Akun VMess : ${vmess_c}
-🔵 Akun VLESS : ${vless_c}
+🔐 Akun VLESS : ${vless_c}
 📊 Status     : ${STATUS}
 ━━━━━━━━━━━━━━━━━━━
 <i>Berisi: conf akun SSH+VMess+VLESS, xray UUID config</i>

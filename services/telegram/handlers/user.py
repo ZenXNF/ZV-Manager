@@ -106,6 +106,39 @@ async def _vless_agent(sname: str, *args) -> str:
 
 from utils import backup_realtime, backup_realtime_vmess, fmt, fmt_bytes, tail_log, ts_to_wib, zv_log
 
+def _schedule_trial_delete(proto: str, username: str, sname: str, delay_min: int = 30):
+    """Schedule hapus akun trial tepat delay_min menit dari sekarang pakai `at`."""
+    import shutil
+    if not shutil.which("at"):
+        return  # fallback ke trial-cleanup.sh
+    if proto == "ssh":
+        cmd = (
+            f"pkill -u '{username}' 2>/dev/null; "
+            f"userdel -r '{username}' 2>/dev/null; "
+            f"rm -f '/etc/zv-manager/accounts/ssh/{username}.conf'"
+        )
+    elif proto == "vmess":
+        cmd = (
+            f"source /etc/zv-manager/utils/remote.sh 2>/dev/null && "
+            f"remote_vmess_agent '{sname}' del '{username}' 2>/dev/null; "
+            f"rm -f '/etc/zv-manager/accounts/vmess/{username}.conf'"
+        )
+    elif proto == "vless":
+        cmd = (
+            f"source /etc/zv-manager/utils/remote.sh 2>/dev/null && "
+            f"remote_vless_agent '{sname}' del '{username}' 2>/dev/null; "
+            f"rm -f '/etc/zv-manager/accounts/vless/{username}.conf'"
+        )
+    else:
+        return
+    try:
+        subprocess.run(
+            ["at", f"now + {delay_min} minutes"],
+            input=cmd, text=True, capture_output=True
+        )
+    except Exception:
+        pass
+
 router = Router()
 
 
@@ -358,6 +391,7 @@ async def cb_vs_trial(cb: CallbackQuery):
     invalidate_account_cache(ip or local_ip(), "vmess")
     mark_trial_vmess(uid, sname)
     zv_log(f"VMESS_TRIAL: {uid} server={sname} user={username}")
+    _schedule_trial_delete("vmess", username, sname)
     await _send_vmess_info(cb.message, "TRIAL", username, new_uuid, domain, exp_disp,
                            tg["TG_SERVER_LABEL"], isp=sconf.get("ISP",""))
 
@@ -656,6 +690,7 @@ async def cb_s_trial(cb: CallbackQuery):
     invalidate_account_cache(ip, "ssh")
     mark_trial(uid, sname)
     zv_log(f"TRIAL: {uid} server={sname} user={username}")
+    _schedule_trial_delete("ssh", username, sname)
     await cb.message.answer(
         text_akun_info("TRIAL", username, password, domain,
                        exp_display, tg["TG_LIMIT_IP"], tg["TG_SERVER_LABEL"], isp=sconf.get("ISP","")),
@@ -756,6 +791,7 @@ async def cb_vl_trial(cb: CallbackQuery):
 
     mark_trial_vless(uid, sname)
     zv_log(f"VLESS_TRIAL: {uid} server={sname} user={username}")
+    _schedule_trial_delete("vless", username, sname)
     await cb.message.answer(
         text_vless_info("TRIAL", username, new_uuid, domain, exp_display,
                         tg.get("TG_SERVER_LABEL", sname), isp=sconf.get("ISP","")),
