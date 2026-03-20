@@ -9,26 +9,24 @@ from utils import fmt, fmt_bytes
 
 def _status_url() -> tuple:
     """
-    Baca dari /etc/zv-manager/web-host.
-    Return (url, label) — url untuk href, label untuk teks ditampilkan.
-    - File tidak ada → ("", "")
-    - IP  → ("https://IP", "IP")
-    - Domain → ("https://domain", "domain")
+    Return (url, label, is_domain).
+    is_domain=True jika bukan IP murni (bisa pakai WebApp button).
     """
+    import re
     try:
         val = Path("/etc/zv-manager/web-host").read_text().strip()
         if not val:
-            return ("", "")
-        return (f"https://{val}", val)
+            return ("", "", False)
+        url = f"https://{val}"
+        is_domain = not re.match(r"^\d{1,3}(\.\d{1,3}){3}$", val)
+        return (url, val, is_domain)
     except Exception:
-        return ("", "")
+        return ("", "", False)
 
 
 def text_home(fname: str, uid: int) -> str:
     servers  = get_server_list()
     saldo    = saldo_get(uid)
-    url, label = _status_url()
-    cek_line = f"\n🖥️ Cek server: <a href=\"{url}\">{label}</a>" if url else ""
     return (
         f"⚡ <b>ZV-Manager SSH Tunnel</b>\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
@@ -41,7 +39,7 @@ def text_home(fname: str, uid: int) -> str:
         f"🔹 Support Bug Host / SNI\n"
         f"🔹 Masa Aktif Fleksibel\n"
         f"🔹 Auto Deploy Akun 24 Jam\n"
-        f"━━━━━━━━━━━━━━━━━━━{cek_line}\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
         f"Halo, {fname}! Pilih menu 👇"
     )
 
