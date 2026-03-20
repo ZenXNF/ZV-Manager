@@ -778,7 +778,8 @@ async def cb_vl_buat(cb: CallbackQuery):
 
     saldo = saldo_get(uid)
     harga = int(tg.get("TG_HARGA_VLESS_HARI", tg.get("TG_HARGA_HARI", "0")) or 0)
-    state_set(uid, "vless_beli", __import__("json").dumps({"sname": sname})); state_set(uid, "vless_beli_step", "days")
+    state_set(uid, "vless_beli", __import__("json").dumps({"sname": sname}))
+    state_set(uid, "vless_beli_step", "username")
     await cb.message.edit_text(
         f"🔵 <b>Beli Akun VLESS</b>\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
@@ -786,9 +787,48 @@ async def cb_vl_buat(cb: CallbackQuery):
         f"💰 Saldo   : Rp{fmt(saldo)}\n"
         f"💵 Harga   : Rp{fmt(harga)}/hari\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
-        f"Masukkan jumlah hari:", parse_mode="HTML",
+        f"Masukkan username (kosongkan = auto):", parse_mode="HTML",
         reply_markup=kb_back("proto_buat_vless"))
     await cb.answer()
+
+@router.message(lambda m: state_get(m.from_user.id, "vless_beli_step") == "username")
+async def cb_vl_buat_username(msg: Message):
+    uid  = msg.from_user.id
+    data = __import__("json").loads(state_get(uid, "vless_beli") or "{}")
+    if not data: return
+    sname = data.get("sname","")
+    tg    = load_tg_server_conf(sname) or {}
+    harga = int(tg.get("TG_HARGA_VLESS_HARI", tg.get("TG_HARGA_HARI", "0")) or 0)
+    saldo = saldo_get(uid)
+
+    # Proses username input
+    raw = msg.text.strip() if msg.text else ""
+    import re as _re
+    if raw:
+        username = _re.sub(r"[^a-zA-Z0-9_-]", "", raw)[:20]
+    else:
+        import random, string as _str
+        username = "vl" + "".join(random.choices(_str.ascii_lowercase + _str.digits, k=6))
+
+    if not username:
+        await msg.answer("❌ Username tidak valid, coba lagi atau kosongkan untuk auto."); return
+
+    # Cek duplikat
+    if os.path.exists(f"{VLESS_DIR}/{username}.conf"):
+        await msg.answer(f"❌ Username <code>{username}</code> sudah dipakai, coba username lain.", parse_mode="HTML"); return
+
+    state_set(uid, "vless_beli", __import__("json").dumps({**data, "username": username}))
+    state_set(uid, "vless_beli_step", "days")
+    await msg.answer(
+        f"🔵 <b>Beli Akun VLESS</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"👤 Username: <code>{username}</code>\n"
+        f"🖥 Server  : {tg.get('TG_SERVER_LABEL', sname)}\n"
+        f"💰 Saldo   : Rp{fmt(saldo)}\n"
+        f"💵 Harga   : Rp{fmt(harga)}/hari\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"Masukkan jumlah hari:", parse_mode="HTML",
+        reply_markup=kb_back("proto_buat_vless"))
 
 @router.message(lambda m: state_get(m.from_user.id, "vless_beli_step") == "days")
 async def cb_vl_buat_days(msg: Message):
@@ -806,17 +846,30 @@ async def cb_vl_buat_days(msg: Message):
     total = harga * days
     saldo = saldo_get(uid)
     if saldo < total:
-        await msg.answer(f"❌ Saldo tidak cukup. Saldo: Rp{fmt(saldo)}, Butuh: Rp{fmt(total)}")
+        await msg.answer(
+            f"🔵 <b>Konfirmasi Beli VLESS</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━\n"
+            f"🌐 Server  : {tg.get('TG_SERVER_LABEL', sname)}\n"
+            f"👤 Username: <code>{data.get('username','auto')}</code>\n"
+            f"📅 Durasi  : {days} hari\n"
+            f"💰 Harga   : Rp{fmt(harga)}/hari\n"
+            f"💸 Total   : Rp{fmt(total)}\n"
+            f"💳 Saldo   : Rp{fmt(saldo)}\n"
+            f"❌ Kurang  : Rp{fmt(total - saldo)}\n"
+            f"━━━━━━━━━━━━━━━━━━━\nSaldo tidak cukup. Hubungi admin untuk top up.",
+            parse_mode="HTML")
         state_clear(uid); return
     state_set(uid, "vless_beli", __import__("json").dumps({**data, "days": days, "total": total, "step": "konfirm"})); state_set(uid, "vless_beli_step", "konfirm")
     await msg.answer(
-        f"🔵 <b>Konfirmasi Pembelian VLESS</b>\n"
+        f"🔵 <b>Konfirmasi Beli VLESS</b>\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
-        f"🖥 Server  : {tg.get('TG_SERVER_LABEL', sname)}\n"
+        f"🌐 Server  : {tg.get('TG_SERVER_LABEL', sname)}\n"
+        f"👤 Username: <code>{data.get('username','auto')}</code>\n"
         f"📅 Durasi  : {days} hari\n"
+        f"💰 Harga   : Rp{fmt(harga)}/hari\n"
         f"💸 Total   : Rp{fmt(total)}\n"
-        f"💰 Saldo   : Rp{fmt(saldo)}\n"
-        f"━━━━━━━━━━━━━━━━━━━", parse_mode="HTML",
+        f"💳 Saldo   : Rp{fmt(saldo)}\n"
+        f"━━━━━━━━━━━━━━━━━━━\nLanjutkan?", parse_mode="HTML",
         reply_markup=kb_confirm("konfirm_vless"))
 
 @router.callback_query(F.data == "konfirm_vless")
@@ -848,8 +901,10 @@ async def cb_konfirm_vless(cb: CallbackQuery):
     exp_date   = datetime.fromtimestamp(exp_ts).strftime("%Y-%m-%d")
     exp_disp   = ts_to_wib(exp_ts)
     bw_limit   = int(tg.get("TG_BW_PER_HARI_VLESS", tg.get("TG_BW_PER_HARI", "0")) or 0) * days
-    import random, string
-    username   = "vl" + "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
+    username   = data.get("username", "")
+    if not username:
+        import random, string
+        username = "vl" + "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
 
     os.makedirs(VLESS_DIR, exist_ok=True)
     vless_conf_path = f"{VLESS_DIR}/{username}.conf"
@@ -924,9 +979,15 @@ def _render_vless_page(items, page, now_ts, uid):
     for it in chunk:
         uname = it.get("USERNAME","?")
         exp_ts = int(it.get("EXPIRED_TS","0") or 0)
-        sisa   = max(0, (exp_ts - now_ts)//86400)
+        sisa_detik = exp_ts - now_ts
+        if sisa_detik <= 0:
+            sisa_label = "expired"
+        elif sisa_detik < 86400:
+            sisa_label = f"{sisa_detik//3600} jam"
+        else:
+            sisa_label = f"{sisa_detik//86400} hari"
         status = "✅" if exp_ts > now_ts else "❌"
-        lines.append(f"{status} <code>{uname}</code> — sisa {sisa} hari")
+        lines.append(f"{status} <code>{uname}</code> — sisa {sisa_label}")
         b.button(text=uname, callback_data=f"vless_renew_{uname}")
     b.adjust(2)
     nav = []
@@ -991,15 +1052,26 @@ async def cb_vless_renew_days(msg: Message):
     total    = harga * days
     saldo    = saldo_get(uid)
     if saldo < total:
-        await msg.answer(f"❌ Saldo tidak cukup. Saldo: Rp{fmt(saldo)}, Butuh: Rp{fmt(total)}")
+        await msg.answer(
+            f"🔵 <b>Konfirmasi Perpanjang VLESS</b>\n━━━━━━━━━━━━━━━━━━━\n"
+            f"👤 Username : <code>{username}</code>\n"
+            f"📅 Durasi   : {days} hari\n"
+            f"💰 Harga    : Rp{fmt(harga)}/hari\n"
+            f"💸 Total    : Rp{fmt(total)}\n"
+            f"💳 Saldo    : Rp{fmt(saldo)}\n"
+            f"❌ Kurang   : Rp{fmt(total - saldo)}\n"
+            f"━━━━━━━━━━━━━━━━━━━\nSaldo tidak cukup. Hubungi admin untuk top up.",
+            parse_mode="HTML")
         state_clear(uid); return
     state_set(uid, "vless_renew", __import__("json").dumps({**data, "days": days, "total": total, "step": "konfirm"})); state_set(uid, "vless_renew_step", "konfirm")
     await msg.answer(
         f"🔵 <b>Konfirmasi Perpanjang VLESS</b>\n━━━━━━━━━━━━━━━━━━━\n"
         f"👤 Username : <code>{username}</code>\n"
         f"📅 Durasi   : {days} hari\n"
+        f"💰 Harga    : Rp{fmt(harga)}/hari\n"
         f"💸 Total    : Rp{fmt(total)}\n"
-        f"━━━━━━━━━━━━━━━━━━━", parse_mode="HTML",
+        f"💳 Saldo    : Rp{fmt(saldo)}\n"
+        f"━━━━━━━━━━━━━━━━━━━\nLanjutkan?", parse_mode="HTML",
         reply_markup=kb_confirm("konfirm_renew_vless"))
 
 @router.callback_query(F.data == "konfirm_renew_vless")

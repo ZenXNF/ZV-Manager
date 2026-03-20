@@ -372,13 +372,18 @@ def mark_trial_vless(uid: int, sname: str) -> None:
 
 def count_vless_accounts(srv_ip: str) -> int:
     from config import BASE_DIR
-    key = f"vless:{srv_ip}"
     import glob
+    local = _local_ip()
     count = 0
     for conf in glob.glob(f"{BASE_DIR}/accounts/vless/*.conf"):
         try:
             d = _read_conf_file(conf)
-            if d.get("SERVER","") or True:  # Hitung semua
+            sname = d.get("SERVER","")
+            if not sname:
+                continue
+            sc = load_server_conf(sname) or {}
+            conf_ip = sc.get("IP","") or local
+            if conf_ip == srv_ip or (srv_ip == local and conf_ip == local):
                 count += 1
         except Exception:
             pass

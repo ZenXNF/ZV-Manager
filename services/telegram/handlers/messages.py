@@ -346,28 +346,28 @@ async def _handle_state(msg: Message, uid: int, text: str, state: str):
         bw_line     = f"\n📶 Bandwidth      : {bw_total_gb} GB" if bw_per_hari > 0 else ""
         if harga > 0 and saldo < total:
             await msg.answer(
-                f"📋 <b>Konfirmasi Pesanan</b>\n━━━━━━━━━━━━━━━━━━━\n"
-                f"🌐 Server     : {tg['TG_SERVER_LABEL']}\n"
-                f"👤 Username   : <code>{username}</code>\n"
-                f"🔑 Password   : <code>{password}</code>\n"
-                f"📅 Masa Aktif : {days} hari{bw_line}\n"
-                f"💰 Harga      : {hh}\n"
-                f"💸 Total      : Rp{fmt(total)}\n"
-                f"💳 Saldo kamu : Rp{fmt(saldo)}\n"
-                f"❌ Kurang     : Rp{fmt(total - saldo)}\n"
+                f"🔑 <b>Konfirmasi Beli SSH</b>\n━━━━━━━━━━━━━━━━━━━\n"
+                f"🌐 Server   : {tg['TG_SERVER_LABEL']}\n"
+                f"👤 Username : <code>{username}</code>\n"
+                f"🔑 Password : <code>{password}</code>\n"
+                f"📅 Durasi   : {days} hari{bw_line}\n"
+                f"💰 Harga    : {hh}\n"
+                f"💸 Total    : Rp{fmt(total)}\n"
+                f"💳 Saldo    : Rp{fmt(saldo)}\n"
+                f"❌ Kurang   : Rp{fmt(total - saldo)}\n"
                 f"━━━━━━━━━━━━━━━━━━━\nSaldo tidak cukup. Hubungi admin untuk top up.",
                 parse_mode="HTML"
             )
             state_clear(uid); return
         saldo_line = f"\n💳 Saldo kamu : Rp{fmt(saldo)}" if harga > 0 else ""
         await msg.answer(
-            f"📋 <b>Konfirmasi Pesanan</b>\n━━━━━━━━━━━━━━━━━━━\n"
-            f"🌐 Server     : {tg['TG_SERVER_LABEL']}\n"
-            f"👤 Username   : <code>{username}</code>\n"
-            f"🔑 Password   : <code>{password}</code>\n"
-            f"📅 Masa Aktif : {days} hari{bw_line}\n"
-            f"💰 Harga      : {hh}\n"
-            f"💸 Total      : Rp{fmt(total)}{saldo_line}\n"
+            f"🔑 <b>Konfirmasi Beli SSH</b>\n━━━━━━━━━━━━━━━━━━━\n"
+            f"🌐 Server   : {tg['TG_SERVER_LABEL']}\n"
+            f"👤 Username : <code>{username}</code>\n"
+            f"🔑 Password : <code>{password}</code>\n"
+            f"📅 Durasi   : {days} hari{bw_line}\n"
+            f"💰 Harga    : {hh}\n"
+            f"💸 Total    : Rp{fmt(total)}{saldo_line}\n"
             f"━━━━━━━━━━━━━━━━━━━\nLanjutkan?",
             parse_mode="HTML", reply_markup=kb_confirm("konfirm")
         )
@@ -423,20 +423,20 @@ async def _handle_state(msg: Message, uid: int, text: str, state: str):
         hh = f"Rp{fmt(harga)}/hari" if harga > 0 else "Gratis"
         if harga > 0 and saldo < total:
             await msg.answer(
-                f"⚡ <b>Konfirmasi VMess</b>\n━━━━━━━━━━━━━━━━━━━\n"
+                f"⚡ <b>Konfirmasi Beli VMess</b>\n━━━━━━━━━━━━━━━━━━━\n"
                 f"🌐 Server  : {tg['TG_SERVER_LABEL']}\n"
                 f"📅 Durasi  : {days} hari\n"
                 f"💰 Harga   : {hh}\n"
                 f"💸 Total   : Rp{fmt(total)}\n"
                 f"💳 Saldo   : Rp{fmt(saldo)}\n"
                 f"❌ Kurang  : Rp{fmt(total - saldo)}\n"
-                f"━━━━━━━━━━━━━━━━━━━\nSaldo tidak cukup. Hubungi admin.",
+                f"━━━━━━━━━━━━━━━━━━━\nSaldo tidak cukup. Hubungi admin untuk top up.",
                 parse_mode="HTML"
             )
             state_clear(uid); return
         saldo_line = f"\n💳 Saldo   : Rp{fmt(saldo)}" if harga > 0 else ""
         await msg.answer(
-            f"⚡ <b>Konfirmasi Buat VMess</b>\n━━━━━━━━━━━━━━━━━━━\n"
+            f"⚡ <b>Konfirmasi Beli VMess</b>\n━━━━━━━━━━━━━━━━━━━\n"
             f"🌐 Server  : {tg['TG_SERVER_LABEL']}\n"
             f"📅 Durasi  : {days} hari\n"
             f"💰 Harga   : {hh}\n"
