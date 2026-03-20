@@ -154,19 +154,17 @@ add_server() {
     echo -e "  ${BWHITE}[1]${NC} SSH only   — muncul di menu SSH"
     echo -e "  ${BWHITE}[2]${NC} VMess only — muncul di menu VMess"
     echo -e "  ${BWHITE}[3]${NC} VLESS only — muncul di menu VLESS"
-    echo -e "  ${BWHITE}[4]${NC} SSH + VMess"
-    echo -e "  ${BWHITE}[5]${NC} Semua      — SSH + VMess + VLESS"
+    echo -e "  ${BWHITE}[4]${NC} Semua      — SSH + VMess + VLESS"
     echo ""
     local server_type_choice
     while true; do
-        read -rp "  Pilih tipe [1-5]: " server_type_choice
+        read -rp "  Pilih tipe [1-4]: " server_type_choice
         case "$server_type_choice" in
             1) server_type="ssh";   break ;;
             2) server_type="vmess"; break ;;
             3) server_type="vless"; break ;;
-            4) server_type="both";  break ;;
-            5) server_type="all";   break ;;
-            *) echo -e "  ${BRED}Pilih 1-5${NC}" ;;
+            4) server_type="all";   break ;;
+            *) echo -e "  ${BRED}Pilih 1-4${NC}" ;;
         esac
     done
     echo ""
