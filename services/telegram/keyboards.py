@@ -91,31 +91,27 @@ def kb_server_list(prefix: str, page: int = 0, back_cb: str = "m_buat") -> Inlin
 def kb_admin_panel() -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
     b.row(
-        InlineKeyboardButton(text="💰 Top Up Saldo",     callback_data="adm_topup"),
+        InlineKeyboardButton(text="💰 Top Up",           callback_data="adm_topup"),
         InlineKeyboardButton(text="➖ Kurangi Saldo",    callback_data="adm_kurangi")
     )
     b.row(
-        InlineKeyboardButton(text="🗑️ Hapus Akun",       callback_data="adm_hapus_akun"),
-        InlineKeyboardButton(text="📢 Broadcast",        callback_data="m_broadcast")
+        InlineKeyboardButton(text="🔍 Cek User",         callback_data="adm_cek_user"),
+        InlineKeyboardButton(text="👥 Daftar User",      callback_data="adm_daftar_user")
     )
     b.row(
-        InlineKeyboardButton(text="👥 Daftar User",      callback_data="adm_daftar_user"),
-        InlineKeyboardButton(text="🔍 Cek User",         callback_data="adm_cek_user")
+        InlineKeyboardButton(text="📢 Broadcast",        callback_data="m_broadcast"),
+        InlineKeyboardButton(text="📊 History",          callback_data="adm_history")
     )
     b.row(
-        InlineKeyboardButton(text="📊 History Transaksi", callback_data="adm_history"),
-        InlineKeyboardButton(text="🟢 Online VMess",      callback_data="adm_online_vmess")
+        InlineKeyboardButton(text="⚡ Kelola VMess",     callback_data="adm_vmess_menu"),
+        InlineKeyboardButton(text="🔵 Kelola VLESS",     callback_data="adm_vless_menu")
     )
     b.row(
-        InlineKeyboardButton(text="🖥 Akun per Server",  callback_data="adm_akun_per_server"),
-        InlineKeyboardButton(text="⚡ Kelola VMess",      callback_data="adm_vmess_menu")
+        InlineKeyboardButton(text="🗑️ Hapus Akun",      callback_data="adm_hapus_akun"),
+        InlineKeyboardButton(text="🖥 Akun per Server", callback_data="adm_akun_per_server")
     )
     b.row(
-        InlineKeyboardButton(text="🔵 Kelola VLESS",      callback_data="adm_vless_menu"),
-        InlineKeyboardButton(text="🟢 Online VMess",      callback_data="adm_online_vmess")
-    )
-    b.row(
-        InlineKeyboardButton(text="🏠 Menu Utama",        callback_data="home")
+        InlineKeyboardButton(text="🏠 Menu Utama",       callback_data="home")
     )
     return b.as_markup()
 
