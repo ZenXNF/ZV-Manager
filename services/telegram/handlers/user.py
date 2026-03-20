@@ -195,7 +195,7 @@ async def cb_menu_buat(cb: CallbackQuery):
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🔑 SSH",    callback_data="proto_buat_ssh"),
              InlineKeyboardButton(text="⚡ VMess",  callback_data="proto_buat_vmess")],
-            [InlineKeyboardButton(text="🔵 VLESS",  callback_data="proto_buat_vless")],
+            [InlineKeyboardButton(text="🌐 VLESS",  callback_data="proto_buat_vless")],
             [InlineKeyboardButton(text="↩ Kembali", callback_data="home")]
         ]))
     await cb.answer()
@@ -207,7 +207,7 @@ async def cb_menu_trial(cb: CallbackQuery):
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🔑 SSH",    callback_data="proto_trial_ssh"),
              InlineKeyboardButton(text="⚡ VMess",  callback_data="proto_trial_vmess")],
-            [InlineKeyboardButton(text="🔵 VLESS",  callback_data="proto_trial_vless")],
+            [InlineKeyboardButton(text="🌐 VLESS",  callback_data="proto_trial_vless")],
             [InlineKeyboardButton(text="↩ Kembali", callback_data="home")]
         ]))
     await cb.answer()
@@ -781,7 +781,7 @@ async def cb_vl_buat(cb: CallbackQuery):
     state_set(uid, "vless_beli", __import__("json").dumps({"sname": sname}))
     state_set(uid, "vless_beli_step", "username")
     await cb.message.edit_text(
-        f"🔵 <b>Beli Akun VLESS</b>\n"
+        f"🌐 <b>Beli Akun VLESS</b>\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
         f"🖥 Server  : {tg.get('TG_SERVER_LABEL', sname)}\n"
         f"💰 Saldo   : Rp{fmt(saldo)}\n"
@@ -820,7 +820,7 @@ async def cb_vl_buat_username(msg: Message):
     state_set(uid, "vless_beli", __import__("json").dumps({**data, "username": username}))
     state_set(uid, "vless_beli_step", "days")
     await msg.answer(
-        f"🔵 <b>Beli Akun VLESS</b>\n"
+        f"🌐 <b>Beli Akun VLESS</b>\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
         f"👤 Username: <code>{username}</code>\n"
         f"🖥 Server  : {tg.get('TG_SERVER_LABEL', sname)}\n"
@@ -847,7 +847,7 @@ async def cb_vl_buat_days(msg: Message):
     saldo = saldo_get(uid)
     if saldo < total:
         await msg.answer(
-            f"🔵 <b>Konfirmasi Beli VLESS</b>\n"
+            f"🌐 <b>Konfirmasi Beli VLESS</b>\n"
             f"━━━━━━━━━━━━━━━━━━━\n"
             f"🌐 Server  : {tg.get('TG_SERVER_LABEL', sname)}\n"
             f"👤 Username: <code>{data.get('username','auto')}</code>\n"
@@ -861,7 +861,7 @@ async def cb_vl_buat_days(msg: Message):
         state_clear(uid); return
     state_set(uid, "vless_beli", __import__("json").dumps({**data, "days": days, "total": total, "step": "konfirm"})); state_set(uid, "vless_beli_step", "konfirm")
     await msg.answer(
-        f"🔵 <b>Konfirmasi Beli VLESS</b>\n"
+        f"🌐 <b>Konfirmasi Beli VLESS</b>\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
         f"🌐 Server  : {tg.get('TG_SERVER_LABEL', sname)}\n"
         f"👤 Username: <code>{data.get('username','auto')}</code>\n"
@@ -971,33 +971,71 @@ def _collect_vless_akun(uid: int) -> list:
     return items
 
 def _render_vless_page(items, page, now_ts, uid):
-    per_page = 5
-    start    = page * per_page
-    chunk    = items[start:start+per_page]
-    lines    = ["🔵 <b>Akun VLESS Kamu</b>\n━━━━━━━━━━━━━━━━━━━"]
-    b        = InlineKeyboardBuilder()
-    for it in chunk:
-        uname = it.get("USERNAME","?")
-        exp_ts = int(it.get("EXPIRED_TS","0") or 0)
-        sisa_detik = exp_ts - now_ts
-        if sisa_detik <= 0:
-            sisa_label = "expired"
-        elif sisa_detik < 86400:
-            sisa_label = f"{sisa_detik//3600} jam"
+    total   = len(items)
+    n_pages = max(1, (total + _AKUN_PAGE_SIZE - 1) // _AKUN_PAGE_SIZE)
+    page    = max(0, min(page, n_pages - 1))
+    chunk   = items[page * _AKUN_PAGE_SIZE:(page + 1) * _AKUN_PAGE_SIZE]
+
+    out = f"🌐 <b>Akun VLESS Kamu</b>  ({total} akun)\n━━━━━━━━━━━━━━━━━━━\n"
+    if not chunk:
+        out += "\nBelum ada akun VLESS."
+    for vc in chunk:
+        vuname  = vc.get("USERNAME","")
+        vuuid   = vc.get("UUID","")
+        vsname  = vc.get("SERVER","")
+        vtg     = load_tg_server_conf(vsname) if vsname else {}
+        slabel  = vtg.get("TG_SERVER_LABEL","") or vsname or vc.get("DOMAIN","")
+        tipe    = "Trial" if vc.get("IS_TRIAL","0") == "1" else "Premium"
+        exp_d, status, sisa_l = _status_label(vc.get("EXPIRED_TS",""), now_ts)
+
+        # IP aktif VLESS dari ws-proxy active file
+        import json as _json, os as _os
+        _active_f = '/tmp/zv-vless-active.json'
+        try:
+            _active  = _json.loads(open(_active_f).read()) if _os.path.exists(_active_f) else {}
+            ip_now_v = sum(1 for v in _active.values() if v > 0)
+        except Exception:
+            ip_now_v = 0
+        vlimit   = int(vtg.get("TG_LIMIT_IP_VLESS", "2") or "2")
+        vip_warn = " ⚠️ Penuh!" if ip_now_v >= vlimit else ""
+
+        # Bandwidth
+        bw_used  = int(vc.get("BW_USED_BYTES","0") or "0")
+        bw_limit = int(vc.get("BW_LIMIT_GB","0") or "0")
+        if bw_limit == 0:
+            bw_line = "Unlimited"
         else:
-            sisa_label = f"{sisa_detik//86400} hari"
-        status = "✅" if exp_ts > now_ts else "❌"
-        lines.append(f"{status} <code>{uname}</code> — sisa {sisa_label}")
-        b.button(text=uname, callback_data=f"vless_renew_{uname}")
-    b.adjust(2)
+            bw_gb = round(bw_used / 1073741824, 2)
+            pct   = min(round(bw_gb / bw_limit * 100), 100)
+            bw_line = f"{bw_gb:.2f} GB / {bw_limit} GB ({pct}%)"
+
+        out += (
+            f"\n🌐 <b>{vuname}</b> <i>({tipe})</i>\n"
+            f"🖥 Server   : {slabel}\n"
+            f"🔑 UUID     : <code>{vuuid}</code>\n"
+            f"⏳ Expired  : {exp_d} · {sisa_l}\n"
+            f"📊 Status   : {status}\n"
+            f"📶 Bandwidth: {bw_line}\n"
+            f"📡 IP       : {ip_now_v}/{vlimit}{vip_warn}\n"
+            f"━━━━━━━━━━━━━━━━━━━"
+        )
+
+    has_premium = any(vc.get("IS_TRIAL","0") != "1" for vc in items)
+    b = InlineKeyboardBuilder()
     nav = []
     if page > 0:
-        nav.append(InlineKeyboardButton(text="◀", callback_data=f"vless_lp_{page-1}"))
-    if start+per_page < len(items):
-        nav.append(InlineKeyboardButton(text="▶", callback_data=f"vless_lp_{page+1}"))
+        nav.append(InlineKeyboardButton(text="◀ Sebelumnya", callback_data=f"vless_lp_{page-1}"))
+    if page < n_pages - 1:
+        nav.append(InlineKeyboardButton(text="Berikutnya ▶", callback_data=f"vless_lp_{page+1}"))
     if nav: b.row(*nav)
-    b.row(InlineKeyboardButton(text="🏠 Menu Utama", callback_data="home"))
-    return "\n".join(lines), b.as_markup()
+    if has_premium:
+        b.row(
+            InlineKeyboardButton(text="🔄 Perpanjang", callback_data="m_perpanjang_vless"),
+            InlineKeyboardButton(text="📶 Bandwidth",  callback_data="m_tambah_bw_vless")
+        )
+    b.row(InlineKeyboardButton(text="📨 Kirim Ulang Info", callback_data="kirim_ulang_vless"))
+    b.row(InlineKeyboardButton(text="🏠 Menu", callback_data="home"))
+    return out, b.as_markup()
 
 @router.callback_query(F.data.startswith("vless_lp_"))
 async def cb_vless_akun_page(cb: CallbackQuery):
@@ -1028,7 +1066,7 @@ async def cb_vless_renew(cb: CallbackQuery):
     saldo = saldo_get(uid)
     state_set(uid, "vless_renew", __import__("json").dumps({"username": username, "sname": sname})); state_set(uid, "vless_renew_step", "days")
     await cb.message.edit_text(
-        f"🔵 <b>Perpanjang VLESS</b>\n━━━━━━━━━━━━━━━━━━━\n"
+        f"🌐 <b>Perpanjang VLESS</b>\n━━━━━━━━━━━━━━━━━━━\n"
         f"👤 Username : <code>{username}</code>\n"
         f"💰 Saldo    : Rp{fmt(saldo)}\n"
         f"💵 Harga    : Rp{fmt(harga)}/hari\n"
@@ -1053,7 +1091,7 @@ async def cb_vless_renew_days(msg: Message):
     saldo    = saldo_get(uid)
     if saldo < total:
         await msg.answer(
-            f"🔵 <b>Konfirmasi Perpanjang VLESS</b>\n━━━━━━━━━━━━━━━━━━━\n"
+            f"🌐 <b>Konfirmasi Perpanjang VLESS</b>\n━━━━━━━━━━━━━━━━━━━\n"
             f"👤 Username : <code>{username}</code>\n"
             f"📅 Durasi   : {days} hari\n"
             f"💰 Harga    : Rp{fmt(harga)}/hari\n"
@@ -1065,7 +1103,7 @@ async def cb_vless_renew_days(msg: Message):
         state_clear(uid); return
     state_set(uid, "vless_renew", __import__("json").dumps({**data, "days": days, "total": total, "step": "konfirm"})); state_set(uid, "vless_renew_step", "konfirm")
     await msg.answer(
-        f"🔵 <b>Konfirmasi Perpanjang VLESS</b>\n━━━━━━━━━━━━━━━━━━━\n"
+        f"🌐 <b>Konfirmasi Perpanjang VLESS</b>\n━━━━━━━━━━━━━━━━━━━\n"
         f"👤 Username : <code>{username}</code>\n"
         f"📅 Durasi   : {days} hari\n"
         f"💰 Harga    : Rp{fmt(harga)}/hari\n"
@@ -1292,13 +1330,13 @@ async def cb_akun_saya(cb: CallbackQuery):
         f"📋 <b>Akun Kamu</b>\n━━━━━━━━━━━━━━━━━━━\n"
         f"🔑 SSH    : {n_ssh} akun\n"
         f"⚡ VMess  : {n_vmess} akun\n"
-        f"🔵 VLESS  : {n_vless} akun\n"
+        f"🌐 VLESS  : {n_vless} akun\n"
         f"━━━━━━━━━━━━━━━━━━━\nPilih protokol:",
         parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text=f"🔑 SSH ({n_ssh})",     callback_data="akun_proto_ssh"),
              InlineKeyboardButton(text=f"⚡ VMess ({n_vmess})", callback_data="akun_proto_vmess")],
-            [InlineKeyboardButton(text=f"🔵 VLESS ({n_vless})", callback_data="akun_proto_vless")],
+            [InlineKeyboardButton(text=f"🌐 VLESS ({n_vless})", callback_data="akun_proto_vless")],
             [InlineKeyboardButton(text="🏠 Menu Utama", callback_data="home")]
         ])
     )
@@ -1639,6 +1677,226 @@ async def cb_ku_vmess_send(cb: CallbackQuery):
         )
     except Exception as e:
         await cb.message.answer(f"❌ Gagal kirim: {e}", parse_mode="HTML")
+
+
+# ── Kirim Ulang VLESS ────────────────────────────────────────
+@router.callback_query(F.data == "kirim_ulang_vless")
+async def cb_kirim_ulang_vless_menu(cb: CallbackQuery):
+    uid     = cb.from_user.id
+    await cb.answer()
+    items   = _collect_vless_akun(uid)
+    premium = [vc for vc in items if vc.get("IS_TRIAL","0") != "1"]
+    if not premium:
+        await cb.message.edit_text(
+            "❌ Tidak ada akun VLESS premium aktif.",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                InlineKeyboardButton(text="↩ Kembali", callback_data="akun_proto_vless")
+            ]])
+        )
+        return
+    b = InlineKeyboardBuilder()
+    for vc in premium:
+        uname = vc.get("USERNAME","")
+        b.row(InlineKeyboardButton(text=f"🌐 {uname}", callback_data=f"ku_vless_{uname}"))
+    b.row(InlineKeyboardButton(text="↩ Kembali", callback_data="akun_proto_vless"))
+    await cb.message.edit_text(
+        "📨 <b>Kirim Ulang Info VLESS</b>\n━━━━━━━━━━━━━━━━━━━\nPilih akun:",
+        parse_mode="HTML", reply_markup=b.as_markup()
+    )
+
+@router.callback_query(F.data.startswith("ku_vless_"))
+async def cb_ku_vless_send(cb: CallbackQuery):
+    uid      = cb.from_user.id
+    username = cb.data.removeprefix("ku_vless_")
+    await cb.answer("📨 Mengirim info akun...", show_alert=False)
+
+    import glob as _glob
+    vc = {}
+    conf_path = f"{VLESS_DIR}/{username}.conf"
+    try:
+        with open(conf_path) as f:
+            for line in f:
+                if "=" in line:
+                    k, _, v = line.strip().partition("=")
+                    vc[k] = v.strip('"')
+    except Exception:
+        await cb.message.answer("❌ Akun tidak ditemukan."); return
+
+    if str(vc.get("TG_USER_ID","")).strip() != str(uid):
+        await cb.message.answer("❌ Bukan akun kamu."); return
+
+    sname  = vc.get("SERVER","")
+    sc     = load_server_conf(sname) or {}
+    tgsc   = load_tg_server_conf(sname) or {}
+    domain = sc.get("DOMAIN") or sc.get("IP") or vc.get("DOMAIN","")
+    slabel = tgsc.get("TG_SERVER_LABEL","") or sname or domain
+    now_ts = int(time.time())
+    exp_d, status, sisa_l = _status_label(vc.get("EXPIRED_TS",""), now_ts)
+    uuid   = vc.get("UUID","")
+    url_tls, url_http, url_grpc = vless_build_urls(username, uuid, domain)
+
+    text = (
+        f"📋 <b>Info Akun VLESS Kamu</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"🌐 Username : <code>{username}</code>\n"
+        f"🖥 Server   : {slabel}\n"
+        f"🔑 UUID     : <code>{uuid}</code>\n"
+        f"📅 Expired  : {exp_d} · {sisa_l}\n"
+        f"📊 Status   : {status}\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"📡 Port TLS  : 443 (WS + gRPC)\n"
+        f"📡 Port HTTP : 80 (WS)\n"
+        f"📎 Path WS   : /vless\n"
+        f"📎 Path gRPC : vless-grpc\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"🔐 <b>URL VLESS TLS</b>\n"
+        f"<code>{url_tls}</code>\n\n"
+        f"🔓 <b>URL VLESS HTTP</b>\n"
+        f"<code>{url_http}</code>\n\n"
+        f"🔒 <b>URL VLESS gRPC</b>\n"
+        f"<code>{url_grpc}</code>\n"
+        f"━━━━━━━━━━━━━━━━━━━"
+    )
+    try:
+        await cb.message.bot.send_message(uid, text, parse_mode="HTML")
+        await cb.message.edit_text(
+            f"✅ Info <code>{username}</code> sudah dikirim!",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                InlineKeyboardButton(text="↩ Kembali", callback_data="akun_proto_vless")
+            ]])
+        )
+    except Exception as e:
+        await cb.message.answer(f"❌ Gagal kirim: {e}", parse_mode="HTML")
+
+# ── Tambah Bandwidth VLESS ────────────────────────────────────
+@router.callback_query(F.data == "m_tambah_bw_vless")
+async def cb_tambah_bw_vless(cb: CallbackQuery):
+    uid = cb.from_user.id
+    await cb.answer()
+    items   = _collect_vless_akun(uid)
+    premium = [vc for vc in items if vc.get("IS_TRIAL","0") != "1"]
+    if not premium:
+        await cb.message.edit_text(
+            "❌ Tidak ada akun VLESS premium aktif.",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                InlineKeyboardButton(text="↩ Kembali", callback_data="akun_proto_vless")
+            ]])
+        )
+        return
+    b = InlineKeyboardBuilder()
+    for vc in premium:
+        uname = vc.get("USERNAME","")
+        b.row(InlineKeyboardButton(text=f"🌐 {uname}", callback_data=f"vlbw_akun_{uname}"))
+    b.row(InlineKeyboardButton(text="↩ Kembali", callback_data="akun_proto_vless"))
+    await cb.message.edit_text(
+        "📶 <b>Tambah Bandwidth VLESS</b>\n━━━━━━━━━━━━━━━━━━━\nPilih akun:",
+        parse_mode="HTML", reply_markup=b.as_markup()
+    )
+
+@router.callback_query(F.data.startswith("vlbw_akun_"))
+async def cb_vlbw_akun(cb: CallbackQuery):
+    uid      = cb.from_user.id
+    username = cb.data.removeprefix("vlbw_akun_")
+    await cb.answer()
+    vc = {}
+    try:
+        with open(f"{VLESS_DIR}/{username}.conf") as f:
+            for line in f:
+                if "=" in line:
+                    k, _, v = line.strip().partition("=")
+                    vc[k] = v.strip('"')
+    except Exception:
+        await cb.message.edit_text("❌ Akun tidak ditemukan."); return
+
+    if str(vc.get("TG_USER_ID","")).strip() != str(uid):
+        await cb.answer("❌ Bukan akun kamu"); return
+
+    sname = vc.get("SERVER","")
+    tg    = load_tg_server_conf(sname) or {}
+    bw_used  = int(vc.get("BW_USED_BYTES","0") or "0")
+    bw_limit = int(vc.get("BW_LIMIT_GB","0") or "0")
+    bw_gb    = round(bw_used / 1073741824, 2)
+    saldo    = saldo_get(uid)
+
+    harga_1  = int(tg.get("TG_BW_HARGA_1GB_VLESS", tg.get("TG_BW_HARGA_1GB","5000")) or "5000")
+    harga_5  = int(tg.get("TG_BW_HARGA_5GB_VLESS", tg.get("TG_BW_HARGA_5GB","20000")) or "20000")
+    harga_10 = int(tg.get("TG_BW_HARGA_10GB_VLESS", tg.get("TG_BW_HARGA_10GB","35000")) or "35000")
+
+    state_set(uid, "STATE",        "vlbw_pilih_paket")
+    state_set(uid, "VLESS_BW_USER", username)
+    state_set(uid, "VLESS_BW_SNAME", sname)
+
+    await cb.message.edit_text(
+        f"📶 <b>Tambah Bandwidth VLESS</b>\n━━━━━━━━━━━━━━━━━━━\n"
+        f"👤 Username : <code>{username}</code>\n"
+        f"📊 BW saat ini: {bw_gb:.2f} GB / {bw_limit if bw_limit else '∞'} GB\n"
+        f"💰 Saldo   : Rp{fmt(saldo)}\n"
+        f"━━━━━━━━━━━━━━━━━━━\nPilih paket:",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text=f"➕ 1 GB — Rp{fmt(harga_1)}",   callback_data=f"vlbw_beli_1_{username}"),
+             InlineKeyboardButton(text=f"➕ 5 GB — Rp{fmt(harga_5)}",   callback_data=f"vlbw_beli_5_{username}")],
+            [InlineKeyboardButton(text=f"➕ 10 GB — Rp{fmt(harga_10)}", callback_data=f"vlbw_beli_10_{username}")],
+            [InlineKeyboardButton(text="❌ Batal", callback_data="akun_proto_vless")]
+        ])
+    )
+
+@router.callback_query(F.data.startswith("vlbw_beli_"))
+async def cb_vlbw_beli(cb: CallbackQuery):
+    uid   = cb.from_user.id
+    parts = cb.data.removeprefix("vlbw_beli_").split("_", 1)
+    if len(parts) != 2:
+        await cb.answer("❌ Error"); return
+    gb_str, username = parts
+    gb = int(gb_str)
+
+    vc = {}
+    try:
+        with open(f"{VLESS_DIR}/{username}.conf") as f:
+            for line in f:
+                if "=" in line:
+                    k, _, v = line.strip().partition("=")
+                    vc[k] = v.strip('"')
+    except Exception:
+        await cb.answer("❌ Akun tidak ditemukan"); return
+
+    if str(vc.get("TG_USER_ID","")).strip() != str(uid):
+        await cb.answer("❌"); return
+
+    sname  = vc.get("SERVER","")
+    tg     = load_tg_server_conf(sname) or {}
+    key    = f"TG_BW_HARGA_{gb}GB_VLESS"
+    key_fb = f"TG_BW_HARGA_{gb}GB"
+    default = {"1":"5000","5":"20000","10":"35000"}.get(str(gb),"5000")
+    harga  = int(tg.get(key, tg.get(key_fb, default)) or default)
+    saldo  = saldo_get(uid)
+
+    if saldo < harga:
+        await cb.answer(f"❌ Saldo kurang! Butuh Rp{fmt(harga)}", show_alert=True); return
+
+    saldo_deduct(uid, harga)
+    bw_limit = int(vc.get("BW_LIMIT_GB","0") or "0")
+    new_limit = bw_limit + gb
+
+    import subprocess as _sp
+    _sp.run(["sed", "-i", f"s/^BW_LIMIT_GB=.*/BW_LIMIT_GB=\"{new_limit}\"/",
+             f"{VLESS_DIR}/{username}.conf"])
+
+    await _vless_agent(sname, "setbw", username, new_limit)
+    zv_log(f"VLESS_BW_BELI: uid={uid} user={username} +{gb}GB harga={harga}")
+    await cb.answer(f"✅ +{gb} GB ditambahkan!", show_alert=True)
+    await cb.message.edit_text(
+        f"✅ <b>Bandwidth VLESS Ditambah!</b>\n━━━━━━━━━━━━━━━━━━━\n"
+        f"👤 Username : <code>{username}</code>\n"
+        f"➕ Ditambah : {gb} GB\n"
+        f"📶 Total BW : {new_limit} GB\n"
+        f"━━━━━━━━━━━━━━━━━━━",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="↩ Akun VLESS", callback_data="akun_proto_vless")
+        ]])
+    )
 
 
 # ── Perpanjang ────────────────────────────────────────────────

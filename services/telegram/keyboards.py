@@ -104,7 +104,7 @@ def kb_admin_panel() -> InlineKeyboardMarkup:
     )
     b.row(
         InlineKeyboardButton(text="⚡ Kelola VMess",     callback_data="adm_vmess_menu"),
-        InlineKeyboardButton(text="🔵 Kelola VLESS",     callback_data="adm_vless_menu")
+        InlineKeyboardButton(text="🌐 Kelola VLESS",     callback_data="adm_vless_menu")
     )
     b.row(
         InlineKeyboardButton(text="🗑️ Hapus Akun",      callback_data="adm_hapus_akun"),

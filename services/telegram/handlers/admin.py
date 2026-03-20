@@ -1183,7 +1183,7 @@ async def cb_adm_vless_menu(cb: CallbackQuery):
     total = len(items)
     aktif = sum(1 for i in items if int(i.get("EXPIRED_TS","0") or "0") > int(_time.time()))
     await cb.message.edit_text(
-        f"🔵 <b>Kelola VLESS</b>\n"
+        f"🌐 <b>Kelola VLESS</b>\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
         f"📊 Total akun : {total}\n"
         f"✅ Aktif      : {aktif}\n"
