@@ -670,23 +670,23 @@ async def cb_s_trial(cb: CallbackQuery):
 
 @router.callback_query(F.data == "proto_buat_vless")
 async def cb_proto_buat_vless(cb: CallbackQuery):
+    await cb.answer()
     from storage import get_server_list_by_type
     if not get_server_list_by_type("vless"):
         await cb.message.edit_text("❌ Belum ada server VLESS tersedia.", reply_markup=kb_back("m_buat"))
-        await cb.answer(); return
+        return
     await cb.message.edit_text(text_server_list("Buat Akun VLESS", proto="vless"), parse_mode="HTML",
                                 reply_markup=kb_vless_server_list("vl_buat", back_cb="m_buat"))
-    await cb.answer()
 
 @router.callback_query(F.data == "proto_trial_vless")
 async def cb_proto_trial_vless(cb: CallbackQuery):
+    await cb.answer()
     from storage import get_server_list_by_type
     if not get_server_list_by_type("vless"):
         await cb.message.edit_text("❌ Belum ada server VLESS tersedia.", reply_markup=kb_back("m_trial"))
-        await cb.answer(); return
+        return
     await cb.message.edit_text(text_server_list("Trial VLESS Gratis", proto="vless"), parse_mode="HTML",
                                 reply_markup=kb_vless_server_list("vl_trial", back_cb="m_trial"))
-    await cb.answer()
 
 # Pagination VLESS
 @router.callback_query(F.data.startswith("lpage_"))
