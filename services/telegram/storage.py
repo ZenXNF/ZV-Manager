@@ -373,7 +373,7 @@ def mark_trial_vless(uid: int, sname: str) -> None:
 def count_vless_accounts(srv_ip: str) -> int:
     from config import BASE_DIR
     import glob
-    local = _local_ip()
+    local = _local_ip_cached()
     count = 0
     for conf in glob.glob(f"{BASE_DIR}/accounts/vless/*.conf"):
         try:
