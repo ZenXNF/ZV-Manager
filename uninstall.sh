@@ -122,7 +122,7 @@ _t_del_cron() {
 }
 
 _t_del_bin() {
-    rm -f /usr/local/bin/menu /usr/local/bin/zv-agent /usr/local/bin/zv-vmess-agent
+    rm -f /usr/local/bin/menu /usr/local/bin/zv-agent /usr/local/bin/zv-vmess-agent /usr/local/bin/zv-vless-agent
     rm -f /usr/local/bin/zv-ws-proxy.py /usr/local/bin/badvpn-udpgw /usr/local/bin/xray
 }
 
