@@ -27,6 +27,8 @@ def _status_url() -> tuple:
 def text_home(fname: str, uid: int) -> str:
     servers  = get_server_list()
     saldo    = saldo_get(uid)
+    url, label, _ = _status_url()
+    cek_line = f"\n🖥 Cek server: <a href=\"{url}\">{label}</a>" if url else ""
     return (
         f"⚡ <b>ZV-Manager SSH Tunnel</b>\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
@@ -39,7 +41,7 @@ def text_home(fname: str, uid: int) -> str:
         f"🔹 Support Bug Host / SNI\n"
         f"🔹 Masa Aktif Fleksibel\n"
         f"🔹 Auto Deploy Akun 24 Jam\n"
-        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"━━━━━━━━━━━━━━━━━━━{cek_line}\n"
         f"Halo, {fname}! Pilih menu 👇"
     )
 

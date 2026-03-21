@@ -10,18 +10,6 @@ from config import ADMIN_ID
 from storage import get_server_list, get_server_list_by_type, saldo_get, load_tg_server_conf
 
 
-def _web_status_button():
-    """Return tombol web status — WebApp jika domain, link biasa jika IP, None jika tidak ada."""
-    from texts import _status_url
-    from aiogram.types import WebAppInfo
-    url, label, is_domain = _status_url()
-    if not url:
-        return None
-    if is_domain:
-        return InlineKeyboardButton(text="🖥 Status Server", web_app=WebAppInfo(url=url))
-    else:
-        return InlineKeyboardButton(text="🖥 Status Server", url=url)
-
 def kb_home() -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
     b.row(
@@ -32,9 +20,6 @@ def kb_home() -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="📋 Akun Saya",      callback_data="m_akun"),
         InlineKeyboardButton(text="💰 Riwayat Saldo",  callback_data="m_saldo_history")
     )
-    web_btn = _web_status_button()
-    if web_btn:
-        b.row(web_btn)
     return b.as_markup()
 
 def kb_home_admin() -> InlineKeyboardMarkup:
@@ -47,9 +32,6 @@ def kb_home_admin() -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="📋 Akun Saya",      callback_data="m_akun"),
         InlineKeyboardButton(text="💰 Riwayat Saldo",  callback_data="m_saldo_history")
     )
-    web_btn = _web_status_button()
-    if web_btn:
-        b.row(web_btn)
     b.row(
         InlineKeyboardButton(text="🔧 Admin",          callback_data="m_admin")
     )
