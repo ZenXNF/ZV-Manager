@@ -270,6 +270,12 @@ _run "Cron jobs" "semua diperbarui" _task_cron
 ln -sf /etc/zv-manager/menu/menu.sh /usr/local/bin/menu
 chmod +x /usr/local/bin/menu
 
+# ── Regenerasi web status page jika aktif ─────────────────────
+if [[ -f /etc/zv-manager/.web-installed ]]; then
+    rm -f /var/www/zv-manager/index.html
+    bash /etc/zv-manager/cron/status-page.sh &>/dev/null
+fi
+
 # ── Selesai ───────────────────────────────────────────────────
 echo ""
 _sep
