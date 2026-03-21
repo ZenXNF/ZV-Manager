@@ -175,7 +175,8 @@ async def cmd_start(msg: Message):
     state_clear(uid)
     register_user(uid, fname)
     await msg.answer(text_home(fname, uid), parse_mode="HTML",
-                     reply_markup=kb_for_user(uid))
+                     reply_markup=kb_for_user(uid),
+                     disable_web_page_preview=True)
 
 
 # ── /testbroadcast (admin debug) ─────────────────────────────
@@ -216,6 +217,7 @@ async def cb_home(cb: CallbackQuery):
         await cb.answer("⏳"); return
     state_clear(uid)
     await cb.message.edit_text(text_home(fname, uid), parse_mode="HTML",
+                                 disable_web_page_preview=True,
                                 reply_markup=kb_for_user(uid))
     await cb.answer()
 
