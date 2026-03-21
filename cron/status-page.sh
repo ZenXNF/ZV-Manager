@@ -340,6 +340,7 @@ fetchData();
 </body>
 </html>
 HTMLEOF
+}
 
 # ── Kumpulkan data server ─────────────────────────────────
 NOW_WIB=$(TZ=Asia/Jakarta date "+%d %b %Y %H:%M:%S WIB")
@@ -419,6 +420,3 @@ if [[ ! -f "$INDEX_HTML" ]]; then
 fi
 
 chown -R www-data:www-data "$WEB_DIR" 2>/dev/null
-
-}
-
