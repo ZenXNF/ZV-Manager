@@ -50,85 +50,6 @@ _escape_json() {
     python3 -c "import json,sys; print(json.dumps(sys.stdin.read().strip()))" <<< "$1" | tr -d '"'
 }
 
-# ── Kumpulkan data server ─────────────────────────────────
-NOW_WIB=$(TZ=Asia/Jakarta date "+%d %b %Y %H:%M:%S WIB")
-NOW_TS=$(date +%s)
-TOTAL_UP=0
-TOTAL_DOWN=0
-SERVERS_JSON=""
-
-for conf in "$SERVER_DIR"/*.conf; do
-    [[ -f "$conf" ]] || continue
-    [[ "$conf" == *.tg.conf ]] && continue
-
-    unset NAME IP DOMAIN PORT ISP
-    source "$conf"
-    [[ -z "$NAME" ]] && continue
-
-    if [[ -z "$IP" ]]; then
-        _local_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null | tr -d '[:space:]')
-        IP="${_local_ip:-127.0.0.1}"
-    fi
-
-    LABEL="$NAME"
-    tgconf="${SERVER_DIR}/${NAME}.tg.conf"
-    [[ -f "$tgconf" ]] && { source "$tgconf"; LABEL="${TG_SERVER_LABEL:-$NAME}"; }
-
-    ms=$(_ping_ms "$IP")
-    port_ok=$(_check_port "$IP" "${PORT:-22}")
-
-    if [[ "$port_ok" == "1" ]]; then
-        STATUS="UP"; TOTAL_UP=$((TOTAL_UP+1))
-        _update_uptime "$NAME" "1"
-    else
-        STATUS="DOWN"; TOTAL_DOWN=$((TOTAL_DOWN+1))
-        _update_uptime "$NAME" "0"
-    fi
-
-    uptime_pct=$(_calc_uptime_pct "$NAME")
-    DISPLAY_HOST="${DOMAIN:-$IP}"
-    LAST_CHECK=$(TZ=Asia/Jakarta date '+%H:%M')
-
-    SERVERS_JSON+=$(cat << JSONEOF
-{
-  "name": "$(echo "$LABEL" | python3 -c 'import sys,json; print(json.dumps(sys.stdin.read().strip()))'| tr -d '"')",
-  "host": "$(echo "$DISPLAY_HOST" | python3 -c 'import sys,json; print(json.dumps(sys.stdin.read().strip()))' | tr -d '"')",
-  "isp": "$(echo "${ISP:-}" | python3 -c 'import sys,json; print(json.dumps(sys.stdin.read().strip()))' | tr -d '"')",
-  "status": "$STATUS",
-  "uptime": "$uptime_pct",
-  "response": "$ms",
-  "last_check": "$LAST_CHECK"
-},
-JSONEOF
-)
-done
-
-TOTAL_SERVER=$((TOTAL_UP + TOTAL_DOWN))
-[[ $TOTAL_SERVER -gt 0 ]] && \
-    AVG_UPTIME=$(python3 -c "print(f'{$TOTAL_UP/$TOTAL_SERVER*100:.1f}')") || AVG_UPTIME="100.0"
-
-# Hapus trailing koma dari server terakhir
-SERVERS_JSON="${SERVERS_JSON%,}"
-
-cat > "$DATA_JSON" << JSONEOF
-{
-  "updated": "$NOW_WIB",
-  "updated_ts": $NOW_TS,
-  "panel": "$(echo "$PANEL_NAME" | python3 -c 'import sys,json; print(json.dumps(sys.stdin.read().strip()))' | tr -d '"')",
-  "total_up": $TOTAL_UP,
-  "total_down": $TOTAL_DOWN,
-  "avg_uptime": "$AVG_UPTIME",
-  "servers": [${SERVERS_JSON}]
-}
-JSONEOF
-
-# ── Generate index.html jika belum ada ────────────────────
-if [[ ! -f "$INDEX_HTML" ]]; then
-    _gen_index
-fi
-
-chown -R www-data:www-data "$WEB_DIR" 2>/dev/null
-
 _gen_index() {
 cat > "$INDEX_HTML" << 'HTMLEOF'
 <!DOCTYPE html>
@@ -406,5 +327,85 @@ fetchData();
 </body>
 </html>
 HTMLEOF
+
+# ── Kumpulkan data server ─────────────────────────────────
+NOW_WIB=$(TZ=Asia/Jakarta date "+%d %b %Y %H:%M:%S WIB")
+NOW_TS=$(date +%s)
+TOTAL_UP=0
+TOTAL_DOWN=0
+SERVERS_JSON=""
+
+for conf in "$SERVER_DIR"/*.conf; do
+    [[ -f "$conf" ]] || continue
+    [[ "$conf" == *.tg.conf ]] && continue
+
+    unset NAME IP DOMAIN PORT ISP
+    source "$conf"
+    [[ -z "$NAME" ]] && continue
+
+    if [[ -z "$IP" ]]; then
+        _local_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null | tr -d '[:space:]')
+        IP="${_local_ip:-127.0.0.1}"
+    fi
+
+    LABEL="$NAME"
+    tgconf="${SERVER_DIR}/${NAME}.tg.conf"
+    [[ -f "$tgconf" ]] && { source "$tgconf"; LABEL="${TG_SERVER_LABEL:-$NAME}"; }
+
+    ms=$(_ping_ms "$IP")
+    port_ok=$(_check_port "$IP" "${PORT:-22}")
+
+    if [[ "$port_ok" == "1" ]]; then
+        STATUS="UP"; TOTAL_UP=$((TOTAL_UP+1))
+        _update_uptime "$NAME" "1"
+    else
+        STATUS="DOWN"; TOTAL_DOWN=$((TOTAL_DOWN+1))
+        _update_uptime "$NAME" "0"
+    fi
+
+    uptime_pct=$(_calc_uptime_pct "$NAME")
+    DISPLAY_HOST="${DOMAIN:-$IP}"
+    LAST_CHECK=$(TZ=Asia/Jakarta date '+%H:%M')
+
+    SERVERS_JSON+=$(cat << JSONEOF
+{
+  "name": "$(echo "$LABEL" | python3 -c 'import sys,json; print(json.dumps(sys.stdin.read().strip()))'| tr -d '"')",
+  "host": "$(echo "$DISPLAY_HOST" | python3 -c 'import sys,json; print(json.dumps(sys.stdin.read().strip()))' | tr -d '"')",
+  "isp": "$(echo "${ISP:-}" | python3 -c 'import sys,json; print(json.dumps(sys.stdin.read().strip()))' | tr -d '"')",
+  "status": "$STATUS",
+  "uptime": "$uptime_pct",
+  "response": "$ms",
+  "last_check": "$LAST_CHECK"
+},
+JSONEOF
+)
+done
+
+TOTAL_SERVER=$((TOTAL_UP + TOTAL_DOWN))
+[[ $TOTAL_SERVER -gt 0 ]] && \
+    AVG_UPTIME=$(python3 -c "print(f'{$TOTAL_UP/$TOTAL_SERVER*100:.1f}')") || AVG_UPTIME="100.0"
+
+# Hapus trailing koma dari server terakhir
+SERVERS_JSON="${SERVERS_JSON%,}"
+
+cat > "$DATA_JSON" << JSONEOF
+{
+  "updated": "$NOW_WIB",
+  "updated_ts": $NOW_TS,
+  "panel": "$(echo "$PANEL_NAME" | python3 -c 'import sys,json; print(json.dumps(sys.stdin.read().strip()))' | tr -d '"')",
+  "total_up": $TOTAL_UP,
+  "total_down": $TOTAL_DOWN,
+  "avg_uptime": "$AVG_UPTIME",
+  "servers": [${SERVERS_JSON}]
+}
+JSONEOF
+
+# ── Generate index.html jika belum ada ────────────────────
+if [[ ! -f "$INDEX_HTML" ]]; then
+    _gen_index
+fi
+
+chown -R www-data:www-data "$WEB_DIR" 2>/dev/null
+
 }
 
