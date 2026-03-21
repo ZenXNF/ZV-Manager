@@ -17,9 +17,9 @@ def _status_url() -> tuple:
         val = Path("/etc/zv-manager/web-host").read_text().strip()
         if not val:
             return ("", "", False)
-        url = f"https://{val}"
-        is_domain = not re.match(r"^\d{1,3}(\.\d{1,3}){3}$", val)
-        return (url, val, is_domain)
+        is_ip = bool(re.match(r"^\d{1,3}(\.\d{1,3}){3}$", val))
+        url   = f"http://{val}:81" if is_ip else f"https://{val}"
+        return (url, val, not is_ip)
     except Exception:
         return ("", "", False)
 

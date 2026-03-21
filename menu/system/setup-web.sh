@@ -18,7 +18,7 @@ _is_web_installed() {
 _get_url() {
     local host; host=$(cat /etc/zv-manager/web-host 2>/dev/null)
     [[ -z "$host" ]] && { echo ""; return; }
-    [[ "$host" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] && echo "http://${host}" || echo "https://${host}"
+    [[ "$host" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] && echo "http://${host}:81" || echo "https://${host}"
 }
 
 _install_web() {
@@ -75,9 +75,10 @@ server {
 }
 NGINXEOF
         else
-            # IP atau belum ada cert → HTTP biasa
+            # IP atau belum ada cert → HTTP port 81
             cat > /etc/nginx/sites-available/zv-status << NGINXEOF
 server {
+    listen 81;
     server_name _;
     root ${WEB_DIR};
     index index.html;
