@@ -18,8 +18,21 @@ mkdir -p "$WEB_DIR" "$STATE_DIR"
 
 # ── Helpers ───────────────────────────────────────────────
 _ping_ms() {
-    local ip="$1"
-    local ms; ms=$(ping -c 1 -W 2 "$ip" 2>/dev/null | grep "time=" | sed 's/.*time=\([0-9.]*\).*/\1/')
+    local ip="$1" port="${2:-22}"
+    local ms
+    ms=$(python3 -c "
+import socket, time
+try:
+    s = socket.socket()
+    s.settimeout(2)
+    t = time.time()
+    s.connect(('${ip}', ${port}))
+    ms = (time.time() - t) * 1000
+    s.close()
+    print(f'{ms:.1f}')
+except:
+    print('0')
+" 2>/dev/null)
     echo "${ms:-0}"
 }
 
@@ -352,7 +365,7 @@ for conf in "$SERVER_DIR"/*.conf; do
     tgconf="${SERVER_DIR}/${NAME}.tg.conf"
     [[ -f "$tgconf" ]] && { source "$tgconf"; LABEL="${TG_SERVER_LABEL:-$NAME}"; }
 
-    ms=$(_ping_ms "$IP")
+    ms=$(_ping_ms "$IP" "${PORT:-22}")
     port_ok=$(_check_port "$IP" "${PORT:-22}")
 
     if [[ "$port_ok" == "1" ]]; then
