@@ -32,6 +32,13 @@ install_nginx() {
     local domain
     domain=$(cat /etc/zv-manager/domain 2>/dev/null)
 
+    local status_domain
+    status_domain=$(cat /etc/zv-manager/web-host 2>/dev/null | tr -d '[:space:]')
+    # Hanya pakai status_domain jika berupa domain (bukan IP)
+    if [[ "$status_domain" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        status_domain=""
+    fi
+
     rm -f /etc/nginx/sites-enabled/default
     rm -f /etc/nginx/sites-available/default
     rm -f /etc/nginx/conf.d/*.conf
@@ -66,10 +73,11 @@ stream {
 
     # Port 443 → ssl_preread (TIDAK terminate TLS)
     # SNI = domain server       → nginx:18443 → ws-proxy:8880 → SSH/VMess/browser
-    # SNI = status domain       → ws-proxy:8881 (TLS) → nginx:8080 status page
+    # SNI = status domain       → nginx:8444 (TLS) → status page
     # SNI = lain (bug XL/dll)   → ws-proxy:8881 (TLS) → SSH atau VMess
     map \$ssl_preread_server_name \$backend_443 {
         ${domain}   127.0.0.1:18443;
+$([ -n "${status_domain}" ] && echo "        ${status_domain}   127.0.0.1:8444;")
         default     127.0.0.1:8881;
     }
     server {
@@ -156,19 +164,6 @@ http {
             proxy_buffering off;
         }
 
-        # VLESS WebSocket
-        location /vless {
-            proxy_pass http://127.0.0.1:10004;
-            proxy_http_version 1.1;
-            proxy_set_header Upgrade \$http_upgrade;
-            proxy_set_header Connection \$connection_upgrade;
-            proxy_set_header Host \$host;
-            proxy_set_header X-Real-IP \$remote_addr;
-            proxy_read_timeout 3600s;
-            proxy_send_timeout 3600s;
-            proxy_buffering off;
-        }
-
     }
 
     # ── Port 8443 — VMess WS/gRPC (SSL) + Status Page ────────
@@ -208,19 +203,6 @@ http {
             proxy_buffering off;
         }
 
-        # VLESS WebSocket (TLS)
-        location /vless {
-            proxy_pass http://127.0.0.1:10004;
-            proxy_http_version 1.1;
-            proxy_set_header Upgrade \$http_upgrade;
-            proxy_set_header Connection \$connection_upgrade;
-            proxy_set_header Host \$host;
-            proxy_set_header X-Real-IP \$remote_addr;
-            proxy_read_timeout 3600s;
-            proxy_send_timeout 3600s;
-            proxy_buffering off;
-        }
-
         # VMess gRPC (TLS)
         location /vmess-grpc {
             grpc_pass grpc://127.0.0.1:10002;
@@ -229,15 +211,24 @@ http {
             grpc_send_timeout 3600s;
         }
 
-        # VLESS gRPC (TLS)
-        location /vless-grpc {
-            grpc_pass grpc://127.0.0.1:10005;
-            grpc_set_header Host \$host;
-            grpc_read_timeout 3600s;
-            grpc_send_timeout 3600s;
-        }
-
     }
+
+$([ -n "${status_domain}" ] && cat << STATUSBLOCK
+    # ── Status Page ───────────────────────────────────────
+    server {
+        listen 8444 ssl;
+        server_name ${status_domain};
+        ssl_certificate     /etc/zv-manager/ssl/cert.pem;
+        ssl_certificate_key /etc/zv-manager/ssl/key.pem;
+        ssl_protocols       TLSv1.2 TLSv1.3;
+        ssl_ciphers         HIGH:!aNULL:!MD5;
+        root /var/www/zv-manager;
+        index index.html;
+        location / { try_files \$uri \$uri/ =404; }
+        access_log off;
+    }
+STATUSBLOCK
+)
 }
 NGINXMAIN
 
