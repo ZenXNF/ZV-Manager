@@ -52,10 +52,12 @@ install_nginx() {
     [[ -n "$status_domain" && "$status_domain" != "$domain" ]] && \
         map_status_line="        ${status_domain}   127.0.0.1:8444;"
 
+    # Server block 8444 hanya perlu ada kalau status_domain BERBEDA dari domain utama.
+    # Kalau sama, traffic sudah masuk via 18443 → ws-proxy → nginx:8080 (serve statis di sana).
     local status_server_block=""
-    if [[ -n "$status_domain" ]]; then
+    if [[ -n "$status_domain" && "$status_domain" != "$domain" ]]; then
         status_server_block="
-    # ── Status Page ───────────────────────────────────────
+    # ── Status Page (domain terpisah) ────────────────────
     server {
         listen 8444 ssl;
         server_name ${status_domain};
@@ -171,6 +173,13 @@ http {
         location = /favicon.ico {
             root /var/www/zv-manager;
             log_not_found off;
+        }
+
+        # File statis (data.json, asset lain dari status page)
+        location ~* \.(json|js|css|png|ico|woff2?)$ {
+            root /var/www/zv-manager;
+            add_header Cache-Control "no-cache";
+            try_files $uri =404;
         }
 
         # VMess WebSocket
