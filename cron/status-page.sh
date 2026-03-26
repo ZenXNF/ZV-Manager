@@ -270,7 +270,7 @@ function renderData(d) {
   document.getElementById('total-up').textContent = d.total_up;
   document.getElementById('total-down').textContent = d.total_down;
   const upt = d.avg_uptime;
-  document.getElementById('avg-uptime').textContent = upt === 'N/A' ? '—' : upt + '%';
+  document.getElementById('avg-uptime').textContent = (upt === '—' || upt === 'N/A') ? '—' : upt + '%';
   document.getElementById('footer-text').textContent = (d.panel || 'ZV-Manager') + ' · Update setiap 5 menit';
 
   const dot = document.getElementById('status-dot');
@@ -291,7 +291,7 @@ function renderData(d) {
   const container = document.getElementById('cards-container');
   container.innerHTML = '';
   if (!d.servers || d.servers.length === 0) {
-    container.innerHTML = '<div class="loading" style="color:#484f58">Belum ada server. Tambahkan server via menu panel.</div>';
+    container.innerHTML = '<div class="loading" style="color:#484f58">Tidak ada server yang terdaftar saat ini.</div>';
     return;
   }
   (d.servers || []).forEach(s => {
@@ -409,7 +409,7 @@ TOTAL_SERVER=$((TOTAL_UP + TOTAL_DOWN))
 if [[ $TOTAL_SERVER -gt 0 ]]; then
     AVG_UPTIME=$(python3 -c "print(f'{$TOTAL_UP/$TOTAL_SERVER*100:.1f}')")
 else
-    AVG_UPTIME="N/A"
+    AVG_UPTIME="—"
 fi
 
 # Hapus trailing koma dari server terakhir
