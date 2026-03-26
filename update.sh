@@ -263,10 +263,13 @@ _run "OpenSSH" "config diperbarui" _task_ssh
 _run "UDP Custom" "config diperbarui" _task_udp
 
 # ── 12. aiogram ───────────────────────────────────────────────
+_task_aiogram() {
+    pip3 install -q "aiogram==3.*" --break-system-packages 2>/dev/null || \
+    pip3 install -q "aiogram==3.*" 2>/dev/null
+}
 current_aiogram=$(pip3 show aiogram 2>/dev/null | grep "^Version:" | awk '{print $2}')
 if [[ -z "$current_aiogram" ]]; then
-    _run "aiogram (Python)" "berhasil diinstall" bash -c \
-        'pip3 install -q "aiogram==3.*" --break-system-packages 2>/dev/null'
+    _run "aiogram Python" "berhasil diinstall" _task_aiogram
 else
     _skip "aiogram" "sudah ada v${current_aiogram}"
 fi
