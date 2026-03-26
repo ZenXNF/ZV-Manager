@@ -166,7 +166,8 @@ _sweep_vmess() {
     source /etc/zv-manager/utils/remote.sh 2>/dev/null
     local count=0
     local now_ts; now_ts=$(date +%s)
-    for conf_file in "$vmess_dir"/*.conf; do
+    # Scan .conf dan .disabled — keduanya perlu dihapus kalau expired
+    for conf_file in "$vmess_dir"/*.conf "$vmess_dir"/*.disabled; do
         [[ -f "$conf_file" ]] || continue
         USERNAME=$(grep "^USERNAME=" "$conf_file" | cut -d= -f2 | tr -d '"' | tr -d "[:space:]")
         EXPIRED_TS=$(grep "^EXPIRED_TS=" "$conf_file" | cut -d= -f2 | tr -d '"' | tr -d "[:space:]")
@@ -181,8 +182,10 @@ _sweep_vmess() {
             local result
             result=$(remote_vmess_agent "$sname" del "$USERNAME" 2>/dev/null)
             _log "VMESS [$sname]: Auto-deleted expired: $USERNAME ($result)"
-            # Hapus conf lokal di brain
+            # Hapus conf lokal (baik .conf maupun .disabled)
             rm -f "$conf_file"
+            rm -f "${vmess_dir}/${USERNAME}.conf"
+            rm -f "${vmess_dir}/${USERNAME}.disabled"
             rm -f "/tmp/zv-tg-state/vmess_${USERNAME}.notified"
             # Notif ke user (hanya akun premium)
             if [[ "$IS_TRIAL" != "1" && -n "$TG_USER_ID" && "$TG_USER_ID" != "0" ]]; then
@@ -210,7 +213,8 @@ _sweep_vless() {
     source /etc/zv-manager/utils/remote.sh 2>/dev/null
     local count=0
     local now_ts; now_ts=$(date +%s)
-    for conf_file in "$vless_dir"/*.conf; do
+    # Scan .conf dan .disabled — keduanya perlu dihapus kalau expired
+    for conf_file in "$vless_dir"/*.conf "$vless_dir"/*.disabled; do
         [[ -f "$conf_file" ]] || continue
         USERNAME=$(grep "^USERNAME=" "$conf_file" | cut -d= -f2 | tr -d '"' | tr -d "[:space:]")
         EXPIRED_TS=$(grep "^EXPIRED_TS=" "$conf_file" | cut -d= -f2 | tr -d '"' | tr -d "[:space:]")
@@ -225,6 +229,8 @@ _sweep_vless() {
             result=$(remote_vless_agent "$sname" del "$USERNAME" 2>/dev/null)
             _log "VLESS [$sname]: Auto-deleted expired: $USERNAME ($result)"
             rm -f "$conf_file"
+            rm -f "${vless_dir}/${USERNAME}.conf"
+            rm -f "${vless_dir}/${USERNAME}.disabled"
             rm -f "/tmp/zv-tg-state/vless_${USERNAME}.notified"
             if [[ "$IS_TRIAL" != "1" && -n "$TG_USER_ID" && "$TG_USER_ID" != "0" ]]; then
                 _tg_send "$TG_USER_ID" "\U0001f5d1\ufe0f <b>Akun VLESS Dihapus</b>\n\nUsername : <code>${USERNAME}</code>\nServer   : ${sname}\n\nAkun VLESS kamu sudah expired dan telah dihapus otomatis.\nBuat akun baru lewat bot."

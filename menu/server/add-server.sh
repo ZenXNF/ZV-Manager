@@ -30,15 +30,17 @@ add_server() {
     echo -e "  ${BYELLOW}Tip: Neva (VPS ini sendiri) juga bisa ditambahkan.${NC}"
     echo ""
     while true; do
-        read -rp "  Nama server (contoh: vps1, vps-sg)  : " name
-        if [[ -z "$name" ]]; then
+        read -rp "  Nama server (contoh: neva jkt, vps-sg)  : " name_input
+        if [[ -z "$name_input" ]]; then
             echo -e "  ${BRED}Nama server wajib diisi.${NC}"
-        elif [[ "$name" =~ [[:space:]] ]]; then
-            echo -e "  ${BRED}Nama server tidak boleh mengandung spasi. Gunakan tanda hubung, contoh: neva-jakarta${NC}"
         else
             break
         fi
     done
+    # Slug untuk nama file: spasi → tanda hubung, huruf kecil semua
+    local name; name=$(echo "$name_input" | tr '[:upper:]' '[:lower:]' | sed 's/[[:space:]]\+/-/g' | tr -cd 'a-z0-9-_')
+    # Display name: nama asli yang diketik user (untuk label bot default)
+    local name_display="$name_input"
     read -rp "  IP Address                           : " ip
     read -rp "  Domain (kosongkan = pakai IP)        : " domain
     read -rp "  Port SSH              [default: 22]  : " port
@@ -182,7 +184,7 @@ ISP="${isp}"
 ADDED="$(date +"%Y-%m-%d %H:%M")"
 CONFEOF
     chmod 600 "${SERVER_DIR}/${name}.conf"
-    print_ok "Server '${name}' berhasil disimpan! (tipe: ${server_type})"
+    print_ok "Server '${name_display}' berhasil disimpan! (file: ${name}.conf, tipe: ${server_type})"
     echo ""
 
     # ================================================================
@@ -195,7 +197,7 @@ CONFEOF
     echo -e "  ${BYELLOW}Tekan Enter untuk pakai nilai default.${NC}"
     echo ""
 
-    local tg_label="$name"
+    local tg_label="$name_display"
     read -rp "  Label di bot         [${tg_label}]: " v; [[ -n "$v" ]] && tg_label="$v"
 
     # Inisialisasi variabel SSH
@@ -336,7 +338,7 @@ TGEOF
         print_ok "Agent lokal siap."
     else
         echo ""
-        print_info "Deploy agent ke remote server ${name}..."
+        print_info "Deploy agent ke remote server ${name_display} (${name})..."
         source /etc/zv-manager/utils/remote.sh
         local r1; r1=$(deploy_agent "$name")
         if [[ "$r1" == "DEPLOY-OK" ]]; then
@@ -370,7 +372,9 @@ TGEOF
     case "$server_type" in
         ssh)   echo -e "  ${BYELLOW}→ Akan dikirim ke user yang punya akun SSH${NC}" ;;
         vmess) echo -e "  ${BYELLOW}→ Akan dikirim ke user yang punya akun VMess${NC}" ;;
+        vless) echo -e "  ${BYELLOW}→ Akan dikirim ke user yang punya akun VLESS${NC}" ;;
         both)  echo -e "  ${BYELLOW}→ Akan dikirim ke semua user (SSH + VMess)${NC}" ;;
+        all)   echo -e "  ${BYELLOW}→ Akan dikirim ke semua user (SSH + VMess + VLESS)${NC}" ;;
     esac
     echo ""
 
@@ -401,7 +405,11 @@ TGEOF
                 elif [[ "$server_type" == "vmess" ]]; then
                     ls "${BASE_DIR}/accounts/vmess"/*.conf 2>/dev/null | \
                         xargs grep -l "^TG_USER_ID=\"${_uid}\"" 2>/dev/null | grep -q . || continue
+                elif [[ "$server_type" == "vless" ]]; then
+                    ls "${BASE_DIR}/accounts/vless"/*.conf 2>/dev/null | \
+                        xargs grep -l "^TG_USER_ID=\"${_uid}\"" 2>/dev/null | grep -q . || continue
                 fi
+                # both / all → semua user lolos filter
                 # Cek duplikat
                 local _dup=false
                 for _x in "${_notif_uids[@]}"; do
@@ -419,7 +427,9 @@ TGEOF
             case "$server_type" in
                 ssh)   _type_label="✅ Tersedia: 🔑 SSH" ;;
                 vmess) _type_label="✅ Tersedia: ⚡ VMess" ;;
+                vless) _type_label="✅ Tersedia: 🔐 VLESS" ;;
                 both)  _type_label="✅ Tersedia: 🔑 SSH + ⚡ VMess" ;;
+                all)   _type_label="✅ Tersedia: 🔑 SSH + ⚡ VMess + 🔐 VLESS" ;;
             esac
 
             local _notif_msg="🆕 <b>Server Baru Tersedia!</b>

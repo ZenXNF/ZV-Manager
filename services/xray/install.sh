@@ -64,7 +64,7 @@ install_xray() {
     # ── 4. Systemd service ──────────────────────────────────
     cat > /etc/systemd/system/zv-xray.service <<SVCEOF
 [Unit]
-Description=ZV-Manager Xray-core (VMess)
+Description=ZV-Manager Xray-core (VMess + VLESS)
 After=network.target
 Wants=network.target
 

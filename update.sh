@@ -297,9 +297,9 @@ echo ""
 printf "  ${D}≥${NC}  ${W}Yang diperbarui:${NC}\n"
 printf "  ${G}  ✔${NC}  Script, Nginx, SSH, Dropbear, WebSocket\n"
 printf "  ${G}  ✔${NC}  Xray-core, BadVPN, UDP Custom, aiogram, Cron\n"
-printf "  ${G}  ✔${NC}  Binary zv-agent, zv-vmess-agent, Telegram bot\n"
+printf "  ${G}  ✔${NC}  Binary zv-agent, zv-vmess-agent, zv-vless-agent, Telegram bot\n"
 echo ""
-printf "  ${O}  –${NC}  Akun SSH & VMess, daftar server, SSL tidak berubah\n"
+printf "  ${O}  –${NC}  Akun SSH, VMess & VLESS, daftar server, SSL tidak berubah\n"
 echo ""
 
 

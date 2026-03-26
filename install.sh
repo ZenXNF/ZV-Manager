@@ -1,7 +1,7 @@
 #!/bin/bash
 # ============================================================
 #   ZV-Manager Installer
-#   SSH Tunneling Manager for Ubuntu 24.04 LTS
+#   SSH, VMess & VLESS Tunneling Panel for Ubuntu 24.04 LTS
 # ============================================================
 
 INSTALL_DIR="/etc/zv-manager"
@@ -89,7 +89,7 @@ _note() { printf "  ${O}–${NC}  ${W}%-35s${NC}  ${D}%s${NC}\n" "$1" "$2"; }
 clear
 _sep
 _grad " ZV-MANAGER INSTALLER" 255 0 127 0 210 255
-_grad " SSH & VMess Tunneling Panel — Ubuntu 24.04 LTS" 0 210 255 160 80 255
+_grad " SSH, VMess & VLESS Tunneling Panel — Ubuntu 24.04 LTS" 0 210 255 160 80 255
 _sep
 echo ""
 
@@ -387,7 +387,7 @@ _run "Nginx"           "berhasil dipasang" _t_nginx
 _run "WebSocket Proxy" "berhasil dipasang" _t_ws
 _run "UDP Custom"      "berhasil dipasang" _t_udp
 _run "BadVPN UDPGW"    "berhasil dipasang" _t_badvpn
-_run "Xray VMess"      "berhasil dipasang" _t_xray
+_run "Xray VMess+VLESS"  "berhasil dipasang" _t_xray
 
 # ── Cron jobs ─────────────────────────────────────────────────
 _run "Cron jobs"           "semua terjadwal"  _t_cron
