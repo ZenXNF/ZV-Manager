@@ -179,7 +179,7 @@ http {
         location ~* \.(json|js|css|png|ico|woff2?)$ {
             root /var/www/zv-manager;
             add_header Cache-Control "no-cache";
-            try_files $uri =404;
+            try_files \$uri =404;
         }
 
         # VMess WebSocket
