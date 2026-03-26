@@ -15,6 +15,7 @@ tg_load 2>/dev/null || true
 SERVER_DIR="/etc/zv-manager/servers"
 ACCOUNT_SSH="/etc/zv-manager/accounts/ssh"
 ACCOUNT_VMESS="/etc/zv-manager/accounts/vmess"
+ACCOUNT_VLESS="/etc/zv-manager/accounts/vless"
 NOTIFIED_DIR="/etc/zv-manager/accounts/notified"
 BACKUP_DIR="/var/backups/zv-manager"
 BASE_DIR="/etc/zv-manager"
@@ -54,7 +55,7 @@ _backup_server() {
     local DATE; DATE=$(date +"%Y-%m-%d_%H-%M")
     local TMP_DIR; TMP_DIR=$(mktemp -d)
     local dst="${TMP_DIR}/srv-${sname}"
-    mkdir -p "${dst}/ssh-accounts" "${dst}/vmess-accounts"
+    mkdir -p "${dst}/ssh-accounts" "${dst}/vmess-accounts" "${dst}/vless-accounts"
 
     # Conf server
     cp "${SERVER_DIR}/${sname}.conf"    "${dst}/" 2>/dev/null
@@ -78,6 +79,16 @@ _backup_server() {
         [[ "$srv" == "$sname" ]] || continue
         cp "$vc" "${dst}/vmess-accounts/"
         vmess_count=$((vmess_count + 1))
+    done
+
+    # Akun VLESS terkait
+    local vless_count=0
+    for lc in "${ACCOUNT_VLESS}"/*.conf; do
+        [[ -f "$lc" ]] || continue
+        local srv; srv=$(grep "^SERVER=" "$lc" | cut -d= -f2 | tr -d '"' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+        [[ "$srv" == "$sname" ]] || continue
+        cp "$lc" "${dst}/vless-accounts/"
+        vless_count=$((vless_count + 1))
     done
 
     # Catatan restore
@@ -106,9 +117,10 @@ NOTETXT
     _tg_file "$OUT_FILE" "🗑 <b>Backup Pre-Delete: ${sname}</b>
 ━━━━━━━━━━━━━━━━━━━
 📅 ${backup_date}
-📦 Ukuran   : ${SIZE}
-🔑 Akun SSH : ${ssh_count}
+📦 Ukuran    : ${SIZE}
+🔑 Akun SSH  : ${ssh_count}
 ⚡ Akun VMess: ${vmess_count}
+🔐 Akun VLESS: ${vless_count}
 ━━━━━━━━━━━━━━━━━━━
 <i>Backup ini dibuat sebelum server dihapus.</i>"
 
@@ -189,14 +201,32 @@ Hubungi admin jika ada pertanyaan. 😊"
         _tg_send "$tg_uid" "$msg"
     done
 
-    echo "$count_ssh $count_vmess"
+    # Hapus akun VLESS terkait
+    local count_vless=0
+    for lc in "${ACCOUNT_VLESS}"/*.conf; do
+        [[ -f "$lc" ]] || continue
+        local srv; srv=$(grep "^SERVER=" "$lc" | cut -d= -f2 | tr -d '"' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+        [[ "$srv" == "$sname" ]] || continue
+        local uname; uname=$(grep "^USERNAME=" "$lc" | cut -d= -f2 | tr -d '"' | tr -d '[:space:]')
+        local tg_uid; tg_uid=$(grep "^TG_USER_ID=" "$lc" | cut -d= -f2 | tr -d '"' | tr -d '[:space:]')
+        local is_trial; is_trial=$(grep "^IS_TRIAL=" "$lc" | cut -d= -f2 | tr -d '"' | tr -d '[:space:]')
+        local exp_ts; exp_ts=$(grep "^EXPIRED_TS=" "$lc" | cut -d= -f2 | tr -d '"' | tr -d '[:space:]')
+        local exp_d; exp_d=$(date -d "@${exp_ts}" "+%d %b %Y" 2>/dev/null || echo "?")
+        [[ "$is_trial" != "1" && -n "$tg_uid" && "$tg_uid" != "0" ]] && \
+            uid_vmess_list["$tg_uid"]+="🔐 ${uname} · ⏳ ${exp_d}\n"
+        rm -f "$lc"
+        rm -f "/tmp/zv-tg-state/vless_${uname}.notified"
+        count_vless=$((count_vless + 1))
+    done
+
+    echo "$count_ssh $count_vmess $count_vless"
 }
 
 del_server() {
     clear
-    _sep
-    _grad " HAPUS SERVER" 255 0 127 0 210 255
-    _sep
+    echo -e "${BCYAN} ┌──────────────────────────────────────────────┐${NC}"
+    echo -e " │              ${BWHITE}HAPUS SERVER${NC}                    │"
+    echo -e "${BCYAN} └──────────────────────────────────────────────┘${NC}"
     echo ""
 
     local _ipvps; _ipvps=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null | tr -d '[:space:]')
@@ -239,7 +269,7 @@ del_server() {
     fi
 
     # Hitung akun terkait
-    local n_ssh=0 n_vmess=0
+    local n_ssh=0 n_vmess=0 n_vless=0
     for ac in "${ACCOUNT_SSH}"/*.conf; do
         [[ -f "$ac" ]] || continue
         local srv; srv=$(grep "^SERVER=" "$ac" | cut -d= -f2 | tr -d '"' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
@@ -250,9 +280,14 @@ del_server() {
         local srv; srv=$(grep "^SERVER=" "$vc" | cut -d= -f2 | tr -d '"' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
         [[ "$srv" == "$sname" ]] && n_vmess=$((n_vmess + 1))
     done
+    for lc in "${ACCOUNT_VLESS}"/*.conf; do
+        [[ -f "$lc" ]] || continue
+        local srv; srv=$(grep "^SERVER=" "$lc" | cut -d= -f2 | tr -d '"' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+        [[ "$srv" == "$sname" ]] && n_vless=$((n_vless + 1))
+    done
 
     echo -e "  ${BYELLOW}⚠  Server: ${BWHITE}${sname}${NC}"
-    echo -e "  ${BYELLOW}   Akun terkait: ${BWHITE}${n_ssh} SSH${NC}, ${BWHITE}${n_vmess} VMess${NC}"
+    echo -e "  ${BYELLOW}   Akun terkait: ${BWHITE}${n_ssh} SSH${NC}, ${BWHITE}${n_vmess} VMess${NC}, ${BWHITE}${n_vless} VLESS${NC}"
     echo -e "  ${BYELLOW}   Semua akun di server ini akan dihapus!${NC}"
     echo ""
     echo -e "  ${BGREEN}[1]${NC} Backup dulu, lalu hapus"
@@ -296,21 +331,23 @@ del_server() {
     echo -e "  ${BCYAN}Menghapus akun terkait + notif user...${NC}"
     local result
     result=$(_hapus_akun_server "$sname")
-    local del_ssh del_vmess
+    local del_ssh del_vmess del_vless
     del_ssh=$(echo "$result" | awk '{print $1}')
     del_vmess=$(echo "$result" | awk '{print $2}')
+    del_vless=$(echo "$result" | awk '{print $3}')
 
-    # Rebuild Xray config agar UUID akun VMess yang dihapus tidak lagi aktif
-    [[ "$del_vmess" -gt 0 ]] && zv-vmess-agent rebuild-config &>/dev/null || true
+    # Rebuild Xray config
+    [[ "$del_vmess" -gt 0 || "$del_vless" -gt 0 ]] && zv-vmess-agent rebuild-config &>/dev/null || true
 
     # Hapus conf server
     rm -f "$conf_file" "$tg_conf_file"
 
     echo ""
     print_ok "Server '${sname}' berhasil dihapus."
-    print_ok "SSH dihapus  : ${del_ssh} akun"
-    print_ok "VMess dihapus: ${del_vmess} akun"
-    [[ $((del_ssh + del_vmess)) -gt 0 ]] && print_ok "Notif dikirim ke user terkait."
+    print_ok "SSH dihapus   : ${del_ssh} akun"
+    print_ok "VMess dihapus : ${del_vmess} akun"
+    print_ok "VLESS dihapus : ${del_vless} akun"
+    [[ $((del_ssh + del_vmess + del_vless)) -gt 0 ]] && print_ok "Notif dikirim ke user terkait."
 
     press_any_key
 }
