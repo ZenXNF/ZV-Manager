@@ -49,7 +49,8 @@ install_nginx() {
 
     # ── Bangun bagian kondisional dahulu (hindari nested heredoc) ─
     local map_status_line=""
-    [[ -n "$status_domain" ]] && map_status_line="        ${status_domain}   127.0.0.1:8444;"
+    [[ -n "$status_domain" && "$status_domain" != "$domain" ]] && \
+        map_status_line="        ${status_domain}   127.0.0.1:8444;"
 
     local status_server_block=""
     if [[ -n "$status_domain" ]]; then
