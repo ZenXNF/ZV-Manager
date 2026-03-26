@@ -269,12 +269,18 @@ function renderData(d) {
   document.getElementById('last-updated').textContent = d.updated || '—';
   document.getElementById('total-up').textContent = d.total_up;
   document.getElementById('total-down').textContent = d.total_down;
-  document.getElementById('avg-uptime').textContent = d.avg_uptime + '%';
+  const upt = d.avg_uptime;
+  document.getElementById('avg-uptime').textContent = upt === 'N/A' ? '—' : upt + '%';
   document.getElementById('footer-text').textContent = (d.panel || 'ZV-Manager') + ' · Update setiap 5 menit';
 
   const dot = document.getElementById('status-dot');
   const txt = document.getElementById('status-text');
-  if (d.total_down === 0) {
+  const total = (d.total_up || 0) + (d.total_down || 0);
+  if (total === 0) {
+    dot.className = 'sdot';
+    dot.style.background = '#484f58';
+    txt.textContent = 'Belum ada server terdaftar';
+  } else if (d.total_down === 0) {
     dot.className = 'sdot all-up';
     txt.textContent = 'All Systems Operational';
   } else {
@@ -284,6 +290,10 @@ function renderData(d) {
 
   const container = document.getElementById('cards-container');
   container.innerHTML = '';
+  if (!d.servers || d.servers.length === 0) {
+    container.innerHTML = '<div class="loading" style="color:#484f58">Belum ada server. Tambahkan server via menu panel.</div>';
+    return;
+  }
   (d.servers || []).forEach(s => {
     const isUp = s.status === 'UP';
     const upt = parseFloat(s.uptime);
@@ -396,8 +406,11 @@ JSONEOF
 done
 
 TOTAL_SERVER=$((TOTAL_UP + TOTAL_DOWN))
-[[ $TOTAL_SERVER -gt 0 ]] && \
-    AVG_UPTIME=$(python3 -c "print(f'{$TOTAL_UP/$TOTAL_SERVER*100:.1f}')") || AVG_UPTIME="100.0"
+if [[ $TOTAL_SERVER -gt 0 ]]; then
+    AVG_UPTIME=$(python3 -c "print(f'{$TOTAL_UP/$TOTAL_SERVER*100:.1f}')")
+else
+    AVG_UPTIME="N/A"
+fi
 
 # Hapus trailing koma dari server terakhir
 SERVERS_JSON="${SERVERS_JSON%,}"
