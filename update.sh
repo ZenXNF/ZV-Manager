@@ -161,30 +161,37 @@ _task_udp() {
 }
 
 _task_cron() {
-    printf '%s\n' "*/1 * * * * root /bin/bash /etc/zv-manager/cron/autokill.sh" \
+    printf '%s\n' "* * * * * root for i in 1 2 3 4 5 6; do /bin/bash /etc/zv-manager/cron/autokill.sh; sleep 10; done" \
         > /etc/cron.d/zv-autokill
     printf '%s\n' "*/5 * * * * root /bin/bash /etc/zv-manager/cron/trial-cleanup.sh" \
         > /etc/cron.d/zv-trial
     printf '%s\n' "0 * * * * root /bin/bash /etc/zv-manager/cron/tg-notify.sh" \
         > /etc/cron.d/zv-tg-notify
-    printf '%s\n' "2 0 * * * root /bin/bash /etc/zv-manager/cron/expired.sh" \
+    printf '%s\n' "* * * * * root for i in 1 2 3 4 5; do /bin/bash /etc/zv-manager/cron/expired.sh; sleep 12; done" \
         > /etc/cron.d/zv-expired
     printf '%s\n' \
         "5 0 * * * root /bin/bash /etc/zv-manager/cron/license-check.sh" \
         "0 7 * * * root /bin/bash /etc/zv-manager/cron/daily-report.sh" \
         > /etc/cron.d/zv-license
     printf '%s\n' \
-        "*/5 * * * * root /bin/bash /etc/zv-manager/cron/bw-check.sh" \
+        "* * * * * root for i in 1 2 3 4 5 6; do /bin/bash /etc/zv-manager/cron/bw-check.sh; sleep 10; done" \
         "*/5 * * * * root /bin/bash /etc/zv-manager/cron/bw-vmess.sh" \
         "*/5 * * * * root /bin/bash /etc/zv-manager/cron/bw-vless.sh" \
         "* * * * * root /bin/bash /etc/zv-manager/cron/ip-limit.sh" \
         > /etc/cron.d/zv-bw-check
     printf '%s\n' "*/5 * * * * root /bin/bash /etc/zv-manager/cron/watchdog.sh" \
         > /etc/cron.d/zv-watchdog
+    printf '%s\n' "*/5 * * * * root /bin/bash /etc/zv-manager/cron/worker-check.sh" \
+        > /etc/cron.d/zv-worker-check
     printf '%s\n' "0 2 * * * root /bin/bash /etc/zv-manager/cron/backup.sh" \
         > /etc/cron.d/zv-backup
     printf '%s\n' "0 6 * * * root /bin/bash /etc/zv-manager/cron/check-update.sh" \
         > /etc/cron.d/zv-check-update
+    # Status page cron (hanya jika web sudah diinstall)
+    if [[ -f /etc/zv-manager/.web-installed ]]; then
+        printf '%s\n' "*/5 * * * * root /bin/bash /etc/zv-manager/cron/status-page.sh" \
+            > /etc/cron.d/zv-status-page
+    fi
     mkdir -p /var/lib/zv-manager/status
     service cron restart &>/dev/null
     systemctl enable --now atd &>/dev/null || service atd start &>/dev/null || true

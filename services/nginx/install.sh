@@ -6,13 +6,14 @@
 #   Port 80  (stream TCP)  → ws-proxy:8880  ← HTTP Custom non-SSL
 #   Port 443 (ssl_preread) → ws-proxy:8881 (TLS, bug SNI SSH+VMess)
 #                          → nginx:18443 → ws-proxy:8880 (SNI domain)
-#   Port 8080 (HTTP)       → VMess WS + Status Page + /api/
-#   Port 8443 (HTTPS)      → VMess WS/gRPC + Status Page
+#   Port 8080 (HTTP)       → VMess WS + VLESS WS + Status Page + /api/
+#   Port 8443 (HTTPS)      → VMess WS/gRPC + VLESS WS/gRPC + Status Page
 #   Port 18443 (TLS)       → ws-proxy:8880 (SSH via domain SNI)
 #
 #   ws-proxy routing (setelah TLS):
 #     CONNECT       → SSH (port 22/109/143/500/40000)
 #     GET /vmess WS → Xray:10001
+#     GET /vless WS → Xray:10004
 #     GET browser   → nginx:8080
 # ============================================================
 
@@ -46,9 +47,29 @@ install_nginx() {
     mkdir -p /var/www/zv-manager/api
     chown -R www-data:www-data /var/www/zv-manager
 
-    # Cek apakah stream module tersedia
-    local stream_mod=""
+    # ── Bangun bagian kondisional dahulu (hindari nested heredoc) ─
+    local map_status_line=""
+    [[ -n "$status_domain" ]] && map_status_line="        ${status_domain}   127.0.0.1:8444;"
 
+    local status_server_block=""
+    if [[ -n "$status_domain" ]]; then
+        status_server_block="
+    # ── Status Page ───────────────────────────────────────
+    server {
+        listen 8444 ssl;
+        server_name ${status_domain};
+        ssl_certificate     /etc/zv-manager/ssl/cert.pem;
+        ssl_certificate_key /etc/zv-manager/ssl/key.pem;
+        ssl_protocols       TLSv1.2 TLSv1.3;
+        ssl_ciphers         HIGH:!aNULL:!MD5;
+        root /var/www/zv-manager;
+        index index.html;
+        location / { try_files \$uri \$uri/ =404; }
+        access_log off;
+    }"
+    fi
+
+    # ── Tulis nginx.conf ──────────────────────────────────
     cat > /etc/nginx/nginx.conf << NGINXMAIN
 user www-data;
 worker_processes auto;
@@ -77,7 +98,7 @@ stream {
     # SNI = lain (bug XL/dll)   → ws-proxy:8881 (TLS) → SSH atau VMess
     map \$ssl_preread_server_name \$backend_443 {
         ${domain}   127.0.0.1:18443;
-$([ -n "${status_domain}" ] && echo "        ${status_domain}   127.0.0.1:8444;")
+${map_status_line}
         default     127.0.0.1:8881;
     }
     server {
@@ -104,7 +125,7 @@ $([ -n "${status_domain}" ] && echo "        ${status_domain}   127.0.0.1:8444;"
     }
 }
 
-# ── HTTP: Port 8080 & 8443 — VMess WS/gRPC + Status Page ─────
+# ── HTTP: Port 8080 & 8443 — VMess/VLESS WS/gRPC + Status Page ──
 http {
     sendfile on;
     tcp_nopush on;
@@ -130,7 +151,7 @@ http {
         ''      close;
     }
 
-    # ── Port 8080 — VMess WS (non-SSL) + Status Page ─────────
+    # ── Port 8080 — VMess/VLESS WS (non-SSL) + Status Page ───
     server {
         listen 8080 default_server;
         server_name _;
@@ -164,9 +185,22 @@ http {
             proxy_buffering off;
         }
 
+        # VLESS WebSocket
+        location /vless {
+            proxy_pass http://127.0.0.1:10004;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade \$http_upgrade;
+            proxy_set_header Connection \$connection_upgrade;
+            proxy_set_header Host \$host;
+            proxy_set_header X-Real-IP \$remote_addr;
+            proxy_read_timeout 3600s;
+            proxy_send_timeout 3600s;
+            proxy_buffering off;
+        }
+
     }
 
-    # ── Port 8443 — VMess WS/gRPC (SSL) + Status Page ────────
+    # ── Port 8443 — VMess/VLESS WS/gRPC (SSL) + Status Page ─
     server {
         listen 8443 ssl http2 default_server;
         server_name ${domain} _;
@@ -211,24 +245,29 @@ http {
             grpc_send_timeout 3600s;
         }
 
-    }
+        # VLESS WebSocket (TLS)
+        location /vless {
+            proxy_pass http://127.0.0.1:10004;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade \$http_upgrade;
+            proxy_set_header Connection \$connection_upgrade;
+            proxy_set_header Host \$host;
+            proxy_set_header X-Real-IP \$remote_addr;
+            proxy_read_timeout 3600s;
+            proxy_send_timeout 3600s;
+            proxy_buffering off;
+        }
 
-$([ -n "${status_domain}" ] && cat << STATUSBLOCK
-    # ── Status Page ───────────────────────────────────────
-    server {
-        listen 8444 ssl;
-        server_name ${status_domain};
-        ssl_certificate     /etc/zv-manager/ssl/cert.pem;
-        ssl_certificate_key /etc/zv-manager/ssl/key.pem;
-        ssl_protocols       TLSv1.2 TLSv1.3;
-        ssl_ciphers         HIGH:!aNULL:!MD5;
-        root /var/www/zv-manager;
-        index index.html;
-        location / { try_files \$uri \$uri/ =404; }
-        access_log off;
+        # VLESS gRPC (TLS)
+        location /vless-grpc {
+            grpc_pass grpc://127.0.0.1:10005;
+            grpc_set_header Host \$host;
+            grpc_read_timeout 3600s;
+            grpc_send_timeout 3600s;
+        }
+
     }
-STATUSBLOCK
-)
+${status_server_block}
 }
 NGINXMAIN
 
@@ -237,7 +276,7 @@ NGINXMAIN
         systemctl start nginx &>/dev/null
         systemctl stop zv-stunnel &>/dev/null
         systemctl disable zv-stunnel &>/dev/null
-        print_success "Nginx (SSH stream :80/:443 | VMess+Status HTTP :8080/:8443)"
+        print_success "Nginx (SSH stream :80/:443 | VMess+VLESS+Status HTTP :8080/:8443)"
     else
         print_error "Nginx config error! Cek: nginx -t"
         nginx -t
