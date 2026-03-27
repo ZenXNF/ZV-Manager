@@ -29,15 +29,15 @@ list_vmess() {
         count=$((count + 1))
 
         local status_label status_color
-        if [[ "$IS_TRIAL" == "1" ]]; then
-            status_label="TRIAL"
-            status_color="$BYELLOW"
-        elif [[ "$EXPIRED_TS" -gt "$now_ts" ]]; then
-            status_label="AKTIF"
-            status_color="$BGREEN"
-        else
+        if [[ -n "$EXPIRED_TS" && "$EXPIRED_TS" -le "$now_ts" ]]; then
             status_label="EXPIRED"
             status_color="$BRED"
+        elif [[ "$IS_TRIAL" == "1" ]]; then
+            status_label="TRIAL"
+            status_color="$BYELLOW"
+        else
+            status_label="AKTIF"
+            status_color="$BGREEN"
         fi
 
         printf "  %-20s %-12s " "${USERNAME}" "${EXPIRED_DATE}"
