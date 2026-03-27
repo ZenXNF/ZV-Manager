@@ -27,9 +27,9 @@ SSL_KEY="/etc/zv-manager/ssl/key.pem"
 install_nginx() {
     print_section "Install & Konfigurasi Nginx"
 
-    if ! dpkg -l nginx libnginx-mod-stream 2>/dev/null | grep -q "^ii"; then
-        DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nginx libnginx-mod-stream &>/dev/null
-    fi
+    # Install nginx dan stream module — cek masing-masing
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nginx &>/dev/null
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq libnginx-mod-stream &>/dev/null
     systemctl stop nginx &>/dev/null
 
     local domain
