@@ -130,6 +130,10 @@ _t_del_files() {
     for bak in /etc/ssh/sshd_config.bak.*; do [[ -f "$bak" ]] && rm -f "$bak"; done
     rm -rf /etc/zv-manager /var/backups/zv-manager /root/ZV-Manager
     rm -rf /usr/local/etc/xray /var/www/zv-manager /var/log/zv-manager /opt/zv-telegram
+    # Hapus temp files dan state dir
+    rm -rf /tmp/zv-* /var/lib/zv-manager
+    # Hapus sisa nginx.conf custom (apt purge kadang tidak kembalikan ke default)
+    rm -f /etc/nginx/nginx.conf
 }
 
 # ── Konfirmasi ────────────────────────────────────────────────
