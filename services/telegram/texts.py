@@ -18,7 +18,9 @@ def _status_url() -> tuple:
         if not val:
             return ("", "", False)
         is_ip = bool(re.match(r"^\d{1,3}(\.\d{1,3}){3}$", val))
-        url   = f"http://{val}:81" if is_ip else f"https://{val}"
+        # IP → port 8080 (nginx utama serve statis di sana)
+        # Domain → https tanpa port (clean URL, lewat 443 ssl_preread)
+        url = f"http://{val}:8080" if is_ip else f"https://{val}"
         return (url, val, not is_ip)
     except Exception:
         return ("", "", False)
@@ -30,16 +32,17 @@ def text_home(fname: str, uid: int) -> str:
     url, label, _ = _status_url()
     cek_line = f"\n🖥 Cek server: <a href=\"{url}\">{label}</a>" if url else ""
     return (
-        f"⚡ <b>ZV-Manager SSH Tunnel</b>\n"
+        f"⚡ <b>ZV-Manager Tunneling Panel</b>\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
         f"🌐 Server  : {len(servers)} server tersedia\n"
         f"🆔 User ID : <code>{uid}</code>\n"
         f"💰 Saldo   : Rp{fmt(saldo)}\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
         f"💎 <b>Layanan Tersedia</b>\n"
-        f"🔹 SSH Tunnel Premium\n"
+        f"🔑 SSH Tunnel Premium\n"
+        f"⚡ VMess WebSocket / gRPC\n"
+        f"🔐 VLESS WebSocket / gRPC\n"
         f"🔹 Support Bug Host / SNI\n"
-        f"🔹 Masa Aktif Fleksibel\n"
         f"🔹 Auto Deploy Akun 24 Jam\n"
         f"━━━━━━━━━━━━━━━━━━━{cek_line}\n"
         f"Halo, {fname}! Pilih menu 👇"
