@@ -18,7 +18,9 @@ _is_web_installed() {
 _get_url() {
     local host; host=$(cat /etc/zv-manager/web-host 2>/dev/null)
     [[ -z "$host" ]] && { echo ""; return; }
-    [[ "$host" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] && echo "http://${host}:81" || echo "https://${host}"
+    # IP → port 8080 (sudah serve status page dari nginx utama)
+    # Domain → https (port 443 via ssl_preread → nginx:8443)
+    [[ "$host" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] && echo "http://${host}:8080" || echo "https://${host}"
 }
 
 _install_web() {
@@ -40,7 +42,7 @@ _install_web() {
         default_host="$domain"
         echo -e "  ${D}Default :${NC} ${W}https://${domain}${NC} ${D}(domain)${NC}"
     else
-        echo -e "  ${D}Default :${NC} ${W}http://${local_ip}${NC} ${D}(IPv4)${NC}"
+        echo -e "  ${D}Default :${NC} ${W}http://${local_ip}:8080${NC} ${D}(IPv4)${NC}"
     fi
     echo ""
     read -rp "  Install sekarang? [y/N]: " conf
@@ -50,13 +52,18 @@ _install_web() {
     mkdir -p "$WEB_DIR"
     chown -R www-data:www-data "$WEB_DIR" 2>/dev/null || true
 
-    # Nginx config
+    # Nginx config — hanya dibutuhkan untuk domain dengan Let's Encrypt
+    # Mode IP: port 8080 sudah handle di nginx.conf utama, tidak perlu site terpisah
     _write_web_nginx() {
         local host; host=$(cat /etc/zv-manager/web-host 2>/dev/null)
+        # IP mode → tidak perlu nginx site, port 8080 sudah cukup
+        if [[ "$host" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            return 0
+        fi
         local cert="/etc/letsencrypt/live/${host}/fullchain.pem"
         local key="/etc/letsencrypt/live/${host}/privkey.pem"
-        if [[ -n "$host" && ! "$host" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ && -f "$cert" ]]; then
-            # Domain + cert tersedia → pakai HTTPS
+        if [[ -f "$cert" ]]; then
+            # Domain + Let's Encrypt cert → HTTPS via port 443
             cat > /etc/nginx/sites-available/zv-status << NGINXEOF
 server {
     listen 80;
@@ -64,28 +71,25 @@ server {
     return 301 https://\$host\$request_uri;
 }
 server {
-    listen 443 ssl;
+    listen 8444 ssl;
     server_name ${host};
     ssl_certificate ${cert};
     ssl_certificate_key ${key};
     root ${WEB_DIR};
     index index.html;
-    location / { try_files \$uri \$uri/ /index.html; }
+    location / { try_files \$uri \$uri/ =404; }
+    location ~* \.(json|js|css|png|ico)$ {
+        add_header Cache-Control "no-cache";
+        try_files \$uri =404;
+    }
     access_log off;
 }
 NGINXEOF
         else
-            # IP atau belum ada cert → HTTP port 81
-            cat > /etc/nginx/sites-available/zv-status << NGINXEOF
-server {
-    listen 81;
-    server_name _;
-    root ${WEB_DIR};
-    index index.html;
-    location / { try_files \$uri \$uri/ /index.html; }
-    access_log off;
-}
-NGINXEOF
+            # Domain tapi belum ada cert → pakai self-signed via port 8443
+            # Traffic lewat: 443 ssl_preread → 18443 → ws-proxy → nginx 8443
+            # Tidak perlu site terpisah, 8443 sudah handle domain
+            return 0
         fi
         ln -sf /etc/nginx/sites-available/zv-status \
                 /etc/nginx/sites-enabled/zv-status 2>/dev/null || true
