@@ -41,13 +41,24 @@ list_ssh_users() {
                 found=1
 
                 # Baca per-field, hindari source langsung
-                local uname exp limit is_trial
+                local uname exp limit is_trial exp_ts
                 uname=$(grep "^USERNAME=" "$conf_file" | cut -d= -f2)
                 exp=$(grep "^EXPIRED=" "$conf_file" | cut -d= -f2)
                 limit=$(grep "^LIMIT=" "$conf_file" | cut -d= -f2)
                 is_trial=$(grep "^IS_TRIAL=" "$conf_file" | cut -d= -f2)
+                exp_ts=$(grep "^EXPIRED_TS=" "$conf_file" | cut -d= -f2 | tr -d '"')
 
                 [[ -z "$uname" ]] && continue
+
+                # Trial expired → hapus sekarang juga, jangan tampilkan
+                if [[ "$is_trial" == "1" && -n "$exp_ts" && "$exp_ts" -le "$(date +%s)" ]]; then
+                    pkill -u "$uname" &>/dev/null
+                    userdel -r "$uname" &>/dev/null 2>&1
+                    rm -f "$conf_file"
+                    echo "[$(date '+%Y-%m-%d %H:%M:%S')] SSH TRIAL expired-on-list: $uname" \
+                        >> /var/log/zv-manager/install.log 2>/dev/null
+                    continue
+                fi
 
                 local status type_label
                 if [[ "$exp" < "$today" ]]; then

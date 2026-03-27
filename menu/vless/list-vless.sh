@@ -27,6 +27,15 @@ list_vless() {
         count=$((count + 1))
 
         local status_label status_color
+        # Trial expired → hapus sekarang juga, jangan tampilkan
+        if [[ "$IS_TRIAL" == "1" && -n "$EXPIRED_TS" && "$EXPIRED_TS" -le "$now_ts" ]]; then
+            source /etc/zv-manager/utils/remote.sh 2>/dev/null
+            remote_vless_agent "${SERVER:-local}" del "$USERNAME" &>/dev/null
+            rm -f "$conf" "/tmp/zv-tg-state/vless_${USERNAME}.notified"
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] VLESS TRIAL expired-on-list: $USERNAME" \
+                >> /var/log/zv-manager/install.log 2>/dev/null
+            continue
+        fi
         if [[ -n "$EXPIRED_TS" && "$EXPIRED_TS" -le "$now_ts" ]]; then
             status_label="EXPIRED"
             status_color="$BRED"
