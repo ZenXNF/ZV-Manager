@@ -156,17 +156,19 @@ add_server() {
     echo -e "  ${BWHITE}[1]${NC} SSH only   — muncul di menu SSH"
     echo -e "  ${BWHITE}[2]${NC} VMess only — muncul di menu VMess"
     echo -e "  ${BWHITE}[3]${NC} VLESS only — muncul di menu VLESS"
-    echo -e "  ${BWHITE}[4]${NC} Semua      — SSH + VMess + VLESS"
+    echo -e "  ${BWHITE}[4]${NC} ZiVPN only — muncul di menu ZiVPN"
+    echo -e "  ${BWHITE}[5]${NC} Semua      — SSH + VMess + VLESS + ZiVPN"
     echo ""
     local server_type_choice
     while true; do
-        read -rp "  Pilih tipe [1-4]: " server_type_choice
+        read -rp "  Pilih tipe [1-5]: " server_type_choice
         case "$server_type_choice" in
             1) server_type="ssh";   break ;;
             2) server_type="vmess"; break ;;
             3) server_type="vless"; break ;;
-            4) server_type="all";   break ;;
-            *) echo -e "  ${BRED}Pilih 1-4${NC}" ;;
+            4) server_type="zivpn"; break ;;
+            5) server_type="all";   break ;;
+            *) echo -e "  ${BRED}Pilih 1-5${NC}" ;;
         esac
     done
     echo ""
@@ -212,7 +214,7 @@ CONFEOF
     local tg_bw_per_hari_vmess="5"
 
     # --- Pengaturan SSH ---
-    if [[ "$server_type" == "ssh" || "$server_type" == "both" || "$server_type" == "all" ]]; then
+    if [[ "$server_type" == "ssh" || "$server_type" == "both" || "$server_type" == "all" || "$server_type" == "zivpn" ]]; then
         echo ""
         echo -e "  ${BWHITE}── Pengaturan SSH ──────────────────────────${NC}"
         echo -e "  ${BYELLOW}(Semua field wajib diisi)${NC}"
@@ -316,12 +318,14 @@ TGEOF
     echo -e "  ${BWHITE}ISP    :${NC} ${BGREEN}${isp}${NC}"
     echo -e "  ${BWHITE}Label  :${NC} ${BGREEN}${tg_label}${NC}"
     echo -e "  ${BWHITE}Tipe   :${NC} ${BGREEN}${server_type}${NC}"
-    [[ "$server_type" != "vmess" && "$server_type" != "vless" ]] && \
+    [[ "$server_type" != "vmess" && "$server_type" != "vless" && "$server_type" != "zivpn" ]] && \
         echo -e "  ${BWHITE}Harga SSH   :${NC} ${BGREEN}Rp${tg_harga_hari}/hari${NC}"
-    [[ "$server_type" != "ssh" && "$server_type" != "vless" ]] && \
+    [[ "$server_type" != "ssh" && "$server_type" != "vless" && "$server_type" != "zivpn" ]] && \
         echo -e "  ${BWHITE}Harga VMess :${NC} ${BGREEN}Rp${tg_harga_vmess_hari}/hari${NC}"
     [[ "$server_type" == "vless" || "$server_type" == "all" ]] && \
         echo -e "  ${BWHITE}Harga VLESS :${NC} ${BGREEN}Rp${tg_harga_vless_hari}/hari${NC}"
+    [[ "$server_type" == "zivpn" || "$server_type" == "all" ]] && \
+        echo -e "  ${BWHITE}Harga ZiVPN :${NC} ${BGREEN}Rp${tg_harga_hari}/hari${NC}"
 
     # --- Auto deploy agent ke server ---
     local local_ip
@@ -408,6 +412,9 @@ TGEOF
                 elif [[ "$server_type" == "vless" ]]; then
                     ls "${BASE_DIR}/accounts/vless"/*.conf 2>/dev/null | \
                         xargs grep -l "^TG_USER_ID=\"${_uid}\"" 2>/dev/null | grep -q . || continue
+                elif [[ "$server_type" == "zivpn" ]]; then
+                    ls "${BASE_DIR}/accounts/zivpn"/*.conf 2>/dev/null | \
+                        xargs grep -l "^TG_USER_ID=\"${_uid}\"" 2>/dev/null | grep -q . || continue
                 fi
                 # both / all → semua user lolos filter
                 # Cek duplikat
@@ -427,9 +434,10 @@ TGEOF
             case "$server_type" in
                 ssh)   _type_label="✅ Tersedia: 🔑 SSH" ;;
                 vmess) _type_label="✅ Tersedia: ⚡ VMess" ;;
-                vless) _type_label="✅ Tersedia: 🔐 VLESS" ;;
-                both)  _type_label="✅ Tersedia: 🔑 SSH + ⚡ VMess" ;;
-                all)   _type_label="✅ Tersedia: 🔑 SSH + ⚡ VMess + 🔐 VLESS" ;;
+                vless)  _type_label="✅ Tersedia: 🔐 VLESS" ;;
+                zivpn)  _type_label="✅ Tersedia: 🔮 ZiVPN UDP" ;;
+                both)   _type_label="✅ Tersedia: 🔑 SSH + ⚡ VMess" ;;
+                all)    _type_label="✅ Tersedia: 🔑 SSH + ⚡ VMess + 🔐 VLESS + 🔮 ZiVPN" ;;
             esac
 
             local _notif_msg="🆕 <b>Server Baru Tersedia!</b>
