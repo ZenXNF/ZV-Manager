@@ -24,6 +24,7 @@ SERVICES=(
     "zv-wss|WebSocket"
     "zv-udp|UDP Custom"
     "zv-telegram|Telegram Bot"
+    "zv-zivpn|ZiVPN UDP"
 )
 
 _log() {

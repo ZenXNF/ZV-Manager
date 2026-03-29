@@ -266,7 +266,9 @@ _t_copy_files() {
     chmod +x /usr/local/bin/zv-vmess-agent
     cp "$INSTALL_DIR/zv-vless-agent.sh" /usr/local/bin/zv-vless-agent
     chmod +x /usr/local/bin/zv-vless-agent
-    mkdir -p /etc/zv-manager/accounts/vless
+    cp "$INSTALL_DIR/zv-zivpn-agent.sh" /usr/local/bin/zv-zivpn-agent
+    chmod +x /usr/local/bin/zv-zivpn-agent
+    mkdir -p /etc/zv-manager/accounts/vless /etc/zv-manager/accounts/zivpn
 }
 _t_ssl()      { source "$INSTALL_DIR/core/ssl.sh" && setup_ssl; }
 _t_system()   { source "$INSTALL_DIR/core/system.sh" && run_system_setup; }
@@ -277,6 +279,7 @@ _t_ws()       { source "$INSTALL_DIR/services/websocket/install.sh" && install_w
 _t_udp()      { source "$INSTALL_DIR/services/udp/install.sh" && install_udp_custom; }
 _t_badvpn()   { source "$INSTALL_DIR/services/badvpn/install.sh" && install_badvpn; }
 _t_xray()     { source "$INSTALL_DIR/services/xray/install.sh" && install_xray; }
+_t_zivpn()    { source "$INSTALL_DIR/services/zivpn/install.sh" && install_zivpn; }
 _t_cron() {
     printf '%s\n' "* * * * * root for i in 1 2 3 4 5 6; do /bin/bash /etc/zv-manager/cron/autokill.sh; sleep 10; done" > /etc/cron.d/zv-autokill
     printf '%s\n' "*/5 * * * * root /bin/bash /etc/zv-manager/cron/trial-cleanup.sh" > /etc/cron.d/zv-trial
@@ -286,6 +289,7 @@ _t_cron() {
     printf '%s\n' "* * * * * root for i in 1 2 3 4 5 6; do /bin/bash /etc/zv-manager/cron/bw-check.sh; sleep 10; done" "*/5 * * * * root /bin/bash /etc/zv-manager/cron/bw-vmess.sh" "*/5 * * * * root /bin/bash /etc/zv-manager/cron/bw-vless.sh" "* * * * * root /bin/bash /etc/zv-manager/cron/ip-limit.sh" > /etc/cron.d/zv-bw-check
     printf '%s\n' "*/5 * * * * root /bin/bash /etc/zv-manager/cron/watchdog.sh" > /etc/cron.d/zv-watchdog
     printf '%s\n' "*/5 * * * * root /bin/bash /etc/zv-manager/cron/worker-check.sh" > /etc/cron.d/zv-worker-check
+    printf '%s\n' "*/5 * * * * root /bin/bash /etc/zv-manager/cron/trial-cleanup.sh" > /etc/cron.d/zv-trial
     printf '%s\n' "0 2 * * * root /bin/bash /etc/zv-manager/cron/backup.sh" > /etc/cron.d/zv-backup
     printf '%s\n' "0 6 * * * root /bin/bash /etc/zv-manager/cron/check-update.sh" > /etc/cron.d/zv-check-update
     mkdir -p /var/lib/zv-manager/status
@@ -388,6 +392,7 @@ _run "WebSocket Proxy" "berhasil dipasang" _t_ws
 _run "UDP Custom"      "berhasil dipasang" _t_udp
 _run "BadVPN UDPGW"    "berhasil dipasang" _t_badvpn
 _run "Xray VMess+VLESS"  "berhasil dipasang" _t_xray
+_run "ZiVPN UDP"        "berhasil dipasang" _t_zivpn
 
 # ── Cron jobs ─────────────────────────────────────────────────
 _run "Cron jobs"           "semua terjadwal"  _t_cron
@@ -784,7 +789,7 @@ printf "  ${D}  –${NC}  %-14s  %s\n" "WS HTTPS" "443"
 printf "  ${D}  –${NC}  %-14s  %s\n" "UDP"      "1-65535"
 echo ""
 printf "  ${D}≥${NC}  ${W}Status service:${NC}\n"
-for svc in ssh dropbear nginx zv-wss zv-udp zv-xray; do
+for svc in ssh dropbear nginx zv-wss zv-udp zv-xray zv-zivpn; do
     if systemctl is-active --quiet "$svc" 2>/dev/null; then
         printf "  ${G}  ✔${NC}  %s\n" "$svc"
     else

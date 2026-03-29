@@ -86,9 +86,10 @@ _task_git() {
 _task_copy() {
     cd /root/ZV-Manager || return 1
     cp -r core services menu utils cron checker /etc/zv-manager/
+    find /etc/zv-manager/menu/zivpn -name "*.sh" -exec chmod +x {} \; 2>/dev/null || true
     chmod +x /etc/zv-manager/checker/zv-checker
     chmod +x /etc/zv-manager/services/telegram/bot.py 2>/dev/null || true
-    cp config.conf install.sh update.sh uninstall.sh zv-agent.sh zv-vmess-agent.sh zv-vless-agent.sh /etc/zv-manager/
+    cp config.conf install.sh update.sh uninstall.sh zv-agent.sh zv-vmess-agent.sh zv-vless-agent.sh zv-zivpn-agent.sh /etc/zv-manager/
 }
 
 _task_agent() {
@@ -98,7 +99,9 @@ _task_agent() {
     chmod +x /usr/local/bin/zv-vmess-agent
     cp /etc/zv-manager/zv-vless-agent.sh /usr/local/bin/zv-vless-agent
     chmod +x /usr/local/bin/zv-vless-agent
-    mkdir -p /etc/zv-manager/accounts/vless
+    cp /etc/zv-manager/zv-zivpn-agent.sh /usr/local/bin/zv-zivpn-agent
+    chmod +x /usr/local/bin/zv-zivpn-agent
+    mkdir -p /etc/zv-manager/accounts/vless /etc/zv-manager/accounts/zivpn
 }
 
 _task_bot() {
@@ -136,6 +139,10 @@ _task_xray_update() {
     rm -rf "$tmpdir"
 }
 
+
+_task_zivpn() {
+    source /etc/zv-manager/services/zivpn/install.sh && install_zivpn
+}
 _task_badvpn() {
     source /etc/zv-manager/services/badvpn/install.sh && install_badvpn
 }
@@ -247,6 +254,13 @@ else
     _skip "BadVPN UDPGW" "sudah ada"
 fi
 
+# ── 6b. ZiVPN ─────────────────────────────────────────────────
+if [[ ! -f "/usr/local/bin/zivpn" ]]; then
+    _run "ZiVPN UDP" "berhasil diinstall" _task_zivpn
+else
+    _skip "ZiVPN UDP" "sudah ada"
+fi
+
 # ── 7. Nginx ──────────────────────────────────────────────────
 _run "Nginx" "config diperbarui" _task_nginx
 
@@ -297,9 +311,9 @@ echo ""
 printf "  ${D}≥${NC}  ${W}Yang diperbarui:${NC}\n"
 printf "  ${G}  ✔${NC}  Script, Nginx, SSH, Dropbear, WebSocket\n"
 printf "  ${G}  ✔${NC}  Xray-core, BadVPN, UDP Custom, aiogram, Cron\n"
-printf "  ${G}  ✔${NC}  Binary zv-agent, zv-vmess-agent, zv-vless-agent, Telegram bot\n"
+printf "  ${G}  ✔${NC}  Binary zv-agent, zv-vmess-agent, zv-vless-agent, zv-zivpn-agent, Telegram bot\n"
 echo ""
-printf "  ${O}  –${NC}  Akun SSH, VMess & VLESS, daftar server, SSL tidak berubah\n"
+printf "  ${O}  –${NC}  Akun SSH, VMess, VLESS & ZiVPN, daftar server, SSL tidak berubah\n"
 echo ""
 
 

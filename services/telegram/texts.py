@@ -292,3 +292,44 @@ def text_vless_info(tipe: str, username: str, uuid: str, domain: str,
         "✨ Selamat menikmati layanan! ✨",
     ]
     return "\n".join(lines)
+
+
+def text_zivpn_info(tipe: str, username: str, password: str, domain: str,
+                    exp_display: str, server_label: str,
+                    days: int = 0, total: int = 0, isp: str = "") -> str:
+    """Pesan info akun ZiVPN UDP."""
+    from utils import fmt
+    is_trial = (tipe == "TRIAL")
+    header   = "🌟 TRIAL ZIVPN UDP 🌟" if is_trial else "✅ AKUN ZIVPN UDP"
+
+    lines = [
+        f"<b>{header}</b>",
+        "━━━━━━━━━━━━━━━━━━━",
+        f"🌐 Server    : {server_label}",
+    ]
+    if isp:
+        lines.append(f"🏢 ISP       : {isp}")
+    lines += [
+        "━━━━━━━━━━━━━━━━━━━",
+        f"🖥 Host      : <code>{domain}</code>",
+        f"🔌 Port UDP  : <code>5667</code>",
+        f"🔑 ZiVPN PW  : <code>{password}</code>",
+        f"🔒 Obfs      : <code>zivpn</code>",
+        "━━━━━━━━━━━━━━━━━━━",
+    ]
+    if is_trial:
+        lines.append("⏳ Expired : 30 menit")
+    else:
+        lines.append(f"⏳ Expired : {exp_display}")
+        if days and total:
+            lines.append(f"💸 Dibayar : {days} hari — Rp{fmt(total)}")
+    lines += [
+        "━━━━━━━━━━━━━━━━━━━",
+        "📱 Cara pakai di ZiVPN app:",
+        f"  Host : <code>{domain}</code>",
+        f"  Port : <code>5667</code>",
+        f"  PW   : <code>{password}</code>",
+        "━━━━━━━━━━━━━━━━━━━",
+        "✨ Selamat menikmati layanan! ✨",
+    ]
+    return "\n".join(lines)

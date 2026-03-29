@@ -387,3 +387,33 @@ def count_vless_accounts(srv_ip: str) -> int:
         except Exception:
             pass
     return count
+
+# ── ZiVPN trial & count ───────────────────────────────────────
+def already_trial_zivpn(uid: int, sname: str) -> bool:
+    """Cek apakah user sudah trial ZiVPN di server ini dalam 24 jam."""
+    marker = Path(TRIAL_DIR) / f"zivpn_{uid}_{sname}"
+    if not marker.exists():
+        return False
+    return (time.time() - marker.stat().st_mtime) < 86400
+
+def mark_trial_zivpn(uid: int, sname: str) -> None:
+    Path(TRIAL_DIR).mkdir(parents=True, exist_ok=True)
+    (Path(TRIAL_DIR) / f"zivpn_{uid}_{sname}").touch()
+
+def count_zivpn_accounts(srv_ip: str) -> int:
+    from config import BASE_DIR
+    import glob
+    count = 0
+    for conf in glob.glob(f"{BASE_DIR}/accounts/zivpn/*.conf"):
+        try:
+            d = _read_conf_file(conf)
+            sname = d.get("SERVER", "")
+            if not sname:
+                continue
+            sc = load_server_conf(sname) or {}
+            conf_ip = sc.get("IP", "")
+            if conf_ip == srv_ip:
+                count += 1
+        except Exception:
+            pass
+    return count

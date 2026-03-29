@@ -62,3 +62,17 @@ for conf in /etc/zv-manager/accounts/vless/*.conf; do
     rm -f "/tmp/zv-tg-state/vless_${USERNAME}.notified"
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] VLESS TRIAL cleanup: $USERNAME" >> "$LOG"
 done
+
+# ── ZiVPN trial ──────────────────────────────────────────────
+for conf in /etc/zv-manager/accounts/zivpn/*.conf; do
+    [[ -f "$conf" ]] || continue
+    unset IS_TRIAL EXPIRED_TS USERNAME TG_USER_ID SERVER
+    source "$conf"
+    [[ "$IS_TRIAL" != "1" ]] && continue
+    [[ -z "$EXPIRED_TS" ]] && continue
+    [[ "$now_ts" -lt "$EXPIRED_TS" ]] && continue
+    _tg_notif "$TG_USER_ID" "ZiVPN" "$USERNAME"
+    remote_zivpn_agent "${SERVER:-local}" del "$USERNAME" 2>/dev/null
+    rm -f "$conf"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ZIVPN TRIAL cleanup: $USERNAME" >> "$LOG"
+done

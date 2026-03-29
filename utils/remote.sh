@@ -317,3 +317,41 @@ deploy_vless_agent() {
         return 1
     fi
 }
+
+# ── ZiVPN agent helper ────────────────────────────────────────
+remote_zivpn_agent() {
+    local name="$1"; shift; local agent_args="$*"
+    if [[ "$name" == "local" || -z "$name" ]]; then
+        bash /etc/zv-manager/zv-zivpn-agent.sh $agent_args; return $?
+    fi
+    local conf="${SERVER_DIR}/${name}.conf"
+    [[ ! -f "$conf" ]] && { echo "REMOTE-ERR|Server '$name' tidak ditemukan"; return 1; }
+    _load_server_conf "$conf"; _ensure_sshpass
+    local result
+    result=$(sshpass -p "$PASS" ssh $_ssh_opts -p "$PORT" "${USER}@${IP}" "zv-zivpn-agent $agent_args" 2>&1)
+    local rc=$?
+    if echo "$result" | grep -qi "command not found\|not found\|No such file"; then
+        echo "REMOTE-ERR|zv-zivpn-agent tidak ditemukan di '${name}'. Deploy dulu via Menu Server → Deploy Agent."
+        return 1
+    fi
+    echo "$result"; return $rc
+}
+
+deploy_zivpn_agent() {
+    local name="$1"
+    local conf="${SERVER_DIR}/${name}.conf"
+    [[ ! -f "$conf" ]] && { echo "DEPLOY-ERR|Server '$name' tidak ditemukan"; return 1; }
+    local agent_src="/etc/zv-manager/zv-zivpn-agent.sh"
+    [[ ! -f "$agent_src" ]] && { echo "DEPLOY-ERR|File zv-zivpn-agent.sh tidak ada"; return 1; }
+    _load_server_conf "$conf"; _ensure_sshpass
+    sshpass -p "$PASS" ssh $_ssh_opts -p "$PORT" "${USER}@${IP}" \
+        "mkdir -p /etc/zv-manager/accounts/zivpn" 2>&1
+    sshpass -p "$PASS" ssh $_ssh_opts -p "$PORT" "${USER}@${IP}" \
+        "cat > /usr/local/bin/zv-zivpn-agent && chmod +x /usr/local/bin/zv-zivpn-agent" \
+        < "$agent_src" 2>&1
+    [[ $? -ne 0 ]] && { echo "DEPLOY-ERR|Gagal upload file"; return 1; }
+    local test_result
+    test_result=$(sshpass -p "$PASS" ssh $_ssh_opts -p "$PORT" "${USER}@${IP}" "zv-zivpn-agent ping" 2>&1)
+    [[ "$test_result" == "ZV-ZIVPN-AGENT-OK" ]] && echo "DEPLOY-OK" || \
+        { echo "DEPLOY-ERR|ping gagal: ${test_result}"; return 1; }
+}

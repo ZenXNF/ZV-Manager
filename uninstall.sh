@@ -79,7 +79,7 @@ _t_del_ssh() {
 }
 
 _t_stop_svc() {
-    for svc in zv-telegram zv-xray zv-wss zv-stunnel zv-udp zv-ws zv-badvpn; do
+    for svc in zv-telegram zv-xray zv-wss zv-stunnel zv-udp zv-ws zv-badvpn zv-zivpn; do
         systemctl stop "$svc" 2>/dev/null
         systemctl disable "$svc" 2>/dev/null
     done
@@ -122,13 +122,13 @@ _t_del_cron() {
 }
 
 _t_del_bin() {
-    rm -f /usr/local/bin/menu /usr/local/bin/zv-agent /usr/local/bin/zv-vmess-agent /usr/local/bin/zv-vless-agent
+    rm -f /usr/local/bin/menu /usr/local/bin/zv-agent /usr/local/bin/zv-vmess-agent /usr/local/bin/zv-vless-agent /usr/local/bin/zv-zivpn-agent /usr/local/bin/zivpn
     rm -f /usr/local/bin/zv-ws-proxy.py /usr/local/bin/badvpn-udpgw /usr/local/bin/xray
 }
 
 _t_del_files() {
     for bak in /etc/ssh/sshd_config.bak.*; do [[ -f "$bak" ]] && rm -f "$bak"; done
-    rm -rf /etc/zv-manager /var/backups/zv-manager /root/ZV-Manager
+    rm -rf /etc/zv-manager /var/backups/zv-manager /root/ZV-Manager /etc/zivpn
     rm -rf /usr/local/etc/xray /var/www/zv-manager /var/log/zv-manager /opt/zv-telegram
     # Hapus temp files dan state dir
     rm -rf /tmp/zv-* /var/lib/zv-manager

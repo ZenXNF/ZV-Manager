@@ -251,3 +251,41 @@ _sweep_vmess
 _sweep_vless
 
 _log "=== Selesai ==="
+
+# ============================================================
+# ZIVPN: hapus akun ZiVPN expired
+# ============================================================
+_sweep_zivpn() {
+    local zivpn_dir="/etc/zv-manager/accounts/zivpn"
+    [[ -d "$zivpn_dir" ]] || return
+    source /etc/zv-manager/utils/remote.sh 2>/dev/null
+    local count=0
+    local now_ts; now_ts=$(date +%s)
+    for conf_file in "$zivpn_dir"/*.conf "$zivpn_dir"/*.disabled; do
+        [[ -f "$conf_file" ]] || continue
+        USERNAME=$(grep "^USERNAME=" "$conf_file" | cut -d= -f2 | tr -d '"' | tr -d '[:space:]')
+        EXPIRED_TS=$(grep "^EXPIRED_TS=" "$conf_file" | cut -d= -f2 | tr -d '"' | tr -d '[:space:]')
+        TG_USER_ID=$(grep "^TG_USER_ID=" "$conf_file" | cut -d= -f2 | tr -d '"' | tr -d '[:space:]')
+        IS_TRIAL=$(grep "^IS_TRIAL=" "$conf_file" | cut -d= -f2 | tr -d '"' | tr -d '[:space:]')
+        SERVER=$(grep "^SERVER=" "$conf_file" | cut -d= -f2 | tr -d '"')
+        [[ -z "$USERNAME" || -z "$EXPIRED_TS" ]] && continue
+        if [[ "$EXPIRED_TS" -lt "$now_ts" ]]; then
+            local sname="${SERVER:-local}"
+            remote_zivpn_agent "$sname" del "$USERNAME" 2>/dev/null
+            _log "ZIVPN [$sname]: Auto-deleted expired: $USERNAME"
+            rm -f "$conf_file" "${zivpn_dir}/${USERNAME}.conf" "${zivpn_dir}/${USERNAME}.disabled"
+            if [[ "$IS_TRIAL" != "1" && -n "$TG_USER_ID" && "$TG_USER_ID" != "0" ]]; then
+                _tg_send "$TG_USER_ID" "🗑️ <b>Akun ZiVPN Dihapus</b>
+
+Username : <code>${USERNAME}</code>
+Server   : ${sname}
+
+Akun ZiVPN kamu sudah expired dan dihapus otomatis.
+Buat akun baru lewat bot."
+            fi
+            count=$((count+1))
+        fi
+    done
+    [[ $count -gt 0 ]] && _log "ZIVPN: Total dihapus: $count akun"
+}
+_sweep_zivpn

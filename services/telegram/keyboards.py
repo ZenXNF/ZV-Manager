@@ -156,3 +156,30 @@ def kb_vless_server_list(prefix: str, page: int = 0, back_cb: str = "m_buat") ->
         b.row(*nav)
     b.row(InlineKeyboardButton(text="↩ Kembali", callback_data=back_cb))
     return b.as_markup()
+
+def kb_zivpn_server_list(prefix: str, page: int = 0, back_cb: str = "m_buat") -> InlineKeyboardMarkup:
+    """Server list untuk ZiVPN — semua server yang punya ZiVPN."""
+    servers = get_server_list_by_type("all") + get_server_list_by_type("ssh")
+    # Dedup
+    seen = set(); unique = []
+    for s in servers:
+        n = s.get("NAME", "")
+        if n not in seen:
+            seen.add(n); unique.append(s)
+    per_page = 6
+    start = page * per_page
+    chunk = unique[start:start + per_page]
+    b = InlineKeyboardBuilder()
+    for s in chunk:
+        name = s.get("NAME", "")
+        b.button(text=name, callback_data=f"{prefix}_{name}")
+    b.adjust(2)
+    nav = []
+    if page > 0:
+        nav.append(InlineKeyboardButton(text="◀ Sebelumnya", callback_data=f"zlpage_{prefix}_{page-1}"))
+    if start + per_page < len(unique):
+        nav.append(InlineKeyboardButton(text="Berikutnya ▶", callback_data=f"zlpage_{prefix}_{page+1}"))
+    if nav:
+        b.row(*nav)
+    b.row(InlineKeyboardButton(text="↩ Kembali", callback_data=back_cb))
+    return b.as_markup()

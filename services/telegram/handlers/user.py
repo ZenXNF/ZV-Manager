@@ -25,10 +25,11 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from config import ACCOUNT_DIR, ADMIN_ID, NOTIFY_DIR, VMESS_DIR, BASE_DIR, log
 
-VLESS_DIR = f"{BASE_DIR}/accounts/vless"
+VLESS_DIR  = f"{BASE_DIR}/accounts/vless"
+ZIVPN_DIR  = f"{BASE_DIR}/accounts/zivpn"
 from keyboards import (
     kb_after_buy, kb_back, kb_confirm, kb_for_user, kb_home_btn,
-    kb_server_list, kb_vmess_server_list, kb_vless_server_list
+    kb_server_list, kb_vmess_server_list, kb_vless_server_list, kb_zivpn_server_list
 )
 from middleware import _throttle
 from storage import (
@@ -37,9 +38,10 @@ from storage import (
     mark_trial, mark_trial_vmess, register_user,
     saldo_deduct, saldo_get, save_account_conf, save_vmess_conf,
     state_clear, state_get, state_set,
-    already_trial_vless, mark_trial_vless, count_vless_accounts
+    already_trial_vless, mark_trial_vless, count_vless_accounts,
+    already_trial_zivpn, mark_trial_zivpn, count_zivpn_accounts
 )
-from texts import text_akun_info, text_home, text_server_list, text_vmess_info, vmess_build_urls, text_vless_info, vless_build_urls
+from texts import text_akun_info, text_home, text_server_list, text_vmess_info, vmess_build_urls, text_vless_info, vless_build_urls, text_zivpn_info
 
 # ── VMess remote agent helper (async, non-blocking) ──────────
 async def _vmess_agent(sname: str, *args) -> str:
@@ -128,6 +130,12 @@ def _schedule_trial_delete(proto: str, username: str, sname: str, delay_min: int
             f"source /etc/zv-manager/utils/remote.sh 2>/dev/null && "
             f"remote_vless_agent '{sname}' del '{username}' 2>/dev/null; "
             f"rm -f '/etc/zv-manager/accounts/vless/{username}.conf'"
+        )
+    elif proto == "zivpn":
+        cmd = (
+            f"source /etc/zv-manager/utils/remote.sh 2>/dev/null && "
+            f"remote_zivpn_agent '{sname}' del '{username}' 2>/dev/null; "
+            f"rm -f '/etc/zv-manager/accounts/zivpn/{username}.conf'"
         )
     else:
         return
@@ -231,6 +239,7 @@ async def cb_menu_buat(cb: CallbackQuery):
             [InlineKeyboardButton(text="🔑 SSH",    callback_data="proto_buat_ssh"),
              InlineKeyboardButton(text="⚡ VMess",  callback_data="proto_buat_vmess")],
             [InlineKeyboardButton(text="🔐 VLESS",  callback_data="proto_buat_vless")],
+            [InlineKeyboardButton(text="🔮 ZiVPN",  callback_data="proto_buat_zivpn")],
             [InlineKeyboardButton(text="↩ Kembali", callback_data="home")]
         ]))
     await cb.answer()
@@ -243,6 +252,7 @@ async def cb_menu_trial(cb: CallbackQuery):
             [InlineKeyboardButton(text="🔑 SSH",    callback_data="proto_trial_ssh"),
              InlineKeyboardButton(text="⚡ VMess",  callback_data="proto_trial_vmess")],
             [InlineKeyboardButton(text="🔐 VLESS",  callback_data="proto_trial_vless")],
+            [InlineKeyboardButton(text="🔮 ZiVPN",  callback_data="proto_trial_zivpn")],
             [InlineKeyboardButton(text="↩ Kembali", callback_data="home")]
         ]))
     await cb.answer()
@@ -1360,20 +1370,23 @@ def _render_vmess_page(items: list, page: int, now_ts: int, uid: int) -> tuple[s
 async def cb_akun_saya(cb: CallbackQuery):
     uid    = cb.from_user.id
     await cb.answer()
-    n_ssh   = len(_collect_ssh_akun(uid))
-    n_vmess = len(_collect_vmess_akun(uid))
-    n_vless = len(_collect_vless_akun(uid))
+    n_ssh    = len(_collect_ssh_akun(uid))
+    n_vmess  = len(_collect_vmess_akun(uid))
+    n_vless  = len(_collect_vless_akun(uid))
+    n_zivpn  = len(_collect_zivpn_akun(uid))
     await cb.message.edit_text(
         f"📋 <b>Akun Kamu</b>\n━━━━━━━━━━━━━━━━━━━\n"
         f"🔑 SSH    : {n_ssh} akun\n"
         f"⚡ VMess  : {n_vmess} akun\n"
-        f"🌐 VLESS  : {n_vless} akun\n"
+        f"🔐 VLESS  : {n_vless} akun\n"
+        f"🔮 ZiVPN  : {n_zivpn} akun\n"
         f"━━━━━━━━━━━━━━━━━━━\nPilih protokol:",
         parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text=f"🔑 SSH ({n_ssh})",     callback_data="akun_proto_ssh"),
-             InlineKeyboardButton(text=f"⚡ VMess ({n_vmess})", callback_data="akun_proto_vmess")],
-            [InlineKeyboardButton(text=f"🔐 VLESS ({n_vless})", callback_data="akun_proto_vless")],
+            [InlineKeyboardButton(text=f"🔑 SSH ({n_ssh})",      callback_data="akun_proto_ssh"),
+             InlineKeyboardButton(text=f"⚡ VMess ({n_vmess})",  callback_data="akun_proto_vmess")],
+            [InlineKeyboardButton(text=f"🔐 VLESS ({n_vless})",  callback_data="akun_proto_vless"),
+             InlineKeyboardButton(text=f"🔮 ZiVPN ({n_zivpn})",  callback_data="akun_proto_zivpn")],
             [InlineKeyboardButton(text="🏠 Menu Utama", callback_data="home")]
         ])
     )
@@ -2711,3 +2724,334 @@ async def cb_konfirm(cb: CallbackQuery):
                        tg["TG_LIMIT_IP"], tg["TG_SERVER_LABEL"], days, total, isp=sconf.get("ISP","")),
         parse_mode="HTML", reply_markup=kb_after_buy("ssh")
     )
+
+# ═══════════════════════════════════════════════════════════════
+#   ZIVPN HANDLERS
+# ═══════════════════════════════════════════════════════════════
+
+async def _zivpn_agent(sname: str, *args) -> str:
+    """Jalankan zv-zivpn-agent di lokal atau remote via SSH."""
+    import subprocess as _sp
+    cmd_args = " ".join(str(a) for a in args)
+    if sname == "local" or not sname:
+        cmd = f"bash /etc/zv-manager/zv-zivpn-agent.sh {cmd_args}"
+    else:
+        cmd = (
+            f"source /etc/zv-manager/utils/remote.sh 2>/dev/null && "
+            f"remote_zivpn_agent {sname} {cmd_args}"
+        )
+    try:
+        r = _sp.run(["bash", "-c", cmd], capture_output=True, text=True, timeout=30)
+        return (r.stdout or r.stderr or "").strip()
+    except Exception as e:
+        return f"ERR|{e}"
+
+
+# ── Buat Akun ZiVPN ───────────────────────────────────────────
+@router.callback_query(F.data == "proto_buat_zivpn")
+async def cb_proto_buat_zivpn(cb: CallbackQuery):
+    await cb.answer()
+    from storage import get_server_list_by_type
+    servers = get_server_list_by_type("all") + get_server_list_by_type("ssh")
+    if not servers:
+        await cb.message.edit_text("❌ Belum ada server tersedia.", reply_markup=kb_back("m_buat"))
+        return
+    await cb.message.edit_text(
+        text_server_list("Buat Akun ZiVPN UDP", proto="ssh"),
+        parse_mode="HTML",
+        reply_markup=kb_zivpn_server_list("zl_buat", back_cb="m_buat"))
+
+
+@router.callback_query(F.data.startswith("zl_buat_"))
+async def cb_zl_buat(cb: CallbackQuery, state: FSMContext):
+    uid   = cb.from_user.id
+    sname = cb.data[len("zl_buat_"):]
+    sconf = load_server_conf(sname)
+    if not sconf:
+        await cb.answer("❌ Server tidak ditemukan"); return
+    tg = load_tg_server_conf(sname) or {}
+
+    saldo = saldo_get(uid)
+    harga = int(tg.get("TG_HARGA_HARI", "0") or "0")
+    if harga == 0:
+        await cb.message.edit_text(
+            "❌ Server ini belum ada harga ZiVPN. Hubungi admin.",
+            reply_markup=kb_back("proto_buat_zivpn")); return
+
+    await state.update_data(proto="zivpn", sname=sname)
+    await state.set_state("zivpn_buat_days")
+    await cb.message.edit_text(
+        f"🔮 <b>Buat Akun ZiVPN</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"🖥 Server : {tg.get('TG_SERVER_LABEL', sname)}\n"
+        f"💰 Harga  : Rp{fmt(harga)}/hari\n"
+        f"💳 Saldo  : Rp{fmt(saldo)}\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"Berapa hari?",
+        parse_mode="HTML",
+        reply_markup=kb_back("proto_buat_zivpn"))
+
+
+@router.message(StateFilter("zivpn_buat_days"))
+async def cb_zl_buat_days(msg: Message, state: FSMContext):
+    uid  = msg.from_user.id
+    data = await state.get_data()
+    sname = data.get("sname", "")
+    sconf = load_server_conf(sname) or {}
+    tg    = load_tg_server_conf(sname) or {}
+    harga = int(tg.get("TG_HARGA_HARI", "0") or "0")
+
+    try:
+        days = int(msg.text.strip())
+        assert days >= 1
+    except Exception:
+        await msg.answer("❌ Masukkan angka hari yang valid (min 1).", reply_markup=kb_back("proto_buat_zivpn"))
+        return
+
+    total = harga * days
+    saldo = saldo_get(uid)
+    if saldo < total:
+        await state.clear()
+        await msg.answer(
+            f"❌ Saldo tidak cukup.\n💳 Saldo: Rp{fmt(saldo)}\n💸 Butuh: Rp{fmt(total)}",
+            reply_markup=kb_home_btn()); return
+
+    # Generate akun
+    import random, string, uuid as _uuid
+    suffix   = "".join(random.choices(string.digits, k=6))
+    username = f"zivpn-{suffix}"
+    password = "".join(random.choices(string.ascii_letters + string.digits, k=16))
+    now_ts   = int(time.time())
+    exp_ts   = now_ts + days * 86400
+    exp_date = datetime.fromtimestamp(exp_ts).strftime("%Y-%m-%d")
+    domain   = sconf.get("DOMAIN", sconf.get("IP", ""))
+
+    os.makedirs(ZIVPN_DIR, exist_ok=True)
+    conf_path = f"{ZIVPN_DIR}/{username}.conf"
+    with open(conf_path, "w") as f:
+        f.write(f'USERNAME="{username}"\n')
+        f.write(f'PASSWORD="{password}"\n')
+        f.write(f'DOMAIN="{domain}"\n')
+        f.write(f'EXPIRED_TS="{exp_ts}"\n')
+        f.write(f'EXPIRED_DATE="{exp_date}"\n')
+        f.write(f'CREATED="{datetime.now().strftime("%Y-%m-%d")}"\n')
+        f.write(f'IS_TRIAL="0"\n')
+        f.write(f'TG_USER_ID="{uid}"\n')
+        f.write(f'SERVER="{sname}"\n')
+
+    agent_result = await _zivpn_agent(sname, "add", username, password, days, uid)
+    if "ERR" in agent_result:
+        os.remove(conf_path)
+        await state.clear()
+        await msg.answer("⚠️ Gagal membuat akun ZiVPN. Coba lagi.", reply_markup=kb_home_btn())
+        return
+
+    from storage import saldo_deduct
+    saldo_deduct(uid, total)
+    await state.clear()
+    exp_disp = ts_to_wib(exp_ts)
+    await msg.answer(
+        text_zivpn_info("BELI", username, password, domain, exp_disp,
+                        tg.get("TG_SERVER_LABEL", sname),
+                        days=days, total=total, isp=sconf.get("ISP", "")),
+        parse_mode="HTML", reply_markup=kb_after_buy("zivpn"))
+    await notify_admin(msg.bot, "BELI", msg.from_user.first_name, uid, username, sname, days, total)
+
+
+# ── Trial ZiVPN ───────────────────────────────────────────────
+@router.callback_query(F.data == "proto_trial_zivpn")
+async def cb_proto_trial_zivpn(cb: CallbackQuery):
+    await cb.answer()
+    from storage import get_server_list_by_type
+    servers = get_server_list_by_type("all") + get_server_list_by_type("ssh")
+    if not servers:
+        await cb.message.edit_text("❌ Belum ada server tersedia.", reply_markup=kb_back("m_trial"))
+        return
+    await cb.message.edit_text(
+        text_server_list("Trial ZiVPN Gratis", proto="ssh"),
+        parse_mode="HTML",
+        reply_markup=kb_zivpn_server_list("zl_trial", back_cb="m_trial"))
+
+
+@router.callback_query(F.data.startswith("zlpage_"))
+async def cb_zivpn_page(cb: CallbackQuery):
+    parts  = cb.data.split("_")
+    prefix = "_".join(parts[1:-1])
+    page   = int(parts[-1])
+    back_cb = "m_buat" if "buat" in prefix else "m_trial"
+    await cb.message.edit_reply_markup(reply_markup=kb_zivpn_server_list(prefix, page, back_cb=back_cb))
+    await cb.answer()
+
+
+@router.callback_query(F.data.startswith("zl_trial_"))
+async def cb_zl_trial(cb: CallbackQuery):
+    uid   = cb.from_user.id
+    sname = cb.data[len("zl_trial_"):]
+    sconf = load_server_conf(sname)
+    if not sconf:
+        await cb.message.answer("❌ Server tidak ditemukan."); return
+    tg = load_tg_server_conf(sname) or {}
+
+    if already_trial_zivpn(uid, sname):
+        from config import TRIAL_DIR
+        _marker = f"{TRIAL_DIR}/zivpn_{uid}_{sname}"
+        try:
+            _elapsed = int(time.time() - __import__("os").path.getmtime(_marker))
+            _sisa    = max(0, 86400 - _elapsed)
+            _jam     = _sisa // 3600
+            _menit   = (_sisa % 3600) // 60
+            _countdown = f"{_jam} jam {_menit} menit" if _jam > 0 else f"{_menit} menit"
+        except Exception:
+            _countdown = "beberapa saat"
+        await cb.message.answer(
+            f"⚠️ <b>Kamu sudah trial ZiVPN di server ini.</b>\n"
+            f"⏳ Bisa trial lagi dalam: <b>{_countdown}</b>\n",
+            parse_mode="HTML", reply_markup=kb_back("m_trial")); return
+
+    import random, string
+    suffix   = "".join(random.choices(string.digits, k=4))
+    username = f"zivpn-t{suffix}"
+    password = "".join(random.choices(string.ascii_letters + string.digits, k=12))
+    now_ts   = int(time.time())
+    exp_ts   = now_ts + 1800  # 30 menit
+    exp_date = datetime.fromtimestamp(exp_ts).strftime("%Y-%m-%d")
+    domain   = sconf.get("DOMAIN", sconf.get("IP", ""))
+
+    os.makedirs(ZIVPN_DIR, exist_ok=True)
+    conf_path = f"{ZIVPN_DIR}/{username}.conf"
+    with open(conf_path, "w") as f:
+        f.write(f'USERNAME="{username}"\n')
+        f.write(f'PASSWORD="{password}"\n')
+        f.write(f'DOMAIN="{domain}"\n')
+        f.write(f'EXPIRED_TS="{exp_ts}"\n')
+        f.write(f'EXPIRED_DATE="{exp_date}"\n')
+        f.write(f'CREATED="{datetime.now().strftime("%Y-%m-%d")}"\n')
+        f.write(f'IS_TRIAL="1"\n')
+        f.write(f'TG_USER_ID="{uid}"\n')
+        f.write(f'SERVER="{sname}"\n')
+
+    agent_result = await _zivpn_agent(sname, "add", username, password, "1", uid)
+    if "ERR" in agent_result:
+        if os.path.exists(conf_path): os.remove(conf_path)
+        await cb.message.answer(
+            "⚠️ <b>Server Sedang Gangguan</b>\n━━━━━━━━━━━━━━━━━━━\n"
+            "Gagal membuat trial ZiVPN. Coba lagi nanti.",
+            parse_mode="HTML"); return
+
+    mark_trial_zivpn(uid, sname)
+    zv_log(f"ZIVPN_TRIAL: {uid} server={sname} user={username}")
+    _schedule_trial_delete("zivpn", username, sname)
+    exp_disp = ts_to_wib(exp_ts)
+    await cb.message.answer(
+        text_zivpn_info("TRIAL", username, password, domain, exp_disp,
+                        tg.get("TG_SERVER_LABEL", sname), isp=sconf.get("ISP", "")),
+        parse_mode="HTML", reply_markup=kb_after_buy("zivpn"))
+
+
+# ── Akun ZiVPN Kamu ───────────────────────────────────────────
+def _collect_zivpn_akun(uid: int) -> list:
+    now_ts = int(time.time())
+    items  = []
+    for conf in sorted(__import__("glob").glob(f"{ZIVPN_DIR}/*.conf")):
+        d = {}
+        try:
+            with open(conf) as f:
+                for line in f:
+                    line = line.strip()
+                    if "=" in line:
+                        k, _, v = line.partition("=")
+                        d[k] = v.strip('"')
+        except Exception: continue
+        if d.get("TG_USER_ID") != str(uid): continue
+        if d.get("IS_TRIAL") == "1":
+            exp_ts = int(d.get("EXPIRED_TS", "0") or "0")
+            if exp_ts <= now_ts: continue
+        items.append(d)
+    return items
+
+
+def _render_zivpn_page(items, page, now_ts, uid):
+    total   = len(items)
+    n_pages = max(1, (total + _AKUN_PAGE_SIZE - 1) // _AKUN_PAGE_SIZE)
+    page    = max(0, min(page, n_pages - 1))
+    chunk   = items[page * _AKUN_PAGE_SIZE:(page + 1) * _AKUN_PAGE_SIZE]
+
+    out = f"🔮 <b>Akun ZiVPN Kamu</b>  ({total} akun)\n━━━━━━━━━━━━━━━━━━━\n"
+    if not chunk:
+        out += "\nBelum ada akun ZiVPN."
+    for zc in chunk:
+        zuname = zc.get("USERNAME", "")
+        zpw    = zc.get("PASSWORD", "")
+        zdomain= zc.get("DOMAIN", "")
+        zsname = zc.get("SERVER", "")
+        ztg    = load_tg_server_conf(zsname) if zsname else {}
+        slabel = ztg.get("TG_SERVER_LABEL", "") or zsname
+        tipe   = "Trial" if zc.get("IS_TRIAL", "0") == "1" else "Premium"
+        exp_d, status, sisa_l = _status_label(zc.get("EXPIRED_TS", ""), now_ts)
+
+        out += (
+            f"\n🔮 <b>{zuname}</b> <i>({tipe})</i>\n"
+            f"🖥 Server   : {slabel}\n"
+            f"🖥 Host     : <code>{zdomain}</code>\n"
+            f"🔑 ZiVPN PW : <code>{zpw}</code>\n"
+            f"🔌 Port UDP : <code>5667</code>\n"
+            f"⏳ Expired  : {exp_d} · {sisa_l}\n"
+            f"📊 Status   : {status}\n"
+            f"━━━━━━━━━━━━━━━━━━━"
+        )
+
+    b = InlineKeyboardBuilder()
+    nav = []
+    if page > 0:
+        nav.append(InlineKeyboardButton(text="◀ Sebelumnya", callback_data=f"zivpn_lp_{page-1}"))
+    if page < n_pages - 1:
+        nav.append(InlineKeyboardButton(text="Berikutnya ▶", callback_data=f"zivpn_lp_{page+1}"))
+    if nav: b.row(*nav)
+    b.row(InlineKeyboardButton(text="📨 Kirim Ulang Info", callback_data="kirim_ulang_zivpn"))
+    b.row(InlineKeyboardButton(text="🏠 Menu", callback_data="home"))
+    return out, b.as_markup()
+
+
+@router.callback_query(F.data.startswith("zivpn_lp_"))
+async def cb_zivpn_akun_page(cb: CallbackQuery):
+    uid  = cb.from_user.id
+    page = int(cb.data.split("_")[-1])
+    items = _collect_zivpn_akun(uid)
+    txt, kb = _render_zivpn_page(items, page, int(time.time()), uid)
+    await cb.message.edit_text(txt, parse_mode="HTML", reply_markup=kb)
+    await cb.answer()
+
+
+@router.callback_query(F.data == "akun_proto_zivpn")
+async def cb_akun_proto_zivpn(cb: CallbackQuery):
+    uid    = cb.from_user.id
+    now_ts = int(time.time())
+    await cb.answer()
+    items  = _collect_zivpn_akun(uid)
+    if not items:
+        await cb.message.edit_text("❌ Kamu belum punya akun ZiVPN.", reply_markup=kb_home_btn())
+        return
+    txt, kb = _render_zivpn_page(items, 0, now_ts, uid)
+    await cb.message.edit_text(txt, parse_mode="HTML", reply_markup=kb)
+
+
+@router.callback_query(F.data == "kirim_ulang_zivpn")
+async def cb_kirim_ulang_zivpn(cb: CallbackQuery):
+    uid    = cb.from_user.id
+    now_ts = int(time.time())
+    await cb.answer()
+    items  = _collect_zivpn_akun(uid)
+    if not items:
+        await cb.answer("❌ Tidak ada akun ZiVPN aktif.", show_alert=True); return
+    for zc in items:
+        domain = zc.get("DOMAIN", "")
+        sname  = zc.get("SERVER", "")
+        tg     = load_tg_server_conf(sname) if sname else {}
+        exp_ts = int(zc.get("EXPIRED_TS", "0") or "0")
+        exp_disp = ts_to_wib(exp_ts)
+        await cb.message.answer(
+            text_zivpn_info(
+                "BELI", zc.get("USERNAME", ""), zc.get("PASSWORD", ""),
+                domain, exp_disp, tg.get("TG_SERVER_LABEL", sname)
+            ),
+            parse_mode="HTML")

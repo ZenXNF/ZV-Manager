@@ -78,7 +78,7 @@ get_version_line() {
     if [[ -f "$cache" ]]; then
         local latest; latest=$(cat "$cache" 2>/dev/null | tr -d "[:space:]")
         if [[ -n "$latest" && "$latest" != "$local_hash" ]]; then
-            printf " \e[1;33m%-14s\e[0m = \e[1;33m#%s\e[0m \e[1;31m→\e[0m \e[1;32m#%s\e[0m \e[1;33m⚠ Ada update! [7]\e[0m\n" "≥ Versi" "$local_hash" "$latest"
+            printf " \e[1;33m%-14s\e[0m = \e[1;33m#%s\e[0m \e[1;31m→\e[0m \e[1;32m#%s\e[0m \e[1;33m⚠ Ada update! [8]\e[0m\n" "≥ Versi" "$local_hash" "$latest"
             return
         fi
     fi
@@ -126,10 +126,11 @@ show_header() {
     tm=$(TZ="Asia/Jakarta" date +"%H-%M-%S")
 
     # ── Jumlah akun ───────────────────────────────────────────
-    local n_ssh=0 n_vmess=0 n_vless=0
+    local n_ssh=0 n_vmess=0 n_vless=0 n_zivpn=0
     for f in /etc/zv-manager/accounts/ssh/*.conf;   do [[ -f "$f" ]] && n_ssh=$((n_ssh+1));     done
     for f in /etc/zv-manager/accounts/vmess/*.conf; do [[ -f "$f" ]] && n_vmess=$((n_vmess+1)); done
     for f in /etc/zv-manager/accounts/vless/*.conf; do [[ -f "$f" ]] && n_vless=$((n_vless+1)); done
+    for f in /etc/zv-manager/accounts/zivpn/*.conf;  do [[ -f "$f" ]] && n_zivpn=$((n_zivpn+1));   done
 
     # ── Warna ─────────────────────────────────────────────────
     local R="\e[1;31m" O="\e[1;33m" G="\e[1;32m" C="\e[1;36m"
@@ -163,8 +164,8 @@ show_header() {
 
     # ── Info Akun ─────────────────────────────────────────────
     _section "INFORMATION ACCOUNT ON VPS"
-    local n_total=$(( n_ssh + n_vmess + n_vless ))
-    printf "  ${G}TOTAL AKUN${NC}          = ${W}%s${NC}  ${D}(SSH: %s | VMess: %s | VLESS: %s)${NC}\n" "$n_total" "$n_ssh" "$n_vmess" "$n_vless"
+    local n_total=$(( n_ssh + n_vmess + n_vless + n_zivpn ))
+    printf "  ${G}TOTAL AKUN${NC}          = ${W}%s${NC}  ${D}(SSH: %s | VMess: %s | VLESS: %s | ZiVPN: %s)${NC}\n" "$n_total" "$n_ssh" "$n_vmess" "$n_vless" "$n_zivpn"
     echo ""
 
     # ── Status Service ────────────────────────────────────────
@@ -201,22 +202,23 @@ main_menu() {
         _sep
         echo ""
         echo -e "  $(_grad '[1]' 0 210 255 160 80 255) Akun SSH             $(_grad '[2]' 0 210 255 160 80 255) Akun VMess"
-        echo -e "  $(_grad '[3]' 0 210 255 160 80 255) Akun VLESS           $(_grad '[4]' 0 210 255 160 80 255) Manajemen Server"
-        echo -e "  $(_grad '[5]' 0 210 255 160 80 255) Sistem               $(_grad '[6]' 0 210 255 160 80 255) Info & Statistik"
-        echo -e "  $(_grad '[7]' 0 210 255 160 80 255) Update Script"
+        echo -e "  $(_grad '[3]' 0 210 255 160 80 255) Akun VLESS           $(_grad '[4]' 0 210 255 160 80 255) Akun ZiVPN UDP"
+        echo -e "  $(_grad '[5]' 0 210 255 160 80 255) Manajemen Server     $(_grad '[6]' 0 210 255 160 80 255) Sistem"
+        echo -e "  $(_grad '[7]' 0 210 255 160 80 255) Info & Statistik     $(_grad '[8]' 0 210 255 160 80 255) Update Script"
         echo ""
         echo -e "  \e[38;2;255;200;0m[r]\e[0m Restart Semua        \e[38;2;255;80;80m[0]\e[0m Keluar"
         echo ""
-        read -rp "  Pilihan [0-7/r]: " choice
+        read -rp "  Pilihan [0-8/r]: " choice
 
         case $choice in
             1) bash /etc/zv-manager/menu/ssh/menu-ssh.sh ;;
             2) bash /etc/zv-manager/menu/vmess/menu-vmess.sh ;;
             3) bash /etc/zv-manager/menu/vless/menu-vless.sh ;;
-            4) bash /etc/zv-manager/menu/server/menu-server.sh ;;
-            5) bash /etc/zv-manager/menu/system/menu-system.sh ;;
-            6) bash /etc/zv-manager/menu/info/menu-info.sh ;;
-            7)
+            4) bash /etc/zv-manager/menu/zivpn/menu-zivpn.sh ;;
+            5) bash /etc/zv-manager/menu/server/menu-server.sh ;;
+            6) bash /etc/zv-manager/menu/system/menu-system.sh ;;
+            7) bash /etc/zv-manager/menu/info/menu-info.sh ;;
+            8)
                 echo ""
                 echo -e "  ${BYELLOW}Menjalankan update...${NC}"
                 echo ""
