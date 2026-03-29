@@ -2777,60 +2777,121 @@ async def cb_zl_buat(cb: CallbackQuery):
             "❌ Server ini belum ada harga ZiVPN. Hubungi admin.",
             reply_markup=kb_back("proto_buat_zivpn")); return
 
-    # Pilih durasi via keyboard
-    from aiogram.utils.keyboard import InlineKeyboardBuilder as _IKB
-    b = _IKB()
-    for d in [1, 7, 14, 30]:
-        total = harga * d
-        b.button(text=f"{d} hari — Rp{fmt(total)}", callback_data=f"zl_beli_{sname}_{d}")
-    b.adjust(1)
-    b.row(InlineKeyboardButton(text="↩ Kembali", callback_data="proto_buat_zivpn"))
+    state_set(uid, "zivpn_beli", __import__("json").dumps({"sname": sname}))
+    state_set(uid, "zivpn_beli_step", "password")
     await cb.message.edit_text(
-        f"🔮 <b>Buat Akun ZiVPN</b>\n"
+        f"🔮 <b>Beli Akun ZiVPN</b>\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
-        f"🖥 Server : {tg.get('TG_SERVER_LABEL', sname)}\n"
-        f"💰 Harga  : Rp{fmt(harga)}/hari\n"
-        f"💳 Saldo  : Rp{fmt(saldo)}\n"
+        f"🖥 Server  : {tg.get('TG_SERVER_LABEL', sname)}\n"
+        f"💰 Saldo   : Rp{fmt(saldo)}\n"
+        f"💵 Harga   : Rp{fmt(harga)}/hari\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
-        f"Pilih durasi:",
-        parse_mode="HTML", reply_markup=b.as_markup())
+        f"Ketik ZiVPN Password kamu:\n"
+        f"• 6–32 karakter, bebas\n"
+        f"• Contoh: <code>mysecret123</code>\n"
+        f"• (Kosongkan = auto generate)", parse_mode="HTML",
+        reply_markup=kb_back("proto_buat_zivpn"))
     await cb.answer()
 
 
-@router.callback_query(F.data.startswith("zl_beli_"))
-async def cb_zl_beli(cb: CallbackQuery):
-    uid  = cb.from_user.id
-    # format: zl_beli_<sname>_<days>
-    rest  = cb.data[len("zl_beli_"):]
-    parts = rest.rsplit("_", 1)
-    if len(parts) != 2:
-        await cb.answer("❌ Data tidak valid"); return
-    sname, days_str = parts
-    try:
-        days = int(days_str)
-    except Exception:
-        await cb.answer("❌ Durasi tidak valid"); return
+@router.message(lambda m: state_get(m.from_user.id, "zivpn_beli_step") == "password")
+async def cb_zl_buat_password(msg: Message):
+    uid  = msg.from_user.id
+    data = __import__("json").loads(state_get(uid, "zivpn_beli") or "{}")
+    if not data: return
+    sname = data.get("sname", "")
+    tg    = load_tg_server_conf(sname) or {}
+    harga = int(tg.get("TG_HARGA_HARI", "0") or "0")
+    saldo = saldo_get(uid)
 
-    sconf = load_server_conf(sname) or {}
+    raw = msg.text.strip() if msg.text else ""
+    # Kosong = auto generate
+    if not raw:
+        raw = "".join(random.choices(string.ascii_letters + string.digits, k=16))
+    if len(raw) < 4 or len(raw) > 32:
+        await msg.answer("❌ Password harus 4–32 karakter."); return
+
+    state_set(uid, "zivpn_beli", __import__("json").dumps({**data, "password": raw}))
+    state_set(uid, "zivpn_beli_step", "days")
+    await msg.answer(
+        f"🔮 <b>Beli Akun ZiVPN</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"🔑 ZiVPN PW: <code>{raw}</code>\n"
+        f"🖥 Server  : {tg.get('TG_SERVER_LABEL', sname)}\n"
+        f"💰 Saldo   : Rp{fmt(saldo)}\n"
+        f"💵 Harga   : Rp{fmt(harga)}/hari\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"Masukkan jumlah hari:", parse_mode="HTML",
+        reply_markup=kb_back("proto_buat_zivpn"))
+
+
+@router.message(lambda m: state_get(m.from_user.id, "zivpn_beli_step") == "days")
+async def cb_zl_buat_days(msg: Message):
+    uid  = msg.from_user.id
+    data = __import__("json").loads(state_get(uid, "zivpn_beli") or "{}")
+    if not data: return
+    days_str = msg.text.strip() if msg.text else ""
+    if not days_str.isdigit() or int(days_str) < 1:
+        await msg.answer("❌ Masukkan angka hari yang valid (minimal 1)."); return
+    days  = int(days_str)
+    sname = data["sname"]
     tg    = load_tg_server_conf(sname) or {}
     harga = int(tg.get("TG_HARGA_HARI", "0") or "0")
     total = harga * days
     saldo = saldo_get(uid)
 
     if saldo < total:
-        await cb.message.edit_text(
-            f"❌ <b>Saldo tidak cukup</b>\n"
-            f"💳 Saldo : Rp{fmt(saldo)}\n"
-            f"💸 Butuh : Rp{fmt(total)}",
-            parse_mode="HTML", reply_markup=kb_home_btn()); return
+        await msg.answer(
+            f"🔮 <b>Beli Akun ZiVPN</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━\n"
+            f"🌐 Server  : {tg.get('TG_SERVER_LABEL', sname)}\n"
+            f"📅 Durasi  : {days} hari\n"
+            f"💸 Total   : Rp{fmt(total)}\n"
+            f"💳 Saldo   : Rp{fmt(saldo)}\n"
+            f"❌ Kurang  : Rp{fmt(total - saldo)}\n"
+            f"━━━━━━━━━━━━━━━━━━━\nSaldo tidak cukup. Hubungi admin untuk top up.",
+            parse_mode="HTML")
+        state_clear(uid); return
+
+    state_set(uid, "zivpn_beli", __import__("json").dumps({**data, "days": days, "total": total, "step": "konfirm"}))
+    state_set(uid, "zivpn_beli_step", "konfirm")
+    await msg.answer(
+        f"🔮 <b>Konfirmasi Beli ZiVPN</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"🌐 Server  : {tg.get('TG_SERVER_LABEL', sname)}\n"
+        f"🔑 ZiVPN PW: <code>{data.get('password', '')}</code>\n"
+        f"📅 Durasi  : {days} hari\n"
+        f"💰 Harga   : Rp{fmt(harga)}/hari\n"
+        f"💸 Total   : Rp{fmt(total)}\n"
+        f"💳 Saldo   : Rp{fmt(saldo)}\n"
+        f"━━━━━━━━━━━━━━━━━━━\nLanjutkan?", parse_mode="HTML",
+        reply_markup=kb_confirm("konfirm_zivpn"))
+
+
+@router.callback_query(F.data == "konfirm_zivpn")
+async def cb_konfirm_zivpn(cb: CallbackQuery):
+    uid  = cb.from_user.id
+    data = __import__("json").loads(state_get(uid, "zivpn_beli") or "{}")
+    if not data or data.get("step") != "konfirm":
+        await cb.answer("❌ Sesi habis."); return
+
+    sname    = data["sname"]
+    days     = data["days"]
+    total    = data["total"]
+    password = data.get("password", "")
+    sconf    = load_server_conf(sname) or {}
+    tg       = load_tg_server_conf(sname) or {}
+    domain   = sconf.get("DOMAIN", sconf.get("IP", ""))
+
+    saldo = saldo_get(uid)
+    if saldo < total:
+        await cb.message.edit_text("❌ Saldo tidak cukup."); state_clear(uid); return
 
     suffix   = "".join(random.choices(string.digits, k=6))
     username = f"zivpn-{suffix}"
-    password = "".join(random.choices(string.ascii_letters + string.digits, k=16))
     now_ts   = int(time.time())
     exp_ts   = now_ts + days * 86400
     exp_date = datetime.fromtimestamp(exp_ts).strftime("%Y-%m-%d")
-    domain   = sconf.get("DOMAIN", sconf.get("IP", ""))
 
     os.makedirs(ZIVPN_DIR, exist_ok=True)
     conf_path = f"{ZIVPN_DIR}/{username}.conf"
@@ -2849,12 +2910,13 @@ async def cb_zl_beli(cb: CallbackQuery):
     if "ERR" in agent_result:
         if os.path.exists(conf_path): os.remove(conf_path)
         await cb.message.edit_text("⚠️ Gagal membuat akun ZiVPN. Coba lagi.", reply_markup=kb_home_btn())
-        return
+        state_clear(uid); return
 
     from storage import saldo_deduct
     saldo_deduct(uid, total)
+    state_clear(uid)
     exp_disp = ts_to_wib(exp_ts)
-    await cb.message.answer(
+    await cb.message.edit_text(
         text_zivpn_info("BELI", username, password, domain, exp_disp,
                         tg.get("TG_SERVER_LABEL", sname),
                         days=days, total=total, isp=sconf.get("ISP", "")),
