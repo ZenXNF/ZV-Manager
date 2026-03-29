@@ -16,8 +16,7 @@ from datetime import datetime
 from pathlib import Path
 
 from aiogram import F, Router
-from aiogram.filters import Command, StateFilter
-from aiogram.fsm.context import FSMContext
+from aiogram.filters import Command
 from aiogram.types import (
     CallbackQuery, InlineKeyboardButton,
     InlineKeyboardMarkup, Message
@@ -2764,14 +2763,13 @@ async def cb_proto_buat_zivpn(cb: CallbackQuery):
 
 
 @router.callback_query(F.data.startswith("zl_buat_"))
-async def cb_zl_buat(cb: CallbackQuery, state: FSMContext):
+async def cb_zl_buat(cb: CallbackQuery):
     uid   = cb.from_user.id
     sname = cb.data[len("zl_buat_"):]
     sconf = load_server_conf(sname)
     if not sconf:
         await cb.answer("❌ Server tidak ditemukan"); return
-    tg = load_tg_server_conf(sname) or {}
-
+    tg    = load_tg_server_conf(sname) or {}
     saldo = saldo_get(uid)
     harga = int(tg.get("TG_HARGA_HARI", "0") or "0")
     if harga == 0:
@@ -2779,8 +2777,14 @@ async def cb_zl_buat(cb: CallbackQuery, state: FSMContext):
             "❌ Server ini belum ada harga ZiVPN. Hubungi admin.",
             reply_markup=kb_back("proto_buat_zivpn")); return
 
-    await state.update_data(proto="zivpn", sname=sname)
-    await state.set_state("zivpn_buat_days")
+    # Pilih durasi via keyboard
+    from aiogram.utils.keyboard import InlineKeyboardBuilder as _IKB
+    b = _IKB()
+    for d in [1, 7, 14, 30]:
+        total = harga * d
+        b.button(text=f"{d} hari — Rp{fmt(total)}", callback_data=f"zl_beli_{sname}_{d}")
+    b.adjust(1)
+    b.row(InlineKeyboardButton(text="↩ Kembali", callback_data="proto_buat_zivpn"))
     await cb.message.edit_text(
         f"🔮 <b>Buat Akun ZiVPN</b>\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
@@ -2788,37 +2792,38 @@ async def cb_zl_buat(cb: CallbackQuery, state: FSMContext):
         f"💰 Harga  : Rp{fmt(harga)}/hari\n"
         f"💳 Saldo  : Rp{fmt(saldo)}\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
-        f"Berapa hari?",
-        parse_mode="HTML",
-        reply_markup=kb_back("proto_buat_zivpn"))
+        f"Pilih durasi:",
+        parse_mode="HTML", reply_markup=b.as_markup())
+    await cb.answer()
 
 
-@router.message(StateFilter("zivpn_buat_days"))
-async def cb_zl_buat_days(msg: Message, state: FSMContext):
-    uid  = msg.from_user.id
-    data = await state.get_data()
-    sname = data.get("sname", "")
+@router.callback_query(F.data.startswith("zl_beli_"))
+async def cb_zl_beli(cb: CallbackQuery):
+    uid  = cb.from_user.id
+    # format: zl_beli_<sname>_<days>
+    rest  = cb.data[len("zl_beli_"):]
+    parts = rest.rsplit("_", 1)
+    if len(parts) != 2:
+        await cb.answer("❌ Data tidak valid"); return
+    sname, days_str = parts
+    try:
+        days = int(days_str)
+    except Exception:
+        await cb.answer("❌ Durasi tidak valid"); return
+
     sconf = load_server_conf(sname) or {}
     tg    = load_tg_server_conf(sname) or {}
     harga = int(tg.get("TG_HARGA_HARI", "0") or "0")
-
-    try:
-        days = int(msg.text.strip())
-        assert days >= 1
-    except Exception:
-        await msg.answer("❌ Masukkan angka hari yang valid (min 1).", reply_markup=kb_back("proto_buat_zivpn"))
-        return
-
     total = harga * days
     saldo = saldo_get(uid)
-    if saldo < total:
-        await state.clear()
-        await msg.answer(
-            f"❌ Saldo tidak cukup.\n💳 Saldo: Rp{fmt(saldo)}\n💸 Butuh: Rp{fmt(total)}",
-            reply_markup=kb_home_btn()); return
 
-    # Generate akun
-    import random, string, uuid as _uuid
+    if saldo < total:
+        await cb.message.edit_text(
+            f"❌ <b>Saldo tidak cukup</b>\n"
+            f"💳 Saldo : Rp{fmt(saldo)}\n"
+            f"💸 Butuh : Rp{fmt(total)}",
+            parse_mode="HTML", reply_markup=kb_home_btn()); return
+
     suffix   = "".join(random.choices(string.digits, k=6))
     username = f"zivpn-{suffix}"
     password = "".join(random.choices(string.ascii_letters + string.digits, k=16))
@@ -2829,34 +2834,33 @@ async def cb_zl_buat_days(msg: Message, state: FSMContext):
 
     os.makedirs(ZIVPN_DIR, exist_ok=True)
     conf_path = f"{ZIVPN_DIR}/{username}.conf"
-    with open(conf_path, "w") as f:
-        f.write(f'USERNAME="{username}"\n')
-        f.write(f'PASSWORD="{password}"\n')
-        f.write(f'DOMAIN="{domain}"\n')
-        f.write(f'EXPIRED_TS="{exp_ts}"\n')
-        f.write(f'EXPIRED_DATE="{exp_date}"\n')
-        f.write(f'CREATED="{datetime.now().strftime("%Y-%m-%d")}"\n')
-        f.write(f'IS_TRIAL="0"\n')
-        f.write(f'TG_USER_ID="{uid}"\n')
-        f.write(f'SERVER="{sname}"\n')
+    with open(conf_path, "w") as fp:
+        fp.write(f'USERNAME="{username}"\n')
+        fp.write(f'PASSWORD="{password}"\n')
+        fp.write(f'DOMAIN="{domain}"\n')
+        fp.write(f'EXPIRED_TS="{exp_ts}"\n')
+        fp.write(f'EXPIRED_DATE="{exp_date}"\n')
+        fp.write(f'CREATED="{datetime.now().strftime("%Y-%m-%d")}"\n')
+        fp.write(f'IS_TRIAL="0"\n')
+        fp.write(f'TG_USER_ID="{uid}"\n')
+        fp.write(f'SERVER="{sname}"\n')
 
     agent_result = await _zivpn_agent(sname, "add", username, password, days, uid)
     if "ERR" in agent_result:
-        os.remove(conf_path)
-        await state.clear()
-        await msg.answer("⚠️ Gagal membuat akun ZiVPN. Coba lagi.", reply_markup=kb_home_btn())
+        if os.path.exists(conf_path): os.remove(conf_path)
+        await cb.message.edit_text("⚠️ Gagal membuat akun ZiVPN. Coba lagi.", reply_markup=kb_home_btn())
         return
 
     from storage import saldo_deduct
     saldo_deduct(uid, total)
-    await state.clear()
     exp_disp = ts_to_wib(exp_ts)
-    await msg.answer(
+    await cb.message.answer(
         text_zivpn_info("BELI", username, password, domain, exp_disp,
                         tg.get("TG_SERVER_LABEL", sname),
                         days=days, total=total, isp=sconf.get("ISP", "")),
         parse_mode="HTML", reply_markup=kb_after_buy("zivpn"))
-    await notify_admin(msg.bot, "BELI", msg.from_user.first_name, uid, username, sname, days, total)
+    await notify_admin(cb.bot, "BELI", cb.from_user.first_name, uid, username, sname, days, total)
+    await cb.answer()
 
 
 # ── Trial ZiVPN ───────────────────────────────────────────────
