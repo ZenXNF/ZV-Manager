@@ -883,8 +883,8 @@ async def cb_vl_buat_days(msg: Message):
     data = __import__("json").loads(state_get(uid, "vless_beli") or "{}")
     if not data: return
     days_str = msg.text.strip() if msg.text else ""
-    if not days_str.isdigit() or int(days_str) < 1:
-        await msg.answer("❌ Masukkan angka hari yang valid (minimal 1)."); return
+    if not days_str.isdigit() or int(days_str) < 1 or int(days_str) > 365:
+        await msg.answer("❌ Masukkan angka hari yang valid (1–365 hari)."); return
     days  = int(days_str)
     sname = data["sname"]
     sconf = load_server_conf(sname) or {}
@@ -1127,8 +1127,8 @@ async def cb_vless_renew_days(msg: Message):
     data = __import__("json").loads(state_get(uid, "vless_renew") or "{}")
     if not data: return
     days_str = msg.text.strip() if msg.text else ""
-    if not days_str.isdigit() or int(days_str) < 1:
-        await msg.answer("❌ Masukkan angka hari yang valid."); return
+    if not days_str.isdigit() or int(days_str) < 1 or int(days_str) > 365:
+        await msg.answer("❌ Masukkan angka hari yang valid (1–365 hari)."); return
     days     = int(days_str)
     sname    = data["sname"]
     username = data["username"]
@@ -2836,8 +2836,8 @@ async def cb_zl_buat_days(msg: Message):
     data = __import__("json").loads(state_get(uid, "zivpn_beli") or "{}")
     if not data: return
     days_str = msg.text.strip() if msg.text else ""
-    if not days_str.isdigit() or int(days_str) < 1:
-        await msg.answer("❌ Masukkan angka hari yang valid (minimal 1)."); return
+    if not days_str.isdigit() or int(days_str) < 1 or int(days_str) > 365:
+        await msg.answer("❌ Masukkan angka hari yang valid (1–365 hari)."); return
     days  = int(days_str)
     sname = data["sname"]
     tg    = load_tg_server_conf(sname) or {}
