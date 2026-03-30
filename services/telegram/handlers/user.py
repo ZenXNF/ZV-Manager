@@ -2730,8 +2730,8 @@ async def cb_konfirm(cb: CallbackQuery):
 # ═══════════════════════════════════════════════════════════════
 
 async def _zivpn_agent(sname: str, *args) -> str:
-    """Jalankan zv-zivpn-agent di lokal atau remote via SSH."""
-    import subprocess as _sp
+    """Jalankan zv-zivpn-agent di lokal atau remote via SSH (async)."""
+    import asyncio as _asyncio
     cmd_args = " ".join(str(a) for a in args)
     if sname == "local" or not sname:
         cmd = f"bash /etc/zv-manager/zv-zivpn-agent.sh {cmd_args}"
@@ -2741,8 +2741,13 @@ async def _zivpn_agent(sname: str, *args) -> str:
             f"remote_zivpn_agent {sname} {cmd_args}"
         )
     try:
-        r = _sp.run(["bash", "-c", cmd], capture_output=True, text=True, timeout=30)
-        return (r.stdout or r.stderr or "").strip()
+        proc = await _asyncio.create_subprocess_shell(
+            cmd,
+            stdout=_asyncio.subprocess.PIPE,
+            stderr=_asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await _asyncio.wait_for(proc.communicate(), timeout=30)
+        return (stdout or stderr or b"").decode().strip()
     except Exception as e:
         return f"ERR|{e}"
 
