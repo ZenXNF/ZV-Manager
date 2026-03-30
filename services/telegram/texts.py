@@ -297,39 +297,33 @@ def text_vless_info(tipe: str, username: str, uuid: str, domain: str,
 def text_zivpn_info(tipe: str, username: str, password: str, domain: str,
                     exp_display: str, server_label: str,
                     days: int = 0, total: int = 0, isp: str = "") -> str:
-    """Pesan info akun ZiVPN UDP."""
+    """Pesan info akun ZiVPN UDP — format box."""
     from utils import fmt
     is_trial = (tipe == "TRIAL")
-    header   = "🌟 TRIAL ZIVPN UDP 🌟" if is_trial else "✅ AKUN ZIVPN UDP"
 
-    lines = [
-        f"<b>{header}</b>",
-        "━━━━━━━━━━━━━━━━━━━",
-        f"🌐 Server    : {server_label}",
-    ]
-    if isp:
-        lines.append(f"🏢 ISP       : {isp}")
-    lines += [
-        "━━━━━━━━━━━━━━━━━━━",
-        f"🖥 Host      : <code>{domain}</code>",
-        f"🔌 Port UDP  : <code>5667</code>",
-        f"🔑 ZiVPN PW  : <code>{password}</code>",
-        f"🔒 Obfs      : <code>zivpn</code>",
-        "━━━━━━━━━━━━━━━━━━━",
-    ]
     if is_trial:
-        lines.append("⏳ Expired : 30 menit")
+        title   = "TRIAL AKUN ZIVPN UDP"
+        expire  = "30 Menit"
     else:
-        lines.append(f"⏳ Expired : {exp_display}")
-        if days and total:
-            lines.append(f"💸 Dibayar : {days} hari — Rp{fmt(total)}")
-    lines += [
-        "━━━━━━━━━━━━━━━━━━━",
-        "📱 Cara pakai di ZiVPN app:",
-        f"  Host : <code>{domain}</code>",
-        f"  Port : <code>5667</code>",
-        f"  PW   : <code>{password}</code>",
-        "━━━━━━━━━━━━━━━━━━━",
-        "✨ Selamat menikmati layanan! ✨",
-    ]
-    return "\n".join(lines)
+        title   = "AKUN ZIVPN UDP"
+        expire  = exp_display
+
+    isp_line   = f"\n│ ISP    : {isp}" if isp else ""
+    harga_line = f"\n💸 Dibayar : <b>Rp{fmt(total)}</b>" if tipe == "BELI" and total else ""
+
+    return (
+        f"✅ <b>{title}</b>\n"
+        f"┌────────────────────────┐\n"
+        f"│ Host   : <code>{domain}</code>\n"
+        f"│ Pass   : <code>{password}</code>\n"
+        f"│ Port   : <code>5667</code>{isp_line}\n"
+        f"│ Expire : {expire}\n"
+        f"└────────────────────────┘\n"
+        f"🖥 Server : {server_label}"
+        f"{harga_line}\n"
+        f"\n"
+        f"📌 <b>Cara Connect ZiVPN:</b>\n"
+        f"1️⃣ Buka app ZiVPN\n"
+        f"2️⃣ Masukkan Host & Password\n"
+        f"3️⃣ Connect 🚀"
+    )

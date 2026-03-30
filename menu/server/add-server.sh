@@ -245,6 +245,9 @@ CONFEOF
     local tg_harga_vless_hari="0" tg_harga_vless_bulan="0"
     local tg_limit_ip_vless="2" tg_max_akun_vless="500"
     local tg_bw_per_hari_vless="0"
+    # ZiVPN
+    local tg_harga_zivpn_hari="0" tg_harga_zivpn_bulan="0"
+    local tg_max_akun_zivpn="500"
 
     if [[ "$server_type" == "vmess" || "$server_type" == "both" || "$server_type" == "all" ]]; then
         echo ""
@@ -289,6 +292,22 @@ CONFEOF
         [[ "$v" =~ ^[0-9]+$ ]] && tg_bw_per_hari_vless="$v"
     fi
 
+    # --- Pengaturan ZiVPN ---
+    if [[ "$server_type" == "zivpn" || "$server_type" == "all" ]]; then
+        echo ""
+        echo -e "  ${BWHITE}── Pengaturan ZiVPN ────────────────────────${NC}"
+        echo -e "  ${BYELLOW}(Kosongkan/Enter = ikuti setting SSH)${NC}"
+        if [[ "$server_type" == "all" ]]; then
+            tg_harga_zivpn_hari="${tg_harga_hari}"
+            tg_max_akun_zivpn="${tg_max_akun}"
+        fi
+        read -rp "  Harga ZiVPN / hari (Rp)    [${tg_harga_zivpn_hari}]: " v
+        [[ "$v" =~ ^[0-9]+$ ]] && tg_harga_zivpn_hari="$v"
+        tg_harga_zivpn_bulan=$(( tg_harga_zivpn_hari * 30 ))
+        read -rp "  Maks akun ZiVPN             [${tg_max_akun_zivpn}]: " v
+        [[ "$v" =~ ^[0-9]+$ ]] && tg_max_akun_zivpn="$v"
+    fi
+
     # --- Tulis tg.conf ---
     cat > "${SERVER_DIR}/${name}.tg.conf" <<TGEOF
 TG_SERVER_LABEL="${tg_label}"
@@ -308,6 +327,9 @@ TG_HARGA_VLESS_BULAN="${tg_harga_vless_bulan}"
 TG_LIMIT_IP_VLESS="${tg_limit_ip_vless}"
 TG_MAX_AKUN_VLESS="${tg_max_akun_vless}"
 TG_BW_PER_HARI_VLESS="${tg_bw_per_hari_vless}"
+TG_HARGA_ZIVPN_HARI="${tg_harga_zivpn_hari}"
+TG_HARGA_ZIVPN_BULAN="${tg_harga_zivpn_bulan}"
+TG_MAX_AKUN_ZIVPN="${tg_max_akun_zivpn}"
 TGEOF
 
     echo ""
