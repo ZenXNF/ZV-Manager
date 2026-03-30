@@ -236,10 +236,10 @@ async def cb_menu_buat(cb: CallbackQuery):
     await cb.message.edit_text(
         "⚡ <b>Buat Akun</b>\n\nPilih protokol:", parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🔑 SSH",    callback_data="proto_buat_ssh"),
-             InlineKeyboardButton(text="⚡ VMess",  callback_data="proto_buat_vmess")],
-            [InlineKeyboardButton(text="🔐 VLESS",  callback_data="proto_buat_vless")],
-            [InlineKeyboardButton(text="🔮 ZiVPN",  callback_data="proto_buat_zivpn")],
+            [InlineKeyboardButton(text="SSH",   callback_data="proto_buat_ssh"),
+             InlineKeyboardButton(text="VMess",  callback_data="proto_buat_vmess")],
+            [InlineKeyboardButton(text="VLESS",  callback_data="proto_buat_vless"),
+             InlineKeyboardButton(text="ZiVPN",  callback_data="proto_buat_zivpn")],
             [InlineKeyboardButton(text="↩ Kembali", callback_data="home")]
         ]))
     await cb.answer()
@@ -249,10 +249,10 @@ async def cb_menu_trial(cb: CallbackQuery):
     await cb.message.edit_text(
         "🎁 <b>Coba Gratis</b>\n\nPilih protokol:", parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🔑 SSH",    callback_data="proto_trial_ssh"),
-             InlineKeyboardButton(text="⚡ VMess",  callback_data="proto_trial_vmess")],
-            [InlineKeyboardButton(text="🔐 VLESS",  callback_data="proto_trial_vless")],
-            [InlineKeyboardButton(text="🔮 ZiVPN",  callback_data="proto_trial_zivpn")],
+            [InlineKeyboardButton(text="SSH",   callback_data="proto_trial_ssh"),
+             InlineKeyboardButton(text="VMess",  callback_data="proto_trial_vmess")],
+            [InlineKeyboardButton(text="VLESS",  callback_data="proto_trial_vless"),
+             InlineKeyboardButton(text="ZiVPN",  callback_data="proto_trial_zivpn")],
             [InlineKeyboardButton(text="↩ Kembali", callback_data="home")]
         ]))
     await cb.answer()

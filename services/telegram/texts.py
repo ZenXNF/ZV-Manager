@@ -297,33 +297,24 @@ def text_vless_info(tipe: str, username: str, uuid: str, domain: str,
 def text_zivpn_info(tipe: str, username: str, password: str, domain: str,
                     exp_display: str, server_label: str,
                     days: int = 0, total: int = 0, isp: str = "") -> str:
-    """Pesan info akun ZiVPN UDP — format box."""
     from utils import fmt
     is_trial = (tipe == "TRIAL")
-
-    if is_trial:
-        title   = "TRIAL AKUN ZIVPN UDP"
-        expire  = "30 Menit"
-    else:
-        title   = "AKUN ZIVPN UDP"
-        expire  = exp_display
-
-    isp_line   = f"\n│ ISP    : {isp}" if isp else ""
-    harga_line = f"\n💸 Dibayar : <b>Rp{fmt(total)}</b>" if tipe == "BELI" and total else ""
-
+    title  = "TRIAL AKUN ZIVPN UDP" if is_trial else "AKUN ZIVPN UDP"
+    expire = "30 Menit" if is_trial else exp_display
+    isp_ln = f"\n\u2502 ISP    : {isp}" if isp else ""
+    paid   = f"\n\U0001f4b8 Dibayar : <b>Rp{fmt(total)}</b>" if tipe == "BELI" and total else ""
     return (
-        f"✅ <b>{title}</b>\n"
-        f"┌────────────────────────┐\n"
-        f"│ Host   : <code>{domain}</code>\n"
-        f"│ Pass   : <code>{password}</code>\n"
-        f"│ Port   : <code>5667</code>{isp_line}\n"
-        f"│ Expire : {expire}\n"
-        f"└────────────────────────┘\n"
-        f"🖥 Server : {server_label}"
-        f"{harga_line}\n"
+        f"\u2705 <b>{title}</b>\n"
+        f"\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n"
+        f"\u2502 Host   : <code>{domain}</code>\n"
+        f"\u2502 Pass   : <code>{password}</code>{isp_ln}\n"
+        f"\u2502 Expire : {expire}\n"
+        f"\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n"
+        f"\U0001f5a5 Server : {server_label}"
+        f"{paid}\n"
         f"\n"
-        f"📌 <b>Cara Connect ZiVPN:</b>\n"
-        f"1️⃣ Buka app ZiVPN\n"
-        f"2️⃣ Masukkan Host & Password\n"
-        f"3️⃣ Connect 🚀"
+        f"\U0001f4cc <b>Cara Connect ZiVPN:</b>\n"
+        f"1\ufe0f\u20e3 Buka app ZiVPN\n"
+        f"2\ufe0f\u20e3 Masukkan Host & Password\n"
+        f"3\ufe0f\u20e3 Connect \U0001f680"
     )
