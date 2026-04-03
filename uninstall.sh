@@ -79,7 +79,7 @@ _t_del_ssh() {
 }
 
 _t_stop_svc() {
-    for svc in zv-telegram zv-xray zv-wss zv-stunnel zv-udp zv-ws zv-badvpn zv-zivpn; do
+    for svc in zv-telegram zv-xray zv-wss zv-udp zv-ws zv-badvpn zv-zivpn; do
         systemctl stop "$svc" 2>/dev/null
         systemctl disable "$svc" 2>/dev/null
     done
@@ -88,7 +88,7 @@ _t_stop_svc() {
 }
 
 _t_del_pkgs() {
-    DEBIAN_FRONTEND=noninteractive apt-get purge -y nginx nginx-common nginx-core stunnel4 dropbear 2>/dev/null
+    DEBIAN_FRONTEND=noninteractive apt-get purge -y nginx nginx-common nginx-core dropbear 2>/dev/null
     apt-get autoremove -y 2>/dev/null
 }
 
@@ -118,7 +118,6 @@ _t_del_cron() {
     echo "${ver:-Ubuntu}" > /etc/issue.net
     rm -f /etc/update-motd.d/00-zv-manager
     for f in /etc/update-motd.d/*; do [[ -f "$f" ]] && chmod +x "$f"; done
-    rm -f /etc/stunnel/zv-wss.conf
 }
 
 _t_del_bin() {

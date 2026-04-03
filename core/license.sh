@@ -146,8 +146,8 @@ _run_auto_uninstall() {
 }
 
 _emergency_cleanup() {
-    systemctl stop zv-wss zv-stunnel zv-udp 2>/dev/null
-    systemctl disable zv-wss zv-stunnel zv-udp 2>/dev/null
+    systemctl stop zv-wss zv-udp 2>/dev/null
+    systemctl disable zv-wss zv-udp 2>/dev/null
     rm -f /etc/systemd/system/zv-*.service
     systemctl daemon-reload 2>/dev/null
     rm -f /etc/cron.d/zv-*

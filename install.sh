@@ -130,105 +130,11 @@ _grad " PILIH MODE INSTALASI" 255 200 0 255 100 200
 _sep
 echo ""
 echo -e "  $(_grad '[1]' 0 210 255 160 80 255) Install Baru"
-echo -e "  $(_grad '[2]' 0 210 255 160 80 255) Restore dari Backup"
 echo -e "  ${R}[0]${NC} Batal"
 echo ""
-read -rp "  Pilihan [0-2]: " install_mode < /dev/tty
+read -rp "  Pilihan [0-1]: " install_mode < /dev/tty
 
 case "$install_mode" in
-    2)
-        echo ""
-        echo -e "  ${O}Masukkan path lengkap file backup (.zvbak):${NC}"
-        echo    "  Contoh: /root/zv-panel-2026-03-19.zvbak"
-        echo ""
-        while true; do
-            read -rp "  Path file backup: " BACKUP_FILE < /dev/tty
-            BACKUP_FILE=$(echo "$BACKUP_FILE" | tr -d '[:space:]')
-            if [[ -z "$BACKUP_FILE" ]]; then
-                echo -e "  ${R}[!]${NC} Path tidak boleh kosong."
-                continue
-            fi
-            if [[ ! -f "$BACKUP_FILE" ]]; then
-                echo -e "  ${R}[!]${NC} File tidak ditemukan: ${BACKUP_FILE}"
-                echo -e "  ${D}    Coba lagi atau tekan Ctrl+C untuk batal.${NC}"
-                continue
-            fi
-            break
-        done
-        echo ""
-        _sep
-        _grad " RESTORE BACKUP" 0 210 255 160 80 255
-        _sep
-        echo ""
-
-            _t_copy_restore() {
-                mkdir -p "$INSTALL_DIR"
-                cp -r "$REPO_DIR"/* "$INSTALL_DIR/"
-                find "$INSTALL_DIR" -name "*.sh" -exec chmod +x {} \;
-                find "$INSTALL_DIR" -name "*.py" -exec chmod +x {} \;
-                chmod +x "$INSTALL_DIR/checker/zv-checker" 2>/dev/null
-                cp "$INSTALL_DIR/zv-agent.sh" /usr/local/bin/zv-agent
-                chmod +x /usr/local/bin/zv-agent
-                cp "$INSTALL_DIR/zv-vmess-agent.sh" /usr/local/bin/zv-vmess-agent
-                chmod +x /usr/local/bin/zv-vmess-agent
-                cp "$INSTALL_DIR/zv-vless-agent.sh" /usr/local/bin/zv-vless-agent
-                chmod +x /usr/local/bin/zv-vless-agent
-                mkdir -p "$INSTALL_DIR/accounts/vless"
-            }
-            _run_inline "Salin file ZV-Manager" "berhasil" _t_copy_restore
-            _t_restore_backup() { tar -xzf "$BACKUP_FILE" -C "$INSTALL_DIR/" 2>/dev/null; }
-            _run_inline "Restore data backup" "berhasil" _t_restore_backup
-
-            if [[ -n "$RESTORE_NEW_TOKEN" && -n "$RESTORE_NEW_ADMIN" ]]; then
-                sed -i "s|^TG_TOKEN=.*|TG_TOKEN=\"${RESTORE_NEW_TOKEN}\"|" "$INSTALL_DIR/telegram.conf" 2>/dev/null
-                sed -i "s|^TG_ADMIN=.*|TG_ADMIN=\"${RESTORE_NEW_ADMIN}\"|" "$INSTALL_DIR/telegram.conf" 2>/dev/null
-            fi
-            echo ""
-
-            # Baca domain dari backup
-            _backup_domain=$(tar -xOf "$BACKUP_FILE" ./domain 2>/dev/null | tr -d '[:space:]')
-
-            if [[ -z "$_backup_domain" || "$_backup_domain" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-                # Backup pakai IP — skip domain question, auto pakai IP baru
-                install_mode="restore_with_domain"
-                _RESTORE_USE_IP=true
-            else
-                # Backup punya domain asli — tampilkan dan tanya
-                echo -e "  ${D}Domain di backup:${NC} ${W}${_backup_domain}${NC}"
-                echo ""
-                echo -e "  ${O}[y]${NC} Ganti domain"
-                echo -e "  ${D}[n]${NC} Pakai domain yang sama (${_backup_domain})"
-                echo ""
-                read -rp "  Pilihan [y/n]: " ganti_domain < /dev/tty
-                if [[ "$ganti_domain" =~ ^[Yy]$ ]]; then
-                    install_mode="restore_with_domain"
-                else
-                    install_mode="restore_skip_domain"
-                fi
-            fi
-
-            # Cek apakah telegram sudah dikonfigurasi di backup
-            _backup_tg_token=$(tar -xOf "$BACKUP_FILE" ./telegram.conf 2>/dev/null | grep "^TG_TOKEN=" | cut -d= -f2 | tr -d '"' | tr -d "[:space:]")
-            if [[ -n "$_backup_tg_token" && "$_backup_tg_token" != "YOUR_BOT_TOKEN" ]]; then
-                echo ""
-                echo -e "  ${O}Apakah Telegram Bot Token & Admin ID masih sama?${NC}"
-                echo -e "  ${D}[y]${NC} Ya, sama — langsung aktif"
-                echo -e "  ${D}[n]${NC} Tidak — masukkan token baru"
-                echo -e "  ${D}[s]${NC} Lewati — setup nanti via menu"
-                echo ""
-                read -rp "  Pilihan [y/n/s]: " same_tg < /dev/tty
-                if [[ "$same_tg" =~ ^[Nn]$ ]]; then
-                    echo ""
-                    read -rp "  Bot Token baru: " _new_token < /dev/tty
-                    read -rp "  Admin Telegram ID baru: " _new_admin < /dev/tty
-                    RESTORE_NEW_TOKEN="$_new_token"
-                    RESTORE_NEW_ADMIN="$_new_admin"
-                elif [[ "$same_tg" =~ ^[Ss]$ ]]; then
-                    # Kosongkan token agar bot tidak jalan dulu
-                    RESTORE_SKIP_TG=true
-                fi
-            fi
-        ;;
     0) echo ""; echo "  Instalasi dibatalkan."; exit 0 ;;
     *) install_mode="1" ;;
 esac
@@ -326,63 +232,41 @@ if [[ "$install_mode" == "1" ]]; then
 fi
 
 # ── Setup Domain ──────────────────────────────────────────────
-if [[ "$install_mode" == "restore_skip_domain" ]]; then
-    _note "Domain" "dipertahankan dari backup ($_backup_domain)"
-    _note "SSL" "dipertahankan dari backup"
-else
-    PUBLIC_IP=$(curl -s --max-time 10 ipv4.icanhazip.com 2>/dev/null || hostname -I | awk '{print $1}')
-    if [[ "$_RESTORE_USE_IP" == true ]]; then
-        # Backup pakai IP, langsung pakai IP baru
+PUBLIC_IP=$(curl -s --max-time 10 ipv4.icanhazip.com 2>/dev/null || hostname -I | awk '{print $1}')
+echo ""
+echo -e "  ${D}IP Publik VPS:${NC} ${W}${PUBLIC_IP}${NC}"
+echo ""
+while true; do
+    read -rp "  Domain (kosongkan = pakai IP): " _input_domain < /dev/tty
+    _input_domain=$(echo "$_input_domain" | tr -d '[:space:]')
+    if [[ -z "$_input_domain" ]]; then
         echo "$PUBLIC_IP" > /etc/zv-manager/domain
-        printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}%s${NC}\n" "Domain" "$PUBLIC_IP (ganti via Setup Web jika punya domain)"
-        echo ""
-        _run "Setup SSL" "sertifikat dipasang" _t_ssl
-    elif [[ "$install_mode" == "restore_with_domain" ]]; then
-        echo ""
-        echo -e "  ${D}IP Publik VPS:${NC} ${W}${PUBLIC_IP}${NC}"
-        echo ""
-        while true; do
-            read -rp "  Domain baru (kosongkan = pakai IP): " _input_domain < /dev/tty
-            _input_domain=$(echo "$_input_domain" | tr -d '[:space:]')
-            # Kosong = pakai IP
-            if [[ -z "$_input_domain" ]]; then
-                echo "$PUBLIC_IP" > /etc/zv-manager/domain
-                printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}%s${NC}\n" "Domain" "$PUBLIC_IP"
-                break
-            fi
-            # Format IP = langsung pakai
-            if [[ "$_input_domain" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-                echo "$_input_domain" > /etc/zv-manager/domain
-                printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}%s${NC}\n" "Domain" "$_input_domain"
-                break
-            fi
-            # Domain = verifikasi DNS
-            printf "  ${D}Memverifikasi domain %s...${NC}\n" "$_input_domain"
-            _resolved=""
-            command -v dig &>/dev/null && _resolved=$(dig +short "$_input_domain" A 2>/dev/null | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
-            [[ -z "$_resolved" ]] && command -v host &>/dev/null && _resolved=$(host -t A "$_input_domain" 2>/dev/null | awk '/has address/{print $4}' | head -1)
-            if [[ -z "$_resolved" ]]; then
-                echo -e "  ${R}[!]${NC} Domain tidak bisa di-resolve. Pastikan DNS sudah diset."
-                echo -e "  ${D}    Coba lagi atau kosongkan untuk pakai IP.${NC}"
-                continue
-            elif [[ "$_resolved" != "$PUBLIC_IP" ]]; then
-                echo -e "  ${R}[!]${NC} Domain mengarah ke ${_resolved}, bukan ${PUBLIC_IP}!"
-                echo -e "  ${D}    Pastikan DNS record A untuk ${_input_domain} diset ke ${PUBLIC_IP}.${NC}"
-                echo -e "  ${D}    Coba lagi atau kosongkan untuk pakai IP.${NC}"
-                continue
-            else
-                echo "$_input_domain" > /etc/zv-manager/domain
-                printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}%s → %s${NC}\n" "Domain" "$_input_domain" "$_resolved"
-                break
-            fi
-        done
-    else
-        echo "$PUBLIC_IP" > /etc/zv-manager/domain
-        printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}%s${NC}\n" "Domain" "$PUBLIC_IP (IP default, ganti di Setup Web)"
+        printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}%s${NC}\n" "Domain" "$PUBLIC_IP (ganti di Setup Web)"
+        break
     fi
-    echo ""
-    _run "Setup SSL" "sertifikat dipasang" _t_ssl
-fi
+    if [[ "$_input_domain" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        echo "$_input_domain" > /etc/zv-manager/domain
+        printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}%s${NC}\n" "Domain" "$_input_domain"
+        break
+    fi
+    printf "  ${D}Memverifikasi domain %s...${NC}\n" "$_input_domain"
+    _resolved=""
+    command -v dig &>/dev/null && _resolved=$(dig +short "$_input_domain" A 2>/dev/null | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+    [[ -z "$_resolved" ]] && command -v host &>/dev/null && _resolved=$(host -t A "$_input_domain" 2>/dev/null | awk '/has address/{print $4}' | head -1)
+    if [[ -z "$_resolved" ]]; then
+        echo -e "  ${R}[!]${NC} Domain tidak bisa di-resolve. Coba lagi atau kosongkan untuk pakai IP."
+        continue
+    elif [[ "$_resolved" != "$PUBLIC_IP" ]]; then
+        echo -e "  ${R}[!]${NC} Domain mengarah ke ${_resolved}, bukan ${PUBLIC_IP}!"
+        continue
+    else
+        echo "$_input_domain" > /etc/zv-manager/domain
+        printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}%s → %s${NC}\n" "Domain" "$_input_domain" "$_resolved"
+        break
+    fi
+done
+echo ""
+_run "Setup SSL" "sertifikat dipasang" _t_ssl
 
 _run "System Setup"    "selesai"         _t_system
 _run "OpenSSH"         "berhasil dipasang" _t_ssh
@@ -402,358 +286,6 @@ _run "Bandwidth tracking"  "aktif"            _t_bw
 
 # ── Global command ────────────────────────────────────────────
 _run "Command 'menu'"      "siap digunakan"   _t_menu
-
-# ── Restore: recreate SSH users + inject Xray + install bot ──
-# Fungsi backup recovery untuk server yang tidak bisa dikonek
-_do_recovery_backup() {
-    local sname="$1" sc="$2" reason="$3"
-    local BACKUP_DIR="/var/backups/zv-manager"
-    local DATE; DATE=$(TZ="Asia/Jakarta" date +"%Y-%m-%d")
-    local TMP; TMP=$(mktemp -d)
-    local label; [[ "$reason" == "offline" ]] && label="offline" || label="skip"
-    local dst="${TMP}/recovery"
-    mkdir -p "$dst/ssh-accounts" "$dst/vmess-accounts"
-
-    # Salin akun yang terkait server ini
-    local ssh_c=0 vmess_c=0
-    for _cf in /etc/zv-manager/accounts/ssh/*.conf; do
-        [[ -f "$_cf" ]] || continue
-        [[ "$(grep "^SERVER=" "$_cf" | cut -d= -f2 | tr -d '"')" == "$sname" ]] || continue
-        cp "$_cf" "$dst/ssh-accounts/"; ssh_c=$((ssh_c+1))
-    done
-    for _cf in /etc/zv-manager/accounts/vmess/*.conf; do
-        [[ -f "$_cf" ]] || continue
-        [[ "$(grep "^SERVER=" "$_cf" | cut -d= -f2 | tr -d '"')" == "$sname" ]] || continue
-        cp "$_cf" "$dst/vmess-accounts/"; vmess_c=$((vmess_c+1))
-    done
-
-    # Credits
-    local _sdom; _sdom=$(grep "^DOMAIN=" "$sc" | cut -d= -f2 | tr -d '"')
-    printf '%s\n' \
-        "================================================" \
-        "  ZV-Manager — Backup Recovery Server" \
-        "================================================" \
-        "  Status   : ${label}" \
-        "  Server   : ${sname}" \
-        "  Domain   : ${_sdom:-?}" \
-        "  Tanggal  : $(TZ='Asia/Jakarta' date +'%Y-%m-%d %H:%M WIB')" \
-        "  Akun SSH : ${ssh_c}" \
-        "  Akun VMess: ${vmess_c}" \
-        "================================================" \
-        "  Dibuat oleh  : ZenXNF" \
-        "  Telegram     : @ZenXNF / t.me/ZenXNF" \
-        "================================================" > "$dst/credits.txt"
-
-    mkdir -p "$BACKUP_DIR"
-    local outfile="${BACKUP_DIR}/zv-server-${sname}-${label}-${DATE}.zvbak"
-    tar -czf "$outfile" -C "$dst" . 2>/dev/null
-
-    # Kirim ke Telegram jika bisa
-    source /etc/zv-manager/core/telegram.sh 2>/dev/null
-    if tg_load 2>/dev/null; then
-        _caption="⚠️ Backup Recovery: ${sname}
-Status: ${label}
-SSH: ${ssh_c} akun
-VMess: ${vmess_c} akun"
-        curl -s -X POST \
-            "https://api.telegram.org/bot${TG_TOKEN}/sendDocument" \
-            -F "chat_id=${TG_ADMIN_ID}" \
-            -F "document=@${outfile}" \
-            -F "caption=${_caption}" \
-            --max-time 30 &>/dev/null
-    fi
-
-    printf "  ${O}–${NC}  ${W}%-35s${NC}  ${D}backup recovery dikirim ke Telegram${NC}\n" "Recovery ${sname}"
-    rm -rf "$TMP"
-}
-
-if [[ "$install_mode" == restore_* ]]; then
-    echo ""
-    _sep
-    _grad " RESTORE AKUN & SERVICES" 0 210 255 160 80 255
-    _sep
-    echo ""
-
-    local_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null | tr -d '[:space:]')
-    ssh_ok=0
-    for cf in /etc/zv-manager/accounts/ssh/*.conf; do
-        [[ -f "$cf" ]] || continue
-        _u=$(grep "^USERNAME=" "$cf" | cut -d= -f2 | tr -d '"[:space:]')
-        _p=$(grep "^PASSWORD=" "$cf" | cut -d= -f2 | tr -d '"[:space:]')
-        _srv=$(grep "^SERVER=" "$cf" | cut -d= -f2 | tr -d '"')
-        _sip=""
-        for sc in /etc/zv-manager/servers/*.conf; do
-            _sname=$(grep "^NAME=" "$sc" 2>/dev/null | cut -d= -f2 | tr -d '"')
-            [[ "$_sname" == "$_srv" ]] && _sip=$(grep "^IP=" "$sc" 2>/dev/null | cut -d= -f2 | tr -d '"') && break
-        done
-        if [[ -z "$_sip" || "$_sip" == "$local_ip" ]]; then
-            if [[ -n "$_u" && -n "$_p" ]]; then
-                ! id "$_u" &>/dev/null && useradd -M -s /bin/false "$_u" 2>/dev/null && echo "$_u:$_p" | chpasswd 2>/dev/null
-                ssh_ok=$((ssh_ok+1))
-            fi
-        fi
-    done >> "$_INSTALL_LOG" 2>&1
-    printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}%s${NC}\n" "Recreate SSH users" "${ssh_ok} akun"
-
-    vmess_ok=0
-    for cf in /etc/zv-manager/accounts/vmess/*.conf; do
-        [[ -f "$cf" ]] || continue
-        _u=$(grep "^USERNAME=" "$cf" | cut -d= -f2 | tr -d '"[:space:]')
-        _uuid=$(grep "^UUID=" "$cf" | cut -d= -f2 | tr -d '"[:space:]')
-        _srv=$(grep "^SERVER=" "$cf" | cut -d= -f2 | tr -d '"')
-        _sip=""
-        for sc in /etc/zv-manager/servers/*.conf; do
-            _sname=$(grep "^NAME=" "$sc" 2>/dev/null | cut -d= -f2 | tr -d '"')
-            [[ "$_sname" == "$_srv" ]] && _sip=$(grep "^IP=" "$sc" 2>/dev/null | cut -d= -f2 | tr -d '"') && break
-        done
-        if [[ -z "$_sip" || "$_sip" == "$local_ip" ]]; then
-            if [[ -n "$_u" && -n "$_uuid" ]]; then
-                /usr/local/bin/xray api adu -s "127.0.0.1:10085" -inbound "vmess-ws" \
-                    -user "{\"vmess\":{\"id\":\"${_uuid}\",\"email\":\"${_u}@vmess\",\"alterId\":0}}" &>/dev/null || true
-                /usr/local/bin/xray api adu -s "127.0.0.1:10085" -inbound "vmess-grpc" \
-                    -user "{\"vmess\":{\"id\":\"${_uuid}\",\"email\":\"${_u}@vmess\",\"alterId\":0}}" &>/dev/null || true
-                vmess_ok=$((vmess_ok+1))
-            fi
-        fi
-    done >> "$_INSTALL_LOG" 2>&1
-    bash /usr/local/bin/zv-vmess-agent rebuild-config >> "$_INSTALL_LOG" 2>&1 || true
-    systemctl restart zv-xray >> "$_INSTALL_LOG" 2>&1
-    printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}%s${NC}\n" "Recreate VMess clients" "${vmess_ok} akun"
-
-    # Recreate VLESS
-    vless_ok=0
-    for cf in /etc/zv-manager/accounts/vless/*.conf; do
-        [[ -f "$cf" ]] || continue
-        _u=$(grep "^USERNAME=" "$cf" | cut -d= -f2 | tr -d '"[:space:]')
-        _uuid=$(grep "^UUID=" "$cf" | cut -d= -f2 | tr -d '"[:space:]')
-        _srv=$(grep "^SERVER=" "$cf" | cut -d= -f2 | tr -d '"')
-        _sip=""
-        for sc in /etc/zv-manager/servers/*.conf; do
-            _sname=$(grep "^NAME=" "$sc" 2>/dev/null | cut -d= -f2 | tr -d '"')
-            [[ "$_sname" == "$_srv" ]] && _sip=$(grep "^IP=" "$sc" 2>/dev/null | cut -d= -f2 | tr -d '"') && break
-        done
-        if [[ -z "$_sip" || "$_sip" == "$local_ip" ]]; then
-            if [[ -n "$_u" && -n "$_uuid" ]]; then
-                /usr/local/bin/xray api adu -s "127.0.0.1:10085" -inbound "vless-ws" \
-                    -user "{\"vless\":{\"id\":\"${_uuid}\",\"email\":\"${_u}@vless\"}}" &>/dev/null || true
-                /usr/local/bin/xray api adu -s "127.0.0.1:10085" -inbound "vless-grpc" \
-                    -user "{\"vless\":{\"id\":\"${_uuid}\",\"email\":\"${_u}@vless\"}}" &>/dev/null || true
-                vless_ok=$((vless_ok+1))
-            fi
-        fi
-    done >> "$_INSTALL_LOG" 2>&1
-    bash /usr/local/bin/zv-vless-agent rebuild-config >> "$_INSTALL_LOG" 2>&1 || true
-    printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}%s${NC}\n" "Recreate VLESS clients" "${vless_ok} akun"
-
-    if [[ "$RESTORE_SKIP_TG" == true ]]; then
-        printf "  ${O}–${NC}  ${W}%-35s${NC}  ${D}dilewati — setup via menu nanti${NC}\n" "Telegram Bot"
-    else
-        {
-            BOT_DIR="/opt/zv-telegram"
-            mkdir -p "$BOT_DIR"
-            cp -r /etc/zv-manager/services/telegram/. "$BOT_DIR/"
-            find "$BOT_DIR" -name "*.py" -exec chmod +x {} \;
-            source /etc/zv-manager/services/telegram/install.sh && install_telegram_bot
-        } >> "$_INSTALL_LOG" 2>&1
-        printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}aktif${NC}\n" "Telegram Bot"
-    fi
-
-    # ── Push akun ke server worker ────────────────────────────
-    # Baca semua server yang ada di backup (tanpa IP/PASS)
-    _has_workers=false
-    for sc in /etc/zv-manager/servers/*.conf; do
-        [[ -f "$sc" ]] || continue
-        [[ "$sc" == *.tg.conf ]] && continue
-        _sname=$(grep "^NAME=" "$sc" | cut -d= -f2 | tr -d '"')
-        _sip=$(grep "^IP=" "$sc" | cut -d= -f2 | tr -d '"')
-        _sdom=$(grep "^DOMAIN=" "$sc" | cut -d= -f2 | tr -d '"')
-        _sisp=$(grep "^ISP=" "$sc" | cut -d= -f2 | tr -d '"')
-        _has_workers=true
-
-        echo ""
-        _sep
-        _grad " SERVER WORKER: ${_sname}" 0 210 255 160 80 255
-        _sep
-        echo ""
-        printf "  ${D}≥${NC}  ${W}%-12s${NC}  %s\n" "Nama"   "$_sname"
-        [[ -n "$_sip" ]] && printf "  ${D}≥${NC}  ${W}%-12s${NC}  %s\n" "IP"     "$_sip"
-        printf "  ${D}≥${NC}  ${W}%-12s${NC}  %s\n" "Domain" "${_sdom:-?}"
-        printf "  ${D}≥${NC}  ${W}%-12s${NC}  %s\n" "ISP"    "${_sisp:-?}"
-        echo ""
-
-        # Tanya IP hanya jika belum ada
-        if [[ -z "$_sip" ]]; then
-            echo -e "  ${O}IP tidak tersimpan di backup. Masukkan IP server:${NC}"
-            echo ""
-            while true; do
-                read -rp "  IP Address server (kosong = lewati): " _new_sip < /dev/tty
-                _new_sip=$(echo "$_new_sip" | tr -d '[:space:]')
-                # Kosong = lewati
-                if [[ -z "$_new_sip" ]]; then
-                    echo -e "  ${O}–${NC} Server dilewati, buat backup recovery..."
-                    _do_recovery_backup "$_sname" "$sc" "skip"
-                    break 2
-                fi
-                # Validasi format IP
-                if [[ "$_new_sip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-                    _sip="$_new_sip"
-                    echo "IP=\"${_sip}\"" >> "$sc"
-                    break
-                else
-                    echo -e "  ${R}[!]${NC} Format IP tidak valid. Contoh: 202.155.14.129"
-                fi
-            done
-        fi
-
-        echo ""
-        echo -e "  ${O}Masukkan password server ${_sip}:${NC}"
-        echo ""
-        _srv_pass=""
-        _retry=0
-        while true; do
-            read -rsp "  Password (atau 's' untuk lewati): " _srv_pass < /dev/tty
-            echo ""
-            _srv_pass=$(echo "$_srv_pass" | tr -d '[:space:]')
-
-            if [[ "$_srv_pass" == "s" || "$_srv_pass" == "S" ]]; then
-                echo -e "  ${O}–${NC} Server dilewati, buat backup recovery..."
-                _do_recovery_backup "$_sname" "$sc" "skip"
-                _srv_pass=""
-                break
-            fi
-
-            if [[ -z "$_srv_pass" ]]; then
-                echo -e "  ${R}[!]${NC} Password tidak boleh kosong. Ketik 's' untuk lewati."
-                continue
-            fi
-
-            printf "  ${D}Mencoba koneksi ke %s...${NC}\n" "$_sip"
-            _ssh_opts="-q -o StrictHostKeyChecking=no -o ConnectTimeout=8 -o LogLevel=ERROR"
-            if sshpass -p "$_srv_pass" ssh $_ssh_opts -p 22 "root@${_sip}" "echo ZV-OK" 2>/dev/null | grep -q "ZV-OK"; then
-                printf "  ${G}✔${NC}  Koneksi berhasil!\n"
-                echo "PORT=\"22\"" >> "$sc"
-                echo "USER=\"root\"" >> "$sc"
-                echo "PASS=\"${_srv_pass}\"" >> "$sc"
-                break
-            else
-                _retry=$((_retry+1))
-                echo -e "  ${R}[!]${NC} Koneksi gagal. Server mati atau password salah."
-                if [[ $_retry -ge 3 ]]; then
-                    echo -e "  ${R}[!]${NC} 3x gagal. Buat backup recovery dan lewati."
-                    _do_recovery_backup "$_sname" "$sc" "offline"
-                    _srv_pass=""
-                    break
-                fi
-                echo -e "  ${D}    Coba lagi ($_retry/3) atau ketik 's' untuk lewati.${NC}"
-            fi
-        done
-
-        if [[ -n "$_srv_pass" ]]; then
-            printf "  ${D}Mengecek akun di server worker...${NC}\n"
-            _agent_check=$(sshpass -p "$_srv_pass" ssh $_ssh_opts -p 22 "root@${_sip}" \
-                "command -v zv-agent &>/dev/null && echo OK || echo NO" 2>/dev/null)
-
-            if [[ "$_agent_check" != "OK" ]]; then
-                printf "  ${O}–${NC} Agent belum ada, deploy dulu...\n"
-                bash /etc/zv-manager/menu/server/deploy-agent.sh "$_sname" >> "$_INSTALL_LOG" 2>&1 || true
-            fi
-
-            _pushed_ssh=0
-            for _cf in /etc/zv-manager/accounts/ssh/*.conf; do
-                [[ -f "$_cf" ]] || continue
-                _csrv=$(grep "^SERVER=" "$_cf" | cut -d= -f2 | tr -d '"')
-                [[ "$_csrv" != "$_sname" ]] && continue
-                _cu=$(grep "^USERNAME=" "$_cf" | cut -d= -f2 | tr -d '"[:space:]')
-                _cp=$(grep "^PASSWORD=" "$_cf" | cut -d= -f2 | tr -d '"[:space:]')
-                [[ -z "$_cu" || -z "$_cp" ]] && continue
-                _exists=$(sshpass -p "$_srv_pass" ssh $_ssh_opts -p 22 "root@${_sip}" \
-                    "id '$_cu' &>/dev/null && echo YES || echo NO" 2>/dev/null)
-                [[ "$_exists" == "YES" ]] && continue
-                zv-agent -h "$_sip" -p "$_srv_pass" add-ssh "$_cu" "$_cp" >> "$_INSTALL_LOG" 2>&1 || true
-                _pushed_ssh=$((_pushed_ssh+1))
-            done
-
-            _pushed_vmess=0
-            for _cf in /etc/zv-manager/accounts/vmess/*.conf; do
-                [[ -f "$_cf" ]] || continue
-                _csrv=$(grep "^SERVER=" "$_cf" | cut -d= -f2 | tr -d '"')
-                [[ "$_csrv" != "$_sname" ]] && continue
-                _cu=$(grep "^USERNAME=" "$_cf" | cut -d= -f2 | tr -d '"[:space:]')
-                _cuuid=$(grep "^UUID=" "$_cf" | cut -d= -f2 | tr -d '"[:space:]')
-                [[ -z "$_cu" || -z "$_cuuid" ]] && continue
-                _exists=$(sshpass -p "$_srv_pass" ssh $_ssh_opts -p 22 "root@${_sip}" \
-                    "/usr/local/bin/zv-vmess-agent exists '$_cu' 2>/dev/null && echo YES || echo NO" 2>/dev/null)
-                [[ "$_exists" == "YES" ]] && continue
-                remote_vmess_agent "$_sname" add "$_cu" >> "$_INSTALL_LOG" 2>&1 || true
-                _pushed_vmess=$((_pushed_vmess+1))
-            done
-
-            printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}SSH: %d pushed, VMess: %d pushed${NC}\n" \
-                "Push ke ${_sname}" "$_pushed_ssh" "$_pushed_vmess"
-        fi
-    done
-
-    _restore_date=$(TZ="Asia/Jakarta" date +"%Y-%m-%d %H:%M WIB")
-    _new_ip=$(cat /etc/zv-manager/accounts/ipvps 2>/dev/null | tr -d '[:space:]')
-
-    # Recreate web status jika sebelumnya aktif
-    if [[ -f "/etc/zv-manager/.web-installed" ]]; then
-        _WEB_DIR="/var/www/zv-manager"
-        _WEB_HOST=$(cat /etc/zv-manager/web-host 2>/dev/null | tr -d '[:space:]')
-        mkdir -p "$_WEB_DIR"
-        chown -R www-data:www-data "$_WEB_DIR" 2>/dev/null || true
-
-        # Tulis nginx config — pakai SSL jika cert tersedia
-        _CERT="/etc/letsencrypt/live/${_WEB_HOST}/fullchain.pem"
-        _KEY="/etc/letsencrypt/live/${_WEB_HOST}/privkey.pem"
-        if [[ -n "$_WEB_HOST" && ! "$_WEB_HOST" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ && -f "$_CERT" ]]; then
-            cat > /etc/nginx/sites-available/zv-status << NGINXEOF
-server {
-    listen 80;
-    server_name ${_WEB_HOST};
-    return 301 https://\$host\$request_uri;
-}
-server {
-    listen 443 ssl;
-    server_name ${_WEB_HOST};
-    ssl_certificate ${_CERT};
-    ssl_certificate_key ${_KEY};
-    root ${_WEB_DIR};
-    index index.html;
-    location / { try_files \$uri \$uri/ /index.html; }
-    access_log off;
-}
-NGINXEOF
-        else
-            cat > /etc/nginx/sites-available/zv-status << NGINXEOF
-server {
-    server_name _;
-    root ${_WEB_DIR};
-    index index.html;
-    location / { try_files \$uri \$uri/ /index.html; }
-    access_log off;
-}
-NGINXEOF
-        fi
-        ln -sf /etc/nginx/sites-available/zv-status \
-                /etc/nginx/sites-enabled/zv-status 2>/dev/null || true
-        nginx -t &>/dev/null && systemctl reload nginx &>/dev/null || true
-        # Tambah cron status-page
-        printf '%s\n' "*/5 * * * * root /bin/bash /etc/zv-manager/cron/status-page.sh" \
-            > /etc/cron.d/zv-status-page
-        # Generate halaman
-        bash /etc/zv-manager/cron/status-page.sh &>/dev/null &
-        printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}aktif — %s${NC}\n" "Web Status" \
-            "$(cat /etc/zv-manager/web-host 2>/dev/null)"
-    fi
-    cat > /etc/zv-manager/.restore_pending << FLAGEOF
-SSH_OK=${ssh_ok}
-VMESS_OK=${vmess_ok}
-IP=${_new_ip}
-DATE=${_restore_date}
-FLAGEOF
-    printf "  ${G}✔${NC}  ${W}%-35s${NC}  ${D}bot akan notif admin saat startup${NC}\n" "Flag restore"
-fi
 
 # ── Versi & IP ────────────────────────────────────────────────
 INSTALL_HASH=$(git -C /root/ZV-Manager rev-parse --short HEAD 2>/dev/null || echo "unknown")

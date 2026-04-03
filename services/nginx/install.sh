@@ -286,8 +286,6 @@ NGINXMAIN
     if nginx -t &>/dev/null; then
         systemctl enable nginx &>/dev/null
         systemctl start nginx &>/dev/null
-        systemctl stop zv-stunnel &>/dev/null
-        systemctl disable zv-stunnel &>/dev/null
         print_success "Nginx (SSH stream :80/:443 | VMess+VLESS+Status HTTP :8080/:8443)"
     else
         print_error "Nginx config error! Cek: nginx -t"

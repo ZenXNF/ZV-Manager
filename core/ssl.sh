@@ -52,11 +52,9 @@ setup_ssl() {
         -days 3650 \
         -subj "/CN=${cn}" &>/dev/null
 
-    cat "$SSL_DIR/key.pem" "$SSL_DIR/cert.pem" > "$SSL_DIR/stunnel.pem"
 
     chmod 600 "$SSL_DIR/key.pem"
     chmod 644 "$SSL_DIR/cert.pem"
-    chmod 600 "$SSL_DIR/stunnel.pem"
 
     print_success "SSL Self-Signed"
 }
@@ -121,15 +119,13 @@ EOF
 
     print_ok "Wildcard certificate berhasil!"
 
-    # Salin ke SSL_DIR supaya stunnel & service lain pakai path yang sama
+    # Salin ke SSL_DIR supaya service lain pakai path yang sama
     mkdir -p "$SSL_DIR"
     cp "$le_cert" "$SSL_DIR/cert.pem"
     cp "$le_key"  "$SSL_DIR/key.pem"
-    cat "$SSL_DIR/key.pem" "$SSL_DIR/cert.pem" > "$SSL_DIR/stunnel.pem"
 
     chmod 600 "$SSL_DIR/key.pem"
     chmod 644 "$SSL_DIR/cert.pem"
-    chmod 600 "$SSL_DIR/stunnel.pem"
 
     # Simpan info domain wildcard
     echo "$domain" > /etc/zv-manager/domain
@@ -193,8 +189,7 @@ setup_ssl_letsencrypt() {
     mkdir -p "$SSL_DIR"
     cp "$le_cert" "$SSL_DIR/cert.pem"
     cp "$le_key"  "$SSL_DIR/key.pem"
-    cat "$SSL_DIR/key.pem" "$SSL_DIR/cert.pem" > "$SSL_DIR/stunnel.pem"
-    chmod 600 "$SSL_DIR/key.pem" "$SSL_DIR/stunnel.pem"
+    chmod 600 "$SSL_DIR/key.pem"
     chmod 644 "$SSL_DIR/cert.pem"
 
     echo "$domain" > /etc/zv-manager/domain
@@ -240,10 +235,8 @@ renew_ssl_wildcard() {
     if [[ -f "$le_cert" ]]; then
         cp "$le_cert" "$SSL_DIR/cert.pem"
         cp "$le_key"  "$SSL_DIR/key.pem"
-        cat "$SSL_DIR/key.pem" "$SSL_DIR/cert.pem" > "$SSL_DIR/stunnel.pem"
-        chmod 600 "$SSL_DIR/key.pem"
-        chmod 600 "$SSL_DIR/stunnel.pem"
-
+            chmod 600 "$SSL_DIR/key.pem"
+    
         systemctl reload nginx &>/dev/null || systemctl restart nginx &>/dev/null
         print_ok "Certificate berhasil diperbarui!"
     else

@@ -40,7 +40,6 @@ _setup_self_signed() {
     if confirm "Lanjut generate SSL self-signed?"; then
         rm -f /etc/zv-manager/ssl/ssl-type
         setup_ssl
-        systemctl restart zv-stunnel &>/dev/null || true
         echo ""
         print_ok "SSL self-signed berhasil dibuat!"
     fi
@@ -103,7 +102,6 @@ _setup_wildcard() {
         echo ""
         print_ok "Nginx & Stunnel di-reload dengan cert baru..."
         systemctl reload nginx &>/dev/null || systemctl restart nginx &>/dev/null
-        systemctl restart zv-stunnel &>/dev/null || true
 
         echo ""
         echo -e "  ${BCYAN}┌─────────────────────────────────────────┐${NC}"

@@ -26,7 +26,6 @@ install_websocket() {
     # --- ws-proxy internal port 8880 ---
     # Menerima koneksi dari:
     #   - nginx port 80 (WS non-SSL)
-    #   - stunnel port 443 (WS SSL / HTTP CONNECT)
     cat > /etc/systemd/system/zv-wss.service <<EOF
 [Unit]
 Description=ZV-Manager WebSocket & HTTP CONNECT Proxy (Internal)
@@ -53,9 +52,6 @@ EOF
     systemctl restart zv-wss &>/dev/null
 
     # Stunnel tidak digunakan lagi — SSL 443 dihandle langsung oleh Nginx
-    # Nonaktifkan stunnel jika masih ada
-    systemctl stop zv-stunnel &>/dev/null
-    systemctl disable zv-stunnel &>/dev/null
 
     sleep 1
     print_success "WebSocket Proxy (Internal port 8880 — dilayani Nginx port ${WS_PORT} non-SSL & port ${WSS_PORT} SSL)"
